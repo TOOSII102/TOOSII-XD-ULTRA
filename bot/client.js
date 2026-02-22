@@ -807,42 +807,68 @@ case 'ytplay': {
         let videoTitle = firstVideo.title || 'Unknown Title'
         let videoAuthor = firstVideo.author?.name || firstVideo.author || 'Unknown Artist'
         let cleanName = `${videoAuthor} - ${videoTitle}.mp3`.replace(/[<>:"/\\|?*]/g, '')
+        let videoId = firstVideo.videoId || firstVideo.url.split('v=')[1]?.split('&')[0]
 
-        let tmpDir = path.join(__dirname, 'tmp')
-        if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true })
-        let tmpBase = path.join(tmpDir, `play_${Date.now()}`)
-        let tmpFile = `${tmpBase}.mp3`
         let downloaded = false
         let audioBuffer = null
 
-        // Method 1: ytdl-core (built-in dependency)
+        // Method 1: loader.to API (tested & working)
         try {
-            const ytdl = require('@distube/ytdl-core')
-            let info = await ytdl.getInfo(firstVideo.url)
-            let format = ytdl.chooseFormat(info.formats, { quality: 'highestaudio', filter: 'audioonly' })
-            if (!format) format = ytdl.chooseFormat(info.formats, { filter: f => f.hasAudio })
-            if (format) {
-                let chunks = []
-                await new Promise((resolve, reject) => {
-                    let stream = ytdl(firstVideo.url, { format: format })
-                    stream.on('data', chunk => chunks.push(chunk))
-                    stream.on('end', resolve)
-                    stream.on('error', reject)
-                    setTimeout(() => { stream.destroy(); reject(new Error('timeout')) }, 120000)
-                })
-                audioBuffer = Buffer.concat(chunks)
-                if (audioBuffer.length > 1000) downloaded = true
+            let initRes = await fetch(`https://loader.to/ajax/download.php?format=mp3&url=${encodeURIComponent(firstVideo.url)}`)
+            let initData = await initRes.json()
+            if (initData.success && initData.id) {
+                let dlId = initData.id
+                let attempts = 0
+                while (attempts < 30) {
+                    await new Promise(r => setTimeout(r, 3000))
+                    let progRes = await fetch(`https://loader.to/ajax/progress.php?id=${dlId}`)
+                    let progData = await progRes.json()
+                    if (progData.success === 1 && progData.progress >= 1000 && progData.download_url) {
+                        audioBuffer = await getBuffer(progData.download_url)
+                        if (audioBuffer && audioBuffer.length > 10000) downloaded = true
+                        break
+                    }
+                    if (progData.progress < 0) break
+                    attempts++
+                }
             }
         } catch (e1) {
-            console.log('ytdl-core failed:', e1.message)
+            console.log('loader.to failed:', e1.message)
         }
 
-        // Method 2: yt-dlp binary fallback
+        // Method 2: ytdl-core (built-in dependency)
         if (!downloaded) {
             try {
-                let ytdlpBin = 'yt-dlp'
+                const ytdl = require('@distube/ytdl-core')
+                let info = await ytdl.getInfo(firstVideo.url)
+                let format = ytdl.chooseFormat(info.formats, { quality: 'highestaudio', filter: 'audioonly' })
+                if (!format) format = ytdl.chooseFormat(info.formats, { filter: f => f.hasAudio })
+                if (format) {
+                    let chunks = []
+                    await new Promise((resolve, reject) => {
+                        let stream = ytdl(firstVideo.url, { format: format })
+                        stream.on('data', chunk => chunks.push(chunk))
+                        stream.on('end', resolve)
+                        stream.on('error', reject)
+                        setTimeout(() => { stream.destroy(); reject(new Error('timeout')) }, 120000)
+                    })
+                    audioBuffer = Buffer.concat(chunks)
+                    if (audioBuffer.length > 10000) downloaded = true
+                }
+            } catch (e2) {
+                console.log('ytdl-core failed:', e2.message)
+            }
+        }
+
+        // Method 3: yt-dlp binary fallback
+        if (!downloaded) {
+            try {
+                let tmpDir = path.join(__dirname, 'tmp')
+                if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true })
+                let tmpFile = path.join(tmpDir, `play_${Date.now()}.mp3`)
+                let tmpBase = tmpFile.replace('.mp3', '')
                 await new Promise((resolve, reject) => {
-                    exec(`${ytdlpBin} -x --audio-format mp3 --audio-quality 0 --no-playlist --max-filesize 50M -o "${tmpBase}.%(ext)s" "${firstVideo.url}"`, { timeout: 120000 }, (err) => {
+                    exec(`yt-dlp -x --audio-format mp3 --audio-quality 0 --no-playlist --max-filesize 50M -o "${tmpBase}.%(ext)s" "${firstVideo.url}"`, { timeout: 120000 }, (err) => {
                         if (err) reject(err)
                         else resolve()
                     })
@@ -854,28 +880,11 @@ case 'ytplay': {
                 }
                 if (fs.existsSync(tmpFile)) {
                     audioBuffer = fs.readFileSync(tmpFile)
-                    downloaded = true
-                }
-            } catch (e2) {
-                console.log('yt-dlp failed:', e2.message)
-            }
-        }
-
-        // Method 3: API fallback
-        if (!downloaded) {
-            try {
-                let apiRes = await fetch(`https://api.cobalt.tools/api/json`, {
-                    method: 'POST',
-                    headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url: firstVideo.url, aFormat: 'mp3', isAudioOnly: true })
-                })
-                let apiData = await apiRes.json()
-                if (apiData.url) {
-                    audioBuffer = await getBuffer(apiData.url)
-                    if (audioBuffer && audioBuffer.length > 1000) downloaded = true
+                    if (audioBuffer.length > 10000) downloaded = true
+                    try { fs.unlinkSync(tmpFile) } catch(e) {}
                 }
             } catch (e3) {
-                console.log('API fallback failed:', e3.message)
+                console.log('yt-dlp failed:', e3.message)
             }
         }
 
@@ -900,7 +909,6 @@ case 'ytplay': {
         } else {
             reply(`🎵 *${videoTitle}*\nArtist: ${videoAuthor}\nDuration: ${firstVideo.timestamp}\n\n⚠️ Audio download failed. Please try again later.`)
         }
-        try { if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile) } catch(e) {}
     } catch (e) {
         console.log(e)
         reply('An error occurred while searching. Please try again.')

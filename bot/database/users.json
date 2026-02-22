@@ -66,15 +66,15 @@
   "254746677793@s.whatsapp.net": {
     "name": "254746677793",
     "firstSeen": "2026-02-06T01:43:33.730Z",
-    "lastSeen": "2026-02-06T13:18:56.319Z",
-    "commandCount": 114,
+    "lastSeen": "2026-02-22T11:34:20.756Z",
+    "commandCount": 120,
     "commands": {
       "..": 6,
       "faketyping": 3,
       ".": 4,
-      "lindah": 1,
+      "lindah": 2,
       "prefix": 1,
-      "menu": 13,
+      "menu": 14,
       "sc": 1,
       "telestick": 2,
       "https://t.me/toosiitech": 1,
@@ -83,7 +83,7 @@
       "gemin": 1,
       "gemini": 1,
       "gemini-ai": 1,
-      "ping": 11,
+      "ping": 13,
       "autostus": 1,
       "autoststus": 1,
       "autostatus": 1,
@@ -106,7 +106,7 @@
       "current": 1,
       "approve": 1,
       "join": 4,
-      "━━━━━━━━━━━━━━━━━━━━━━*\n": 2,
+      "━━━━━━━━━━━━━━━━━━━━━━*\n": 3,
       "addplugin": 1,
       "ip": 1,
       "anticall": 3,
@@ -116,7 +116,8 @@
       "infoserver": 1,
       "help": 5,
       "kick😂😂😂✌🏼": 1,
-      "usage:*": 1
+      "usage:*": 1,
+      "play": 1
     }
   },
   "120363421940295077@g.us": {
@@ -343,6 +344,34 @@
     "commandCount": 1,
     "commands": {
       "location": 1
+    }
+  },
+  "34575191408854@lid": {
+    "name": "Gaza De Mportmoh KE 💥💥",
+    "firstSeen": "2026-02-22T11:34:31.737Z",
+    "lastSeen": "2026-02-22T11:34:31.737Z",
+    "commandCount": 1,
+    "commands": {
+      "🔹pong!...*": 1
+    }
+  },
+  "118373929222393@lid": {
+    "name": "I Am Sammy",
+    "firstSeen": "2026-02-22T11:34:48.417Z",
+    "lastSeen": "2026-02-22T11:34:48.417Z",
+    "commandCount": 1,
+    "commands": {
+      "all": 1
+    }
+  },
+  "130688003084487@lid": {
+    "name": "Silent Wolf",
+    "firstSeen": "2026-02-22T11:37:13.157Z",
+    "lastSeen": "2026-02-22T11:37:47.569Z",
+    "commandCount": 2,
+    "commands": {
+      "listonline": 1,
+      "listinactive": 1
     }
   }
 }

@@ -477,6 +477,63 @@ webServer.listen(WEB_PORT, '0.0.0.0', () => {
     addLog(`[ ${_bn} ] Web panel running on port ${WEB_PORT}`)
 })
 
+const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+    terminal: false
+})
+
+function waitForConsoleInput() {
+    rl.once('line', async (input) => {
+        const cmd = input.trim()
+        if (cmd === '1') {
+            origLog('')
+            origLog(`[ ${_bn} ] Enter your WhatsApp number with country code`)
+            origLog(`[ ${_bn} ] Example: 254748340864 (Kenya), 2348012345678 (Nigeria), 12025551234 (US)`)
+            origLog(`[ ${_bn} ] Do NOT include + or leading 0`)
+            origLog('')
+            rl.once('line', async (phoneInput) => {
+                const phone = phoneInput.trim().replace(/[^0-9]/g, '')
+                if (phone.length < 10 || phone.length > 15) {
+                    addLog(`[ ${_bn} ] Invalid number. Must be 10-15 digits with country code.`)
+                    waitForConsoleInput()
+                    return
+                }
+                if (phone.startsWith('0')) {
+                    addLog(`[ ${_bn} ] Do not start with 0. Use country code instead.`)
+                    waitForConsoleInput()
+                    return
+                }
+                addLog(`[ ${_bn} ] Connecting with number: ${phone}...`)
+                await connectSession(phone)
+                waitForConsoleInput()
+            })
+        } else if (cmd === '2') {
+            origLog('')
+            origLog(`[ ${_bn} ] Paste your Session ID below:`)
+            origLog('')
+            rl.once('line', async (sessionInput) => {
+                await handleSessionLogin(sessionInput.trim())
+                waitForConsoleInput()
+            })
+        } else if (cmd === '3') {
+            addLog(`[ ${_bn} ] Skipped. Bot is running with existing sessions.`)
+            waitForConsoleInput()
+        } else if (cmd.length >= 10 && /^[0-9]+$/.test(cmd)) {
+            addLog(`[ ${_bn} ] Detected phone number: ${cmd}`)
+            addLog(`[ ${_bn} ] Connecting...`)
+            await connectSession(cmd)
+            waitForConsoleInput()
+        } else if (cmd) {
+            addLog(`[ ${_bn} ] Unknown command: "${cmd}"`)
+            addLog(`[ ${_bn} ] Type 1 for Pairing Code, 2 for Session ID`)
+            waitForConsoleInput()
+        } else {
+            waitForConsoleInput()
+        }
+    })
+}
+
 async function startBot() {
     addLog('')
     addLog('╔══════════════════════════════════════════╗')
@@ -485,7 +542,6 @@ async function startBot() {
     addLog('║        by Toosii Tech © 2024-2026       ║')
     addLog('╚══════════════════════════════════════════╝')
     addLog('')
-    addLog(`[ ${_bn} ] Waiting for connection from the web panel...`)
 
     const existingSessions = []
     if (fs.existsSync(SESSIONS_DIR)) {
@@ -499,12 +555,28 @@ async function startBot() {
     if (existingSessions.length > 0) {
         addLog(`[ ${_bn} ] Found ${existingSessions.length} existing session(s): ${existingSessions.join(', ')}`)
         addLog(`[ ${_bn} ] Reconnecting existing sessions...`)
+        addLog('')
         for (const phone of existingSessions) {
             connectSession(phone)
         }
+        addLog('')
+        addLog(`[ ${_bn} ] Choose login method:`)
+        addLog(`[ ${_bn} ] 1) Enter WhatsApp Number (Pairing Code)`)
+        addLog(`[ ${_bn} ] 2) Paste Session ID`)
+        addLog(`[ ${_bn} ] 3) Skip (already connected)`)
+        addLog('')
     } else {
-        addLog(`[ ${_bn} ] No existing sessions found. Enter your phone number or session ID in the panel.`)
+        addLog(`[ ${_bn} ] No existing sessions found.`)
+        addLog('')
+        addLog(`[ ${_bn} ] Choose login method:`)
+        addLog(`[ ${_bn} ] 1) Enter WhatsApp Number (Pairing Code)`)
+        addLog(`[ ${_bn} ] 2) Paste Session ID`)
+        addLog('')
+        addLog(`[ ${_bn} ] Or use the web panel at port ${WEB_PORT}`)
+        addLog('')
     }
+
+    waitForConsoleInput()
 }
 
 //━━━━━━━━━━━━━━━━━━━━━━━━//

@@ -72,93 +72,15 @@ const processedMsgs = new Set()
 const msgRetryCache = new Map()
 
 //━━━━━━━━━━━━━━━━━━━━━━━━//
-// Web Panel + Terminal Login Interface
-const http = require('http')
-const { WebSocketServer, WebSocket } = require('ws')
-
-const WEB_PORT = parseInt(process.env.PORT || '5000', 10)
-const logBuffer = []
-const MAX_LOG_LINES = 500
-const wsClients = []
-let currentPairingCode = null
-let connectedUser = null
-const startTime = Date.now()
-
-const origLog = console.log.bind(console)
-const origErr = console.error.bind(console)
-
-function addLog(text) {
-    const line = typeof text === 'string' ? text : String(text)
-    origLog(line)
-    logBuffer.push(line)
-    if (logBuffer.length > MAX_LOG_LINES) logBuffer.shift()
-    const pairingMatch = line.match(/\[PAIRING_CODE:([^\]]+)\]/)
-    if (pairingMatch) {
-        currentPairingCode = pairingMatch[1]
-        wsBroadcast({ type: 'pairing_code', code: currentPairingCode })
-    }
-    const connMatch = line.match(/\[BOT_CONNECTED:([^\]]+)\]/)
-    if (connMatch) {
-        connectedUser = connMatch[1]
-        currentPairingCode = null
-        wsBroadcast({ type: 'connected', user: connectedUser })
-    }
-    wsBroadcast({ type: 'output', data: line })
-}
-
-console.log = (...args) => addLog(args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '))
-console.error = (...args) => { origErr(...args); addLog('[ERROR] ' + args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')) }
-
-function wsBroadcast(data) {
-    const msg = JSON.stringify(data)
-    for (const ws of wsClients) {
-        if (ws.readyState === WebSocket.OPEN) ws.send(msg)
-    }
-}
-
-function getSessionsList() {
-    const sessions = []
-    if (fs.existsSync(SESSIONS_DIR)) {
-        const dirs = fs.readdirSync(SESSIONS_DIR).filter(d => {
-            const p = path.join(SESSIONS_DIR, d)
-            return fs.statSync(p).isDirectory() && fs.existsSync(path.join(p, 'creds.json'))
-        })
-        for (const d of dirs) {
-            const info = activeSessions.get(d)
-            sessions.push({ phone: d, status: info ? info.status : 'saved' })
-        }
-    }
-    return sessions
-}
-
-async function handlePhoneLogin(phone) {
-    phone = phone.replace(/[^0-9]/g, '')
-    if (phone.length < 10 || phone.length > 15) {
-        addLog(`[ ${_bn} ] Invalid number. Must be 10-15 digits with country code.`)
-        wsBroadcast({ type: 'login_error', message: 'Invalid number. Must be 10-15 digits with country code.' })
-        return
-    }
-    if (phone.startsWith('0')) {
-        addLog(`[ ${_bn} ] Do not start with 0. Use country code instead.`)
-        wsBroadcast({ type: 'login_error', message: 'Do not start with 0. Use country code instead.' })
-        return
-    }
-    currentPairingCode = null
-    connectedUser = null
-    addLog(`[ ${_bn} ] Connecting with number: ${phone}...`)
-    wsBroadcast({ type: 'login_status', message: 'Connecting...' })
-    await connectSession(phone)
-}
+// Console Login Interface
 
 async function handleSessionLogin(sessionId) {
     if (!sessionId || sessionId.length < 10) {
-        addLog(`[ ${_bn} ] Invalid Session ID.`)
-        wsBroadcast({ type: 'login_error', message: 'Invalid Session ID. Too short.' })
+        console.log(`[ ${_bn} ] Invalid Session ID. Too short.`)
         return
     }
     try {
-        addLog(`[ ${_bn} ] Processing Session ID...`)
-        wsBroadcast({ type: 'login_status', message: 'Processing Session ID...' })
+        console.log(`[ ${_bn} ] Processing Session ID...`)
         let credsData
         try {
             credsData = JSON.parse(Buffer.from(sessionId, 'base64').toString('utf-8'))
@@ -166,8 +88,7 @@ async function handleSessionLogin(sessionId) {
             try {
                 credsData = JSON.parse(sessionId)
             } catch {
-                addLog(`[ ${_bn} ] Invalid Session ID format. Must be base64 encoded or JSON.`)
-                wsBroadcast({ type: 'login_error', message: 'Invalid Session ID format.' })
+                console.log(`[ ${_bn} ] Invalid Session ID format. Must be base64 encoded or JSON.`)
                 return
             }
         }
@@ -175,307 +96,13 @@ async function handleSessionLogin(sessionId) {
         const sessionDir = path.join(SESSIONS_DIR, sessionPhone)
         if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true })
         fs.writeFileSync(path.join(sessionDir, 'creds.json'), JSON.stringify(credsData, null, 2))
-        addLog(`[ ${_bn} ] Session ID saved for ${sessionPhone}`)
-        addLog(`[ ${_bn} ] Connecting...`)
+        console.log(`[ ${_bn} ] Session ID saved for ${sessionPhone}`)
+        console.log(`[ ${_bn} ] Connecting...`)
         await connectSession(sessionPhone)
     } catch (err) {
-        addLog(`[ ${_bn} ] Error processing Session ID: ${err.message || err}`)
-        wsBroadcast({ type: 'login_error', message: 'Error: ' + (err.message || err) })
+        console.log(`[ ${_bn} ] Error processing Session ID: ${err.message || err}`)
     }
 }
-
-const PANEL_HTML = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>TOOSII-XD ULTRA</title>
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'SF Mono','Fira Code',Consolas,monospace;background:#0a0e17;color:#c5cdd9;height:100vh;display:flex;flex-direction:column;overflow:hidden}
-.header{background:#111827;border-bottom:1px solid #1f2937;padding:.6rem 1rem;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
-.header-left{display:flex;align-items:center;gap:.75rem}
-.logo{font-size:1rem;font-weight:700;color:#fff;letter-spacing:.5px}
-.logo span{color:#3b82f6}
-.status-dot{width:8px;height:8px;border-radius:50%;background:#ef4444;transition:background .3s}
-.status-dot.running{background:#22c55e;box-shadow:0 0 8px #22c55e60}
-.status-text{font-size:.7rem;color:#6b7280;text-transform:uppercase;letter-spacing:1px}
-.main{display:flex;flex:1;overflow:hidden}
-.sidebar{width:320px;background:#111827;border-right:1px solid #1f2937;display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}
-.sidebar-section{padding:1rem;border-bottom:1px solid #1f2937}
-.sidebar-section h3{font-size:.75rem;text-transform:uppercase;letter-spacing:1px;color:#6b7280;margin-bottom:.75rem}
-.tab-bar{display:flex;gap:0;margin-bottom:.75rem}
-.tab{flex:1;padding:.45rem;border:1px solid #374151;background:#1f2937;color:#9ca3af;font-size:.7rem;font-weight:600;cursor:pointer;text-align:center;font-family:inherit;transition:all .15s}
-.tab:first-child{border-radius:.35rem 0 0 .35rem}
-.tab:last-child{border-radius:0 .35rem .35rem 0}
-.tab.active{background:#3b82f6;color:#fff;border-color:#3b82f6}
-.input-group{margin-bottom:.6rem}
-.input-group label{display:block;font-size:.7rem;color:#9ca3af;margin-bottom:.3rem}
-.input-group input,.input-group textarea{width:100%;padding:.5rem .6rem;background:#0a0e17;border:1px solid #374151;border-radius:.35rem;color:#e5e7eb;font-size:.8rem;font-family:inherit;outline:none;transition:border .15s}
-.input-group input:focus,.input-group textarea:focus{border-color:#3b82f6}
-.input-group textarea{resize:vertical;min-height:60px}
-.submit-btn{width:100%;padding:.55rem;border:none;border-radius:.35rem;background:#3b82f6;color:#fff;font-size:.8rem;font-weight:600;cursor:pointer;font-family:inherit;transition:all .15s;margin-top:.3rem}
-.submit-btn:hover{background:#2563eb}
-.submit-btn:disabled{opacity:.5;cursor:not-allowed}
-.pairing-box{display:none;background:#1e3a5f;border:2px solid #3b82f6;border-radius:.5rem;padding:1rem;text-align:center;margin-top:.75rem}
-.pairing-box.visible{display:block}
-.pairing-label{font-size:.7rem;color:#93c5fd;text-transform:uppercase;letter-spacing:1px;margin-bottom:.4rem}
-.pairing-code{font-size:1.8rem;font-weight:700;color:#fff;letter-spacing:4px;margin:.3rem 0}
-.pairing-hint{font-size:.65rem;color:#93c5fd;line-height:1.5;margin-top:.5rem}
-.connected-box{display:none;background:#14532d;border:2px solid #22c55e;border-radius:.5rem;padding:1rem;text-align:center;margin-top:.75rem}
-.connected-box.visible{display:block}
-.connected-label{font-size:.7rem;color:#86efac;text-transform:uppercase;letter-spacing:1px}
-.connected-user{font-size:1rem;font-weight:700;color:#fff;margin:.3rem 0}
-.error-box{display:none;background:#7f1d1d;border:1px solid #ef4444;border-radius:.35rem;padding:.5rem .7rem;margin-top:.5rem;font-size:.75rem;color:#fca5a5}
-.error-box.visible{display:block}
-.sessions-list{font-size:.75rem}
-.session-item{display:flex;justify-content:space-between;align-items:center;padding:.4rem .5rem;background:#0a0e17;border-radius:.3rem;margin-bottom:.3rem}
-.session-phone{color:#e5e7eb}
-.session-status{font-size:.65rem;padding:.15rem .4rem;border-radius:.2rem;text-transform:uppercase;letter-spacing:.5px}
-.session-status.connected{background:#14532d;color:#4ade80}
-.session-status.connecting{background:#92400e;color:#fbbf24}
-.session-status.saved{background:#1f2937;color:#9ca3af}
-.session-status.disconnected{background:#7f1d1d;color:#f87171}
-.session-status.reconnecting{background:#92400e;color:#fbbf24}
-.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:.5rem}
-.info-card{background:#0a0e17;border-radius:.35rem;padding:.5rem .6rem}
-.info-label{font-size:.6rem;color:#6b7280;text-transform:uppercase;letter-spacing:.5px}
-.info-value{font-size:.85rem;color:#e5e7eb;font-weight:600;margin-top:.15rem}
-.terminal-area{flex:1;display:flex;flex-direction:column;overflow:hidden}
-.terminal{flex:1;overflow-y:auto;padding:.75rem 1rem;font-size:.8rem;line-height:1.6;scroll-behavior:smooth}
-.terminal::-webkit-scrollbar{width:6px}
-.terminal::-webkit-scrollbar-track{background:transparent}
-.terminal::-webkit-scrollbar-thumb{background:#1f2937;border-radius:3px}
-.line{white-space:pre-wrap;word-wrap:break-word;padding:1px 0}
-.line.system{color:#6b7280}
-.line.error{color:#f87171}
-.line.input{color:#60a5fa}
-.line.success{color:#4ade80}
-.line.warn{color:#fbbf24}
-.line.code{color:#c084fc;font-weight:700;font-size:.95rem}
-.input-bar{background:#111827;border-top:1px solid #1f2937;padding:.5rem 1rem;display:flex;align-items:center;gap:.75rem;flex-shrink:0}
-.prompt{color:#3b82f6;font-weight:700;font-size:.85rem;flex-shrink:0}
-.cmd-input{flex:1;background:transparent;border:none;color:#e5e7eb;font-size:.82rem;font-family:inherit;outline:none;caret-color:#3b82f6}
-.cmd-input::placeholder{color:#374151}
-@media(max-width:768px){
-.main{flex-direction:column}
-.sidebar{width:100%;max-height:45vh;border-right:none;border-bottom:1px solid #1f2937}
-}
-</style>
-</head>
-<body>
-<div class="header">
-<div class="header-left">
-<div class="logo"><span>TOOSII-XD</span> ULTRA</div>
-<div class="status-dot" id="statusDot"></div>
-<div class="status-text" id="statusText">Offline</div>
-</div>
-</div>
-<div class="main">
-<div class="sidebar">
-<div class="sidebar-section">
-<h3>Connect WhatsApp</h3>
-<div class="tab-bar">
-<div class="tab active" id="tabPhone" onclick="switchTab('phone')" data-testid="tab-phone">Phone Number</div>
-<div class="tab" id="tabSession" onclick="switchTab('session')" data-testid="tab-session">Session ID</div>
-</div>
-<div id="phoneForm">
-<div class="input-group">
-<label>WhatsApp Number (with country code)</label>
-<input type="text" id="phoneInput" placeholder="e.g. 254748340864" data-testid="input-phone" autocomplete="off" />
-</div>
-<div style="font-size:.65rem;color:#6b7280;margin-bottom:.5rem">No + or leading 0. Example: 254... (Kenya), 234... (Nigeria)</div>
-<button class="submit-btn" id="btnConnect" onclick="connectPhone()" data-testid="button-connect">Get Pairing Code</button>
-</div>
-<div id="sessionForm" style="display:none">
-<div class="input-group">
-<label>Paste Session ID</label>
-<textarea id="sessionInput" placeholder="Paste base64 or JSON session ID..." data-testid="input-session" rows="3"></textarea>
-</div>
-<button class="submit-btn" id="btnSession" onclick="connectSession()" data-testid="button-session-connect">Connect with Session ID</button>
-</div>
-<div class="error-box" id="errorBox"></div>
-<div class="pairing-box" id="pairingBox">
-<div class="pairing-label">Your Pairing Code</div>
-<div class="pairing-code" id="pairingCode" data-testid="text-pairing-code">----</div>
-<div class="pairing-hint">Open WhatsApp &gt; Settings &gt; Linked Devices &gt; Link a Device &gt; Link with phone number &gt; Enter the code above</div>
-</div>
-<div class="connected-box" id="connectedBox">
-<div class="connected-label">Connected</div>
-<div class="connected-user" id="connectedUser" data-testid="text-connected-user">-</div>
-</div>
-</div>
-<div class="sidebar-section">
-<h3>Sessions</h3>
-<div class="sessions-list" id="sessionsList" data-testid="sessions-list">Loading...</div>
-</div>
-<div class="sidebar-section">
-<h3>Server Info</h3>
-<div class="info-grid">
-<div class="info-card"><div class="info-label">Uptime</div><div class="info-value" id="infoUptime">0s</div></div>
-<div class="info-card"><div class="info-label">Memory</div><div class="info-value" id="infoMemory">-</div></div>
-<div class="info-card"><div class="info-label">Sessions</div><div class="info-value" id="infoSessions">0</div></div>
-<div class="info-card"><div class="info-label">Status</div><div class="info-value" id="infoStatus">Starting</div></div>
-</div>
-</div>
-</div>
-<div class="terminal-area">
-<div class="terminal" id="terminal" data-testid="terminal-output"></div>
-<div class="input-bar">
-<span class="prompt">&gt;&gt;</span>
-<input type="text" class="cmd-input" id="cmdInput" placeholder="Type a command..." data-testid="input-command" autocomplete="off" />
-</div>
-</div>
-</div>
-<script>
-let ws;
-let reconnTimer;
-const terminal=document.getElementById('terminal');
-const cmdInput=document.getElementById('cmdInput');
-function connect(){
-const proto=location.protocol==='https:'?'wss:':'ws:';
-ws=new WebSocket(proto+'//'+location.host+'/ws');
-ws.onopen=()=>{addLine('[SYSTEM] Connected to panel','system');if(reconnTimer){clearTimeout(reconnTimer);reconnTimer=null}};
-ws.onmessage=(e)=>{try{const m=JSON.parse(e.data);
-if(m.type==='output')addLine(m.data);
-else if(m.type==='history'){terminal.innerHTML='';(m.lines||[]).forEach(l=>addLine(l))}
-else if(m.type==='status')updateStatus(m);
-else if(m.type==='pairing_code'){document.getElementById('pairingBox').className='pairing-box visible';document.getElementById('pairingCode').textContent=m.code;document.getElementById('connectedBox').className='connected-box';document.getElementById('errorBox').className='error-box';document.getElementById('btnConnect').disabled=false;document.getElementById('btnConnect').textContent='Get Pairing Code'}
-else if(m.type==='connected'){document.getElementById('connectedBox').className='connected-box visible';document.getElementById('connectedUser').textContent=m.user;document.getElementById('pairingBox').className='pairing-box';document.getElementById('errorBox').className='error-box';updateStatus({running:true,sessions:m.sessions||[]});document.getElementById('btnConnect').disabled=false;document.getElementById('btnConnect').textContent='Get Pairing Code';document.getElementById('btnSession').disabled=false;document.getElementById('btnSession').textContent='Connect with Session ID'}
-else if(m.type==='login_error'){document.getElementById('errorBox').className='error-box visible';document.getElementById('errorBox').textContent=m.message;document.getElementById('btnConnect').disabled=false;document.getElementById('btnConnect').textContent='Get Pairing Code';document.getElementById('btnSession').disabled=false;document.getElementById('btnSession').textContent='Connect with Session ID'}
-else if(m.type==='login_status'){document.getElementById('errorBox').className='error-box';addLine('[LOGIN] '+m.message,'system')}
-else if(m.type==='sessions_update')renderSessions(m.sessions||[]);
-else if(m.type==='server_info')updateServerInfo(m);
-}catch{}};
-ws.onclose=()=>{reconnTimer=setTimeout(connect,2000)};
-ws.onerror=()=>{};
-}
-function addLine(text,cls){
-const div=document.createElement('div');div.className='line';
-if(cls)div.classList.add(cls);
-else if(text.startsWith('[SYSTEM]')||text.startsWith('[LOGIN]'))div.classList.add('system');
-else if(text.startsWith('>'))div.classList.add('input');
-else if(/error|failed|invalid/i.test(text)&&!/handled/i.test(text))div.classList.add('error');
-else if(/PAIRING.CODE/i.test(text))div.classList.add('code');
-else if(/success|connected|open/i.test(text))div.classList.add('success');
-else if(/warning|warn|deprecated/i.test(text))div.classList.add('warn');
-div.textContent=text;terminal.appendChild(div);terminal.scrollTop=terminal.scrollHeight;
-}
-function updateStatus(s){
-const dot=document.getElementById('statusDot');const txt=document.getElementById('statusText');
-dot.className='status-dot'+(s.running?' running':'');
-txt.textContent=s.running?'Running':'Offline';
-if(s.sessions)renderSessions(s.sessions);
-}
-function renderSessions(sessions){
-const el=document.getElementById('sessionsList');
-document.getElementById('infoSessions').textContent=sessions.length;
-if(!sessions.length){el.innerHTML='<div style="color:#6b7280">No sessions yet</div>';return}
-el.innerHTML=sessions.map(s=>'<div class="session-item"><span class="session-phone">'+s.phone+'</span><span class="session-status '+s.status+'">'+s.status+'</span></div>').join('');
-}
-function updateServerInfo(info){
-document.getElementById('infoUptime').textContent=info.uptime||'-';
-document.getElementById('infoMemory').textContent=info.memory||'-';
-document.getElementById('infoStatus').textContent=info.botStatus||'-';
-}
-function switchTab(tab){
-document.getElementById('tabPhone').className='tab'+(tab==='phone'?' active':'');
-document.getElementById('tabSession').className='tab'+(tab==='session'?' active':'');
-document.getElementById('phoneForm').style.display=tab==='phone'?'block':'none';
-document.getElementById('sessionForm').style.display=tab==='session'?'block':'none';
-document.getElementById('errorBox').className='error-box';
-}
-function connectPhone(){
-const phone=document.getElementById('phoneInput').value.trim();
-if(!phone){document.getElementById('errorBox').className='error-box visible';document.getElementById('errorBox').textContent='Please enter a phone number';return}
-document.getElementById('btnConnect').disabled=true;document.getElementById('btnConnect').textContent='Connecting...';
-document.getElementById('errorBox').className='error-box';
-document.getElementById('pairingBox').className='pairing-box';
-document.getElementById('connectedBox').className='connected-box';
-if(ws&&ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type:'phone_login',phone:phone}));
-}
-function connectSession(){
-const sid=document.getElementById('sessionInput').value.trim();
-if(!sid){document.getElementById('errorBox').className='error-box visible';document.getElementById('errorBox').textContent='Please paste a session ID';return}
-document.getElementById('btnSession').disabled=true;document.getElementById('btnSession').textContent='Connecting...';
-document.getElementById('errorBox').className='error-box';
-document.getElementById('connectedBox').className='connected-box';
-if(ws&&ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type:'session_login',sessionId:sid}));
-}
-cmdInput.addEventListener('keydown',(e)=>{if(e.key==='Enter'){const cmd=cmdInput.value.trim();if(cmd&&ws&&ws.readyState===WebSocket.OPEN){ws.send(JSON.stringify({type:'command',data:cmd}));cmdInput.value=''}}});
-connect();
-setInterval(()=>{if(ws&&ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type:'ping'}))},15000);
-</script>
-</body>
-</html>`;
-
-function formatUptime(ms) {
-    const s = Math.floor(ms / 1000)
-    const m = Math.floor(s / 60)
-    const h = Math.floor(m / 60)
-    const d = Math.floor(h / 24)
-    if (d > 0) return d + 'd ' + (h % 24) + 'h ' + (m % 60) + 'm'
-    if (h > 0) return h + 'h ' + (m % 60) + 'm ' + (s % 60) + 's'
-    if (m > 0) return m + 'm ' + (s % 60) + 's'
-    return s + 's'
-}
-
-const webServer = http.createServer((req, res) => {
-    if (req.url === '/health') {
-        res.writeHead(200, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ status: 'ok', uptime: formatUptime(Date.now() - startTime), sessions: getSessionsList().length }))
-        return
-    }
-    res.writeHead(200, { 'Content-Type': 'text/html' })
-    res.end(PANEL_HTML)
-})
-
-const wss = new WebSocketServer({ noServer: true })
-
-webServer.on('upgrade', (request, socket, head) => {
-    const url = new URL(request.url || '/', 'http://' + (request.headers.host || 'localhost'))
-    if (url.pathname === '/ws') {
-        wss.handleUpgrade(request, socket, head, (ws) => { wss.emit('connection', ws, request) })
-    } else {
-        socket.destroy()
-    }
-})
-
-wss.on('connection', (ws) => {
-    wsClients.push(ws)
-    ws.send(JSON.stringify({ type: 'history', lines: [...logBuffer] }))
-    ws.send(JSON.stringify({ type: 'status', running: activeSessions.size > 0, sessions: getSessionsList() }))
-    if (currentPairingCode) ws.send(JSON.stringify({ type: 'pairing_code', code: currentPairingCode }))
-    if (connectedUser) ws.send(JSON.stringify({ type: 'connected', user: connectedUser, sessions: getSessionsList() }))
-    const mem = process.memoryUsage()
-    ws.send(JSON.stringify({ type: 'server_info', uptime: formatUptime(Date.now() - startTime), memory: (mem.heapUsed / 1024 / 1024).toFixed(1) + ' MiB', botStatus: activeSessions.size > 0 ? 'Running' : 'Waiting' }))
-
-    ws.on('message', (raw) => {
-        try {
-            const msg = JSON.parse(raw.toString())
-            if (msg.type === 'phone_login' && msg.phone) {
-                handlePhoneLogin(msg.phone)
-            } else if (msg.type === 'session_login' && msg.sessionId) {
-                handleSessionLogin(msg.sessionId)
-            } else if (msg.type === 'command' && msg.data) {
-                addLog('> ' + msg.data)
-            } else if (msg.type === 'ping') {
-                const mem = process.memoryUsage()
-                ws.send(JSON.stringify({ type: 'server_info', uptime: formatUptime(Date.now() - startTime), memory: (mem.heapUsed / 1024 / 1024).toFixed(1) + ' MiB', botStatus: activeSessions.size > 0 ? 'Running' : 'Waiting' }))
-                ws.send(JSON.stringify({ type: 'sessions_update', sessions: getSessionsList() }))
-            }
-        } catch {}
-    })
-
-    ws.on('close', () => {
-        const idx = wsClients.indexOf(ws)
-        if (idx !== -1) wsClients.splice(idx, 1)
-    })
-})
-
-webServer.listen(WEB_PORT, '0.0.0.0', () => {
-    addLog(`[ ${_bn} ] Web panel running on port ${WEB_PORT}`)
-})
 
 const rl = readline.createInterface({
     input: process.stdin,
@@ -487,46 +114,46 @@ function waitForConsoleInput() {
     rl.once('line', async (input) => {
         const cmd = input.trim()
         if (cmd === '1') {
-            origLog('')
-            origLog(`[ ${_bn} ] Enter your WhatsApp number with country code`)
-            origLog(`[ ${_bn} ] Example: 254748340864 (Kenya), 2348012345678 (Nigeria), 12025551234 (US)`)
-            origLog(`[ ${_bn} ] Do NOT include + or leading 0`)
-            origLog('')
+            console.log('')
+            console.log(`[ ${_bn} ] Enter your WhatsApp number with country code`)
+            console.log(`[ ${_bn} ] Example: 254748340864 (Kenya), 2348012345678 (Nigeria), 12025551234 (US)`)
+            console.log(`[ ${_bn} ] Do NOT include + or leading 0`)
+            console.log('')
             rl.once('line', async (phoneInput) => {
                 const phone = phoneInput.trim().replace(/[^0-9]/g, '')
                 if (phone.length < 10 || phone.length > 15) {
-                    addLog(`[ ${_bn} ] Invalid number. Must be 10-15 digits with country code.`)
+                    console.log(`[ ${_bn} ] Invalid number. Must be 10-15 digits with country code.`)
                     waitForConsoleInput()
                     return
                 }
                 if (phone.startsWith('0')) {
-                    addLog(`[ ${_bn} ] Do not start with 0. Use country code instead.`)
+                    console.log(`[ ${_bn} ] Do not start with 0. Use country code instead.`)
                     waitForConsoleInput()
                     return
                 }
-                addLog(`[ ${_bn} ] Connecting with number: ${phone}...`)
+                console.log(`[ ${_bn} ] Connecting with number: ${phone}...`)
                 await connectSession(phone)
                 waitForConsoleInput()
             })
         } else if (cmd === '2') {
-            origLog('')
-            origLog(`[ ${_bn} ] Paste your Session ID below:`)
-            origLog('')
+            console.log('')
+            console.log(`[ ${_bn} ] Paste your Session ID below:`)
+            console.log('')
             rl.once('line', async (sessionInput) => {
                 await handleSessionLogin(sessionInput.trim())
                 waitForConsoleInput()
             })
         } else if (cmd === '3') {
-            addLog(`[ ${_bn} ] Skipped. Bot is running with existing sessions.`)
+            console.log(`[ ${_bn} ] Skipped. Bot is running with existing sessions.`)
             waitForConsoleInput()
         } else if (cmd.length >= 10 && /^[0-9]+$/.test(cmd)) {
-            addLog(`[ ${_bn} ] Detected phone number: ${cmd}`)
-            addLog(`[ ${_bn} ] Connecting...`)
+            console.log(`[ ${_bn} ] Detected phone number: ${cmd}`)
+            console.log(`[ ${_bn} ] Connecting...`)
             await connectSession(cmd)
             waitForConsoleInput()
         } else if (cmd) {
-            addLog(`[ ${_bn} ] Unknown command: "${cmd}"`)
-            addLog(`[ ${_bn} ] Type 1 for Pairing Code, 2 for Session ID`)
+            console.log(`[ ${_bn} ] Unknown command: "${cmd}"`)
+            console.log(`[ ${_bn} ] Type 1 for Pairing Code, 2 for Session ID`)
             waitForConsoleInput()
         } else {
             waitForConsoleInput()
@@ -535,13 +162,13 @@ function waitForConsoleInput() {
 }
 
 async function startBot() {
-    addLog('')
-    addLog('╔══════════════════════════════════════════╗')
-    addLog('║         TOOSII-XD ULTRA v2.0.0          ║')
-    addLog('║      WhatsApp Multi-Device Bot          ║')
-    addLog('║        by Toosii Tech © 2024-2026       ║')
-    addLog('╚══════════════════════════════════════════╝')
-    addLog('')
+    console.log('')
+    console.log('╔══════════════════════════════════════════╗')
+    console.log('║         TOOSII-XD ULTRA v2.0.0          ║')
+    console.log('║      WhatsApp Multi-Device Bot          ║')
+    console.log('║        by Toosii Tech © 2024-2026       ║')
+    console.log('╚══════════════════════════════════════════╝')
+    console.log('')
 
     const existingSessions = []
     if (fs.existsSync(SESSIONS_DIR)) {
@@ -553,27 +180,25 @@ async function startBot() {
     }
 
     if (existingSessions.length > 0) {
-        addLog(`[ ${_bn} ] Found ${existingSessions.length} existing session(s): ${existingSessions.join(', ')}`)
-        addLog(`[ ${_bn} ] Reconnecting existing sessions...`)
-        addLog('')
+        console.log(`[ ${_bn} ] Found ${existingSessions.length} existing session(s): ${existingSessions.join(', ')}`)
+        console.log(`[ ${_bn} ] Reconnecting existing sessions...`)
+        console.log('')
         for (const phone of existingSessions) {
             connectSession(phone)
         }
-        addLog('')
-        addLog(`[ ${_bn} ] Choose login method:`)
-        addLog(`[ ${_bn} ] 1) Enter WhatsApp Number (Pairing Code)`)
-        addLog(`[ ${_bn} ] 2) Paste Session ID`)
-        addLog(`[ ${_bn} ] 3) Skip (already connected)`)
-        addLog('')
+        console.log('')
+        console.log(`[ ${_bn} ] Choose login method:`)
+        console.log(`[ ${_bn} ] 1) Enter WhatsApp Number (Pairing Code)`)
+        console.log(`[ ${_bn} ] 2) Paste Session ID`)
+        console.log(`[ ${_bn} ] 3) Skip (already connected)`)
+        console.log('')
     } else {
-        addLog(`[ ${_bn} ] No existing sessions found.`)
-        addLog('')
-        addLog(`[ ${_bn} ] Choose login method:`)
-        addLog(`[ ${_bn} ] 1) Enter WhatsApp Number (Pairing Code)`)
-        addLog(`[ ${_bn} ] 2) Paste Session ID`)
-        addLog('')
-        addLog(`[ ${_bn} ] Or use the web panel at port ${WEB_PORT}`)
-        addLog('')
+        console.log(`[ ${_bn} ] No existing sessions found.`)
+        console.log('')
+        console.log(`[ ${_bn} ] Choose login method:`)
+        console.log(`[ ${_bn} ] 1) Enter WhatsApp Number (Pairing Code)`)
+        console.log(`[ ${_bn} ] 2) Paste Session ID`)
+        console.log('')
     }
 
     waitForConsoleInput()

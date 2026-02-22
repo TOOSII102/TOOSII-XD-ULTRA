@@ -66,15 +66,15 @@
   "254746677793@s.whatsapp.net": {
     "name": "254746677793",
     "firstSeen": "2026-02-06T01:43:33.730Z",
-    "lastSeen": "2026-02-22T11:34:20.756Z",
-    "commandCount": 120,
+    "lastSeen": "2026-02-22T12:16:32.550Z",
+    "commandCount": 123,
     "commands": {
       "..": 6,
       "faketyping": 3,
       ".": 4,
       "lindah": 2,
       "prefix": 1,
-      "menu": 14,
+      "menu": 15,
       "sc": 1,
       "telestick": 2,
       "https://t.me/toosiitech": 1,
@@ -83,7 +83,7 @@
       "gemin": 1,
       "gemini": 1,
       "gemini-ai": 1,
-      "ping": 13,
+      "ping": 14,
       "autostus": 1,
       "autoststus": 1,
       "autostatus": 1,
@@ -106,7 +106,7 @@
       "current": 1,
       "approve": 1,
       "join": 4,
-      "━━━━━━━━━━━━━━━━━━━━━━*\n": 3,
+      "━━━━━━━━━━━━━━━━━━━━━━*\n": 4,
       "addplugin": 1,
       "ip": 1,
       "anticall": 3,
@@ -257,12 +257,13 @@
   "229888627884210@lid": {
     "name": "༄[ˢ]•[ˢᵘᵖʳᵉᵐᵉ ᴸᵒʳᵈ]•[ˢ]༄",
     "firstSeen": "2026-02-06T09:13:45.654Z",
-    "lastSeen": "2026-02-22T11:46:28.330Z",
-    "commandCount": 3,
+    "lastSeen": "2026-02-22T12:00:00.596Z",
+    "commandCount": 4,
     "commands": {
       "fetch": 1,
       "``json\n{\n": 1,
-      "wait": 1
+      "wait": 1,
+      "setmenu": 1
     }
   },
   "21471162298479@lid": {
@@ -368,12 +369,28 @@
   "130688003084487@lid": {
     "name": "Silent Wolf",
     "firstSeen": "2026-02-22T11:37:13.157Z",
-    "lastSeen": "2026-02-22T11:44:47.639Z",
-    "commandCount": 3,
+    "lastSeen": "2026-02-22T12:01:07.715Z",
+    "commandCount": 4,
     "commands": {
       "listonline": 1,
       "listinactive": 1,
-      "tiktok": 1
+      "tiktok": 2
+    }
+  },
+  "97612376055999@lid": {
+    "name": "Dave",
+    "firstSeen": "2026-02-22T12:03:29.102Z",
+    "lastSeen": "2026-02-22T12:14:19.533Z",
+    "commandCount": 18,
+    "commands": {
+      "pp": 1,
+      "setbio": 2,
+      "dave*\n❌": 2,
+      "antibadword": 6,
+      "dave*\ninvalid": 2,
+      "dave*\naction:": 1,
+      "dave*\nadded": 2,
+      "antidemote": 2
     }
   }
 }

@@ -806,41 +806,87 @@ case 'ytplay': {
         let firstVideo = search.all.find(v => v.type === 'video') || search.all[0];
         let videoTitle = firstVideo.title || 'Unknown Title'
         let videoAuthor = firstVideo.author?.name || firstVideo.author || 'Unknown Artist'
-        let caption = `*${videoTitle}*\nArtist: ${videoAuthor}\nDuration: ${firstVideo.timestamp}\nViews: ${firstVideo.views}\nURL: ${firstVideo.url}`;
+        let cleanName = `${videoAuthor} - ${videoTitle}.mp3`.replace(/[<>:"/\\|?*]/g, '')
 
-        let tmpBase = `./tmp/play_${Date.now()}`
+        let tmpDir = path.join(__dirname, 'tmp')
+        if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true })
+        let tmpBase = path.join(tmpDir, `play_${Date.now()}`)
         let tmpFile = `${tmpBase}.mp3`
         let downloaded = false
-        let ytdlpBin = '/home/runner/workspace/.pythonlibs/bin/yt-dlp'
-        if (!fs.existsSync(ytdlpBin)) ytdlpBin = 'yt-dlp'
+        let audioBuffer = null
+
+        // Method 1: ytdl-core (built-in dependency)
         try {
-            await new Promise((resolve, reject) => {
-                exec(`${ytdlpBin} -x --audio-format mp3 --audio-quality 0 --no-playlist --max-filesize 50M -o "${tmpBase}.%(ext)s" "${firstVideo.url}"`, { timeout: 120000 }, (err) => {
-                    if (err) reject(err)
-                    else resolve()
+            const ytdl = require('@distube/ytdl-core')
+            let info = await ytdl.getInfo(firstVideo.url)
+            let format = ytdl.chooseFormat(info.formats, { quality: 'highestaudio', filter: 'audioonly' })
+            if (!format) format = ytdl.chooseFormat(info.formats, { filter: f => f.hasAudio })
+            if (format) {
+                let chunks = []
+                await new Promise((resolve, reject) => {
+                    let stream = ytdl(firstVideo.url, { format: format })
+                    stream.on('data', chunk => chunks.push(chunk))
+                    stream.on('end', resolve)
+                    stream.on('error', reject)
+                    setTimeout(() => { stream.destroy(); reject(new Error('timeout')) }, 120000)
                 })
-            })
-            if (!fs.existsSync(tmpFile)) {
-                let baseName = path.basename(tmpBase)
-                let candidates = fs.readdirSync('./tmp').filter(f => f.startsWith(baseName))
-                if (candidates.length > 0) tmpFile = `./tmp/${candidates[0]}`
+                audioBuffer = Buffer.concat(chunks)
+                if (audioBuffer.length > 1000) downloaded = true
             }
-            downloaded = true
-        } catch (dlErr) {
-            console.log('yt-dlp download failed:', dlErr.message)
+        } catch (e1) {
+            console.log('ytdl-core failed:', e1.message)
         }
 
-        if (downloaded && fs.existsSync(tmpFile)) {
-            let audioBuffer = fs.readFileSync(tmpFile)
-            let cleanName = `${videoAuthor} - ${videoTitle}.mp3`.replace(/[<>:"/\\|?*]/g, '')
+        // Method 2: yt-dlp binary fallback
+        if (!downloaded) {
+            try {
+                let ytdlpBin = 'yt-dlp'
+                await new Promise((resolve, reject) => {
+                    exec(`${ytdlpBin} -x --audio-format mp3 --audio-quality 0 --no-playlist --max-filesize 50M -o "${tmpBase}.%(ext)s" "${firstVideo.url}"`, { timeout: 120000 }, (err) => {
+                        if (err) reject(err)
+                        else resolve()
+                    })
+                })
+                if (!fs.existsSync(tmpFile)) {
+                    let baseName = path.basename(tmpBase)
+                    let candidates = fs.readdirSync(tmpDir).filter(f => f.startsWith(baseName))
+                    if (candidates.length > 0) tmpFile = path.join(tmpDir, candidates[0])
+                }
+                if (fs.existsSync(tmpFile)) {
+                    audioBuffer = fs.readFileSync(tmpFile)
+                    downloaded = true
+                }
+            } catch (e2) {
+                console.log('yt-dlp failed:', e2.message)
+            }
+        }
+
+        // Method 3: API fallback
+        if (!downloaded) {
+            try {
+                let apiRes = await fetch(`https://api.cobalt.tools/api/json`, {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: firstVideo.url, aFormat: 'mp3', isAudioOnly: true })
+                })
+                let apiData = await apiRes.json()
+                if (apiData.url) {
+                    audioBuffer = await getBuffer(apiData.url)
+                    if (audioBuffer && audioBuffer.length > 1000) downloaded = true
+                }
+            } catch (e3) {
+                console.log('API fallback failed:', e3.message)
+            }
+        }
+
+        if (downloaded && audioBuffer) {
             let thumbBuffer = null
             try { thumbBuffer = await getBuffer(firstVideo.thumbnail) } catch {}
             let songInfo = `🎵 *Now Playing*\n\n`
             songInfo += `📌 *Title:* ${videoTitle}\n`
             songInfo += `🎤 *Artist:* ${videoAuthor}\n`
             songInfo += `⏱️ *Duration:* ${firstVideo.timestamp}\n`
-            songInfo += `👁️ *Views:* ${firstVideo.views}\n`
-            songInfo += `🔗 *URL:* ${firstVideo.url}`
+            songInfo += `👁️ *Views:* ${firstVideo.views}`
             if (thumbBuffer) {
                 await X.sendMessage(m.chat, { image: thumbBuffer, caption: songInfo }, { quoted: m })
             } else {
@@ -851,11 +897,10 @@ case 'ytplay': {
                 mimetype: 'audio/mpeg',
                 fileName: cleanName
             }, { quoted: m })
-            try { fs.unlinkSync(tmpFile) } catch(e) {}
         } else {
-            try { if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile) } catch(e) {}
-            reply(caption + '\n\nAudio download failed. Use the link above.')
+            reply(`🎵 *${videoTitle}*\nArtist: ${videoAuthor}\nDuration: ${firstVideo.timestamp}\n\n⚠️ Audio download failed. Please try again later.`)
         }
+        try { if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile) } catch(e) {}
     } catch (e) {
         console.log(e)
         reply('An error occurred while searching. Please try again.')

@@ -28,6 +28,25 @@ const fetch = require("node-fetch")
 const { getBuffer } = require('./library/lib/myfunc')
 const { imageToWebp, imageToWebp3, videoToWebp, writeExifImg, writeExifImgAV, writeExifVid } = require('./library/lib/exif')
 
+const c = {
+    r: '\x1b[0m',
+    bold: '\x1b[1m',
+    dim: '\x1b[2m',
+    green: '\x1b[32m',
+    cyan: '\x1b[36m',
+    yellow: '\x1b[33m',
+    red: '\x1b[31m',
+    magenta: '\x1b[35m',
+    blue: '\x1b[34m',
+    white: '\x1b[37m',
+    bgGreen: '\x1b[42m',
+    bgCyan: '\x1b[46m',
+    bgYellow: '\x1b[43m',
+    bgRed: '\x1b[41m',
+    bgMagenta: '\x1b[45m',
+    bgBlue: '\x1b[44m',
+}
+
 process.on('uncaughtException', (err) => {
     console.error('Uncaught Exception (handled):', err.message || err)
 })
@@ -115,45 +134,45 @@ function waitForConsoleInput() {
         const cmd = input.trim()
         if (cmd === '1') {
             console.log('')
-            console.log(`[ ${_bn} ] Enter your WhatsApp number with country code`)
-            console.log(`[ ${_bn} ] Example: 254748340864 (Kenya), 2348012345678 (Nigeria), 12025551234 (US)`)
-            console.log(`[ ${_bn} ] Do NOT include + or leading 0`)
+            console.log(`${c.green}[ ${_bn} ]${c.r} ${c.white}Enter your WhatsApp number with country code${c.r}`)
+            console.log(`${c.green}[ ${_bn} ]${c.r} ${c.dim}Example: ${c.cyan}254748340864${c.r} ${c.dim}(Kenya), ${c.cyan}2348012345678${c.r} ${c.dim}(Nigeria), ${c.cyan}12025551234${c.r} ${c.dim}(US)${c.r}`)
+            console.log(`${c.green}[ ${_bn} ]${c.r} ${c.red}Do NOT include + or leading 0${c.r}`)
             console.log('')
             rl.once('line', async (phoneInput) => {
                 const phone = phoneInput.trim().replace(/[^0-9]/g, '')
                 if (phone.length < 10 || phone.length > 15) {
-                    console.log(`[ ${_bn} ] Invalid number. Must be 10-15 digits with country code.`)
+                    console.log(`${c.red}[ ${_bn} ] ✗ Invalid number. Must be 10-15 digits with country code.${c.r}`)
                     waitForConsoleInput()
                     return
                 }
                 if (phone.startsWith('0')) {
-                    console.log(`[ ${_bn} ] Do not start with 0. Use country code instead.`)
+                    console.log(`${c.red}[ ${_bn} ] ✗ Do not start with 0. Use country code instead.${c.r}`)
                     waitForConsoleInput()
                     return
                 }
-                console.log(`[ ${_bn} ] Connecting with number: ${phone}...`)
+                console.log(`${c.green}[ ${_bn} ]${c.r} ${c.cyan}Connecting with number: ${c.bold}${phone}${c.r}${c.cyan}...${c.r}`)
                 await connectSession(phone)
                 waitForConsoleInput()
             })
         } else if (cmd === '2') {
             console.log('')
-            console.log(`[ ${_bn} ] Paste your Session ID below:`)
+            console.log(`${c.yellow}[ ${_bn} ]${c.r} ${c.white}Paste your Session ID below:${c.r}`)
             console.log('')
             rl.once('line', async (sessionInput) => {
                 await handleSessionLogin(sessionInput.trim())
                 waitForConsoleInput()
             })
         } else if (cmd === '3') {
-            console.log(`[ ${_bn} ] Skipped. Bot is running with existing sessions.`)
+            console.log(`${c.green}[ ${_bn} ]${c.r} ${c.dim}Skipped. Bot is running with existing sessions.${c.r}`)
             waitForConsoleInput()
         } else if (cmd.length >= 10 && /^[0-9]+$/.test(cmd)) {
-            console.log(`[ ${_bn} ] Detected phone number: ${cmd}`)
-            console.log(`[ ${_bn} ] Connecting...`)
+            console.log(`${c.green}[ ${_bn} ]${c.r} Detected phone number: ${c.cyan}${c.bold}${cmd}${c.r}`)
+            console.log(`${c.green}[ ${_bn} ]${c.r} ${c.cyan}Connecting...${c.r}`)
             await connectSession(cmd)
             waitForConsoleInput()
         } else if (cmd) {
-            console.log(`[ ${_bn} ] Unknown command: "${cmd}"`)
-            console.log(`[ ${_bn} ] Type 1 for Pairing Code, 2 for Session ID`)
+            console.log(`${c.red}[ ${_bn} ] ✗ Unknown command: "${cmd}"${c.r}`)
+            console.log(`${c.yellow}[ ${_bn} ]${c.r} Type ${c.green}${c.bold}1${c.r} for Pairing Code, ${c.yellow}${c.bold}2${c.r} for Session ID`)
             waitForConsoleInput()
         } else {
             waitForConsoleInput()
@@ -163,11 +182,11 @@ function waitForConsoleInput() {
 
 async function startBot() {
     console.log('')
-    console.log('╔══════════════════════════════════════════╗')
-    console.log('║         TOOSII-XD ULTRA v2.0.0          ║')
-    console.log('║      WhatsApp Multi-Device Bot          ║')
-    console.log('║        by Toosii Tech © 2024-2026       ║')
-    console.log('╚══════════════════════════════════════════╝')
+    console.log(`${c.cyan}${c.bold}╔══════════════════════════════════════════╗${c.r}`)
+    console.log(`${c.cyan}${c.bold}║${c.r}  ${c.green}${c.bold}⚡ TOOSII-XD ULTRA${c.r} ${c.yellow}v2.0.0${c.r}             ${c.cyan}${c.bold}║${c.r}`)
+    console.log(`${c.cyan}${c.bold}║${c.r}  ${c.white}${c.bold}   WhatsApp Multi-Device Bot${c.r}          ${c.cyan}${c.bold}║${c.r}`)
+    console.log(`${c.cyan}${c.bold}║${c.r}  ${c.magenta}     by Toosii Tech © 2024-2026${c.r}     ${c.cyan}${c.bold}║${c.r}`)
+    console.log(`${c.cyan}${c.bold}╚══════════════════════════════════════════╝${c.r}`)
     console.log('')
 
     const existingSessions = []
@@ -180,24 +199,30 @@ async function startBot() {
     }
 
     if (existingSessions.length > 0) {
-        console.log(`[ ${_bn} ] Found ${existingSessions.length} existing session(s): ${existingSessions.join(', ')}`)
-        console.log(`[ ${_bn} ] Reconnecting existing sessions...`)
+        console.log(`${c.green}[ ${_bn} ]${c.r} Found ${c.yellow}${c.bold}${existingSessions.length}${c.r} existing session(s): ${c.cyan}${existingSessions.join(', ')}${c.r}`)
+        console.log(`${c.green}[ ${_bn} ]${c.r} ${c.dim}Reconnecting existing sessions...${c.r}`)
         console.log('')
         for (const phone of existingSessions) {
             connectSession(phone)
         }
         console.log('')
-        console.log(`[ ${_bn} ] Choose login method:`)
-        console.log(`[ ${_bn} ] 1) Enter WhatsApp Number (Pairing Code)`)
-        console.log(`[ ${_bn} ] 2) Paste Session ID`)
-        console.log(`[ ${_bn} ] 3) Skip (already connected)`)
+        console.log(`${c.cyan}${c.bold}┌─────────────────────────────────────────┐${c.r}`)
+        console.log(`${c.cyan}${c.bold}│${c.r}  ${c.white}${c.bold}Choose login method:${c.r}                    ${c.cyan}${c.bold}│${c.r}`)
+        console.log(`${c.cyan}${c.bold}│${c.r}                                         ${c.cyan}${c.bold}│${c.r}`)
+        console.log(`${c.cyan}${c.bold}│${c.r}  ${c.green}${c.bold}1)${c.r} ${c.white}Enter WhatsApp Number${c.r} ${c.dim}(Pairing Code)${c.r} ${c.cyan}${c.bold}│${c.r}`)
+        console.log(`${c.cyan}${c.bold}│${c.r}  ${c.yellow}${c.bold}2)${c.r} ${c.white}Paste Session ID${c.r}                     ${c.cyan}${c.bold}│${c.r}`)
+        console.log(`${c.cyan}${c.bold}│${c.r}  ${c.magenta}${c.bold}3)${c.r} ${c.white}Skip${c.r} ${c.dim}(already connected)${c.r}            ${c.cyan}${c.bold}│${c.r}`)
+        console.log(`${c.cyan}${c.bold}└─────────────────────────────────────────┘${c.r}`)
         console.log('')
     } else {
-        console.log(`[ ${_bn} ] No existing sessions found.`)
+        console.log(`${c.yellow}[ ${_bn} ]${c.r} ${c.dim}No existing sessions found.${c.r}`)
         console.log('')
-        console.log(`[ ${_bn} ] Choose login method:`)
-        console.log(`[ ${_bn} ] 1) Enter WhatsApp Number (Pairing Code)`)
-        console.log(`[ ${_bn} ] 2) Paste Session ID`)
+        console.log(`${c.cyan}${c.bold}┌─────────────────────────────────────────┐${c.r}`)
+        console.log(`${c.cyan}${c.bold}│${c.r}  ${c.white}${c.bold}Choose login method:${c.r}                    ${c.cyan}${c.bold}│${c.r}`)
+        console.log(`${c.cyan}${c.bold}│${c.r}                                         ${c.cyan}${c.bold}│${c.r}`)
+        console.log(`${c.cyan}${c.bold}│${c.r}  ${c.green}${c.bold}1)${c.r} ${c.white}Enter WhatsApp Number${c.r} ${c.dim}(Pairing Code)${c.r} ${c.cyan}${c.bold}│${c.r}`)
+        console.log(`${c.cyan}${c.bold}│${c.r}  ${c.yellow}${c.bold}2)${c.r} ${c.white}Paste Session ID${c.r}                     ${c.cyan}${c.bold}│${c.r}`)
+        console.log(`${c.cyan}${c.bold}└─────────────────────────────────────────┘${c.r}`)
         console.log('')
     }
 
@@ -252,7 +277,7 @@ X.ev.on('CB:error', () => {})
 if (!X.authState.creds.registered) {
     console.log(`[${phone}] Waiting for WebSocket handshake...`)
     await new Promise(resolve => setTimeout(resolve, 5000))
-    console.log(`[${phone}] Requesting pairing code...`)
+    console.log(`${c.cyan}[${phone}]${c.r} ${c.dim}Requesting pairing code...${c.r}`)
     let retries = 0
     const maxRetries = 3
     let paired = false
@@ -262,12 +287,12 @@ if (!X.authState.creds.registered) {
             code = code?.match(/.{1,4}/g)?.join("-") || code;
             console.log(`[PAIRING_CODE:${code}]`)
             console.log('')
-            console.log(`╔══════════════════════════════════════════╗`)
-            console.log(`║  PAIRING CODE: ${code}                    ║`)
-            console.log(`╚══════════════════════════════════════════╝`)
+            console.log(`${c.green}${c.bold}╔══════════════════════════════════════════╗${c.r}`)
+            console.log(`${c.green}${c.bold}║${c.r}  ${c.bgGreen}${c.white}${c.bold} PAIRING CODE: ${code} ${c.r}                   ${c.green}${c.bold}║${c.r}`)
+            console.log(`${c.green}${c.bold}╚══════════════════════════════════════════╝${c.r}`)
             console.log('')
-            console.log(`[ ${_bn} ] Open WhatsApp > Settings > Linked Devices > Link a Device`)
-            console.log(`[ ${_bn} ] Choose "Link with phone number" and enter the code above`)
+            console.log(`${c.yellow}${c.bold}→${c.r} ${c.white}Open WhatsApp > Settings > Linked Devices > Link a Device${c.r}`)
+            console.log(`${c.yellow}${c.bold}→${c.r} ${c.white}Choose "Link with phone number" and enter the code above${c.r}`)
             console.log('')
             paired = true
         } catch (err) {

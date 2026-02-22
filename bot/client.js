@@ -532,45 +532,39 @@ switch(command) {
 //━━━━━━━━━━━━━━━━━━━━━━━━//
 // help command
 case 'help': {
-const helpText = `┌──────────────────────────────────
-│  *TOOSII-XD ULTRA*
-│  _Quick Help Guide_
-└──────────────────────────────────
+const helpText = `┏━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  *ᴛᴏᴏꜱɪɪ-xᴅ ᴜʟᴛʀᴀ*
+┃  _Qᴜɪᴄᴋ ʜᴇʟᴘ ɢᴜɪᴅᴇ_
+┗━━━━━━━━━━━━━━━━━━━━━━━━┛
 
-┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-┃ *Getting Started*
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+┏❒ *ɢᴇᴛᴛɪɴɢ ꜱᴛᴀʀᴛᴇᴅ* ❒
+┃➤ .menu — ᴠɪᴇᴡ ᴀʟʟ ᴄᴏᴍᴍᴀɴᴅꜱ
+┃➤ .menu ai — ᴀɪ ᴛᴏᴏʟꜱ
+┃➤ .menu tools — ᴜᴛɪʟɪᴛɪᴇꜱ
+┃➤ .menu owner — ʙᴏᴛ ꜱᴇᴛᴛɪɴɢꜱ
+┃➤ .menu group — ɢʀᴏᴜᴘ ᴍɢᴍᴛ
+┃➤ .menu downloader — ᴅᴏᴡɴʟᴏᴀᴅꜱ
+┃➤ .menu search — ꜱᴇᴀʀᴄʜ
+┃➤ .menu sticker — ꜱᴛɪᴄᴋᴇʀꜱ
+┃➤ .menu games — ɢᴀᴍᴇꜱ
+┗❒
 
-▸ *.menu* — View all commands
-▸ *.menu ai* — AI tools (ChatGPT, Claude, Gemini)
-▸ *.menu tools* — Utility commands
-▸ *.menu owner* — Bot settings (owner only)
-▸ *.menu group* — Group management
-▸ *.menu downloader* — Download media
-▸ *.menu search* — Search the web
-▸ *.menu sticker* — Sticker tools
-▸ *.menu games* — Play games
+┏❒ *ᴘᴏᴘᴜʟᴀʀ ᴄᴏᴍᴍᴀɴᴅꜱ* ❒
+┃➤ .ai [Qᴜᴇꜱᴛɪᴏɴ]
+┃➤ .sticker ʀᴇᴘʟʏ ᴍᴇᴅɪᴀ
+┃➤ .play [ꜱᴏɴɢ]
+┃➤ .ig [ᴜʀʟ]
+┃➤ .tt [ᴜʀʟ]
+┃➤ .toimage
+┃➤ .save ʀᴇᴘʟʏ ᴍꜱɢ
+┗❒
 
-┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-┃ *Popular Commands*
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+┏❒ *ᴄᴏɴᴛᴀᴄᴛ* ❒
+┃➤ wa.me/254748340864
+┃➤ ᴛᴇʟᴇɢʀᴀᴍ: @toosiitech
+┗❒
 
-▸ *.ai [question]* — Ask AI anything
-▸ *.sticker* — Reply to image to make sticker
-▸ *.play [song]* — Download music
-▸ *.igdl [url]* — Download Instagram post
-▸ *.tiktok [url]* — Download TikTok video
-▸ *.toimg* — Convert sticker to image
-
-┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-┃ *Need More Help?*
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-▸ Contact: wa.me/254748340864
-▸ Group: https://chat.whatsapp.com/CwNhH3QNvrVFdcKNgaKg4g
-
-──────────────────────────────────
-_Powered by Toosii Tech_`
+_ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴛᴏᴏꜱɪɪ ᴛᴇᴄʜ_`
 const helpThumb = global.botPic || global.thumb || 'https://files.catbox.moe/qbcebp.jpg'
 X.sendMessage(m.chat, { image: { url: helpThumb }, caption: helpText }, { quoted: m })
 break
@@ -591,29 +585,27 @@ const downloaderMenu = require('./library/menulist/downloadermenu');
 
   let subcmd = args[0] ? args[0].toLowerCase() : '';
 
-  let infoBot = `
-*━━━━━━━━━━━━━━━━━━━━━━*
-     *TOOSII-XD ULTRA*
-*━━━━━━━━━━━━━━━━━━━━━━*
+  let infoBot = `┏━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  *ᴛᴏᴏꜱɪɪ-xᴅ ᴜʟᴛʀᴀ*
+┗━━━━━━━━━━━━━━━━━━━━━━━━┛
 
-Hey ${pushname}! ${waktuucapan}
+ʜᴇʏ ${pushname}! ${waktuucapan}
 
-╭──── *About Me* ─────
-│ Name    : ${botname}
-│ Owner   : ${ownername}
-│ Version : ${botver}
-│ Mode    : ${typebot}
-│ Commands: ${totalfitur()}
-│ Contact : +254748340864
-│ Telegram: @toosiitech
-╰──────────────────────
+┏❒ *ᴀʙᴏᴜᴛ ᴍᴇ* ❒
+┃➤ ɴᴀᴍᴇ : ${botname}
+┃➤ ᴏᴡɴᴇʀ : ${ownername}
+┃➤ ᴠᴇʀꜱɪᴏɴ : ${botver}
+┃➤ ᴍᴏᴅᴇ : ${typebot}
+┃➤ ᴄᴏᴍᴍᴀɴᴅꜱ : ${totalfitur()}
+┃➤ ᴄᴏɴᴛᴀᴄᴛ : +254748340864
+┃➤ ᴛᴇʟᴇɢʀᴀᴍ : @toosiitech
+┗❒
 
-*Type .menu [category] to filter*
-_ai | tools | owner | group | downloader_
-_search | sticker | games | other_
+_ᴛʏᴘᴇ .menu [ᴄᴀᴛᴇɢᴏʀʏ] ᴛᴏ ꜰɪʟᴛᴇʀ_
+_ᴀɪ | ᴛᴏᴏʟꜱ | ᴏᴡɴᴇʀ | ɢʀᴏᴜᴘ | ᴅᴏᴡɴʟᴏᴀᴅᴇʀ_
+_ꜱᴇᴀʀᴄʜ | ꜱᴛɪᴄᴋᴇʀ | ɢᴀᴍᴇꜱ | ᴏᴛʜᴇʀ_
 
-*━━━━━ COMMAND LIST ━━━━━*
-`.trim();
+━━━ *ᴄᴏᴍᴍᴀɴᴅ ʟɪꜱᴛ* ━━━`.trim();
 
   let menu = '';
 
@@ -682,7 +674,6 @@ break;
 case 'mfdl':
 case 'mediafire': {
  if (!text) return reply('Please provide a MediaFire link')
-reply(global.mess.wait)
   try {
     const api = await fetchJson(`https://api.vreden.web.id/api/mediafiredl?url=${encodeURIComponent(text)}`)
     if (!api.status || !api.result || !api.result[0]) return reply('Failed to get data from API.')
@@ -713,7 +704,6 @@ break
 case 'ig':
 case 'instagram': {
     if (!text) return reply("Please provide the Instagram link");
-    reply(global.mess.wait)
     try {
         const mediaUrl = await igdl(text);
         if (!mediaUrl || !mediaUrl[0] || !mediaUrl[0].url) return reply('Failed to download. The link may be invalid.');
@@ -740,7 +730,6 @@ break
 case 'tt': 
 case 'tiktok': {
 if (!text) return reply(`Example: ${prefix + command} <tiktok link>`)
-reply(global.mess.wait)
 try {
     let data = await fg.tiktok(text)
     if (!data || !data.result) return reply('Failed to download. The link may be invalid.')
@@ -777,7 +766,6 @@ case 'fb':
 case 'fbdl':
 case 'facebook' : {
 if (!text) return reply('Please provide the Facebook URL')
-reply(global.mess.wait)
     try {
       let res = await fdown.download(text);
       if (res && res.length > 0) {
@@ -807,7 +795,6 @@ case 'song':
 case 'music':
 case 'ytplay': {
     if (!text) return reply('What song do you want to search for?\n\nExample: .play Juice WRLD Lucid Dreams')
-    reply(global.mess.wait)
     try {
         let search = await yts(text);
         if (!search || !search.all || !search.all.length) return reply('No results found.')
@@ -943,8 +930,6 @@ break
 
 case 'infobot':
 case 'botinfo': {
-// wait message
-reply(global.mess.wait)
   const botInfo = `
 ╭─ ⌬ Bot Info
 │ • Name    : ${botname}
@@ -963,8 +948,6 @@ case 'bratv':
 case 'bratvideo': {
   if (!text) return reply(`Example: ${prefix + command} hai bang`)
   if (text.length > 250) return reply(`Character limit exceeded, max 250!`)
-// wait message
-reply(global.mess.wait)
   const words = text.split(" ")
   const tempDir = path.join(process.cwd(), 'tmp')
   if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir)
@@ -1020,8 +1003,6 @@ break
 
 case 'brat': {
 if (!q) return reply(`Please enter text\n\nExample: ${prefix + command} alok hamil`);
-// wait message
-reply(global.mess.wait)
 let rulz = `https://aqul-brat.hf.space/api/brat?text=${encodeURIComponent(q)}`;
 try {
 const res = await axios.get(rulz, { responseType: 'arraybuffer' });
@@ -1039,8 +1020,6 @@ case 'emojimix': {
 
     const emojis = text.split(/[\+\|]/);
     if (emojis.length !== 2) return reply('Please enter two valid emojis, example: +  or |');
-// wait message
-reply(global.mess.wait)
     const text1 = emojis[0].trim();
     const text2 = emojis[1].trim();
  
@@ -1060,8 +1039,6 @@ case 'qc': {
     }
     if (!text) return reply('Please enter text');
     if (text.length > 200) return reply('Maximum 200 characters!');
-// wait message
-reply(global.mess.wait)
     let ppnyauser = await X.profilePictureUrl(m.sender, 'image').catch(_ => 'https://files.catbox.moe/nwvkbt.png');
     const rest = await quote(text, pushname, ppnyauser);
     X.sendImageAsSticker(m.chat, rest.result, m, {
@@ -1074,8 +1051,6 @@ case 'sticker':
 case 'stiker':
 case 's':{
 if (!quoted) return reply(`Reply to Video/Image with caption ${prefix + command}`)
-// wait message
-reply(global.mess.wait)
 if (/image/.test(mime)) {
 let media = await quoted.download()
 let encmedia = await X.sendImageAsSticker(m.chat, media, m, {
@@ -1131,7 +1106,6 @@ if (!viewOnceContent) {
     }
 }
 if (!viewOnceContent) return reply('This message is not a view once message. Reply to a view once image or video.')
-reply(global.mess.wait)
 try {
     let stream = await downloadContentFromMessage(viewOnceContent.msg, viewOnceContent.type.replace('Message', ''))
     let buffer = Buffer.from([])
@@ -1310,6 +1284,39 @@ try {
         reply(`Failed to join group: ${e.message || 'Unknown error'}`)
     }
 }
+}
+break
+
+case 'prefix': {
+let currentPfx = global.botPrefix || '.'
+reply(`ᴘʀᴇꜰɪx : *${currentPfx}*`)
+}
+break
+
+case 'save': {
+if (!m.quoted) return reply(`Reply to a message/media with ${prefix}save to save it to your DM`)
+try {
+let savedMsg = {}
+if (/image/.test(m.quoted.mimetype || '')) {
+    let media = await m.quoted.download()
+    savedMsg = { image: media, caption: m.quoted.text || '' }
+} else if (/video/.test(m.quoted.mimetype || '')) {
+    let media = await m.quoted.download()
+    savedMsg = { video: media, caption: m.quoted.text || '', mimetype: 'video/mp4' }
+} else if (/audio/.test(m.quoted.mimetype || '')) {
+    let media = await m.quoted.download()
+    savedMsg = { audio: media, mimetype: 'audio/mpeg' }
+} else if (/sticker/.test(m.quoted.mtype || '')) {
+    let media = await m.quoted.download()
+    savedMsg = { sticker: media }
+} else if (m.quoted.text) {
+    savedMsg = { text: m.quoted.text }
+} else {
+    return reply('Unsupported media type.')
+}
+await X.sendMessage(sender, savedMsg)
+reply('Saved to your DM!')
+} catch (e) { reply('Failed to save: ' + e.message) }
 }
 break
 
@@ -1967,8 +1974,6 @@ break
 // search features
                         case 'wikimedia': {
                                 if (!text) return reply(`*Example :*\n\n${prefix + command} Query`);
-                                 // wait message
-                  reply(global.mess.wait)
                                 try {
                                         const results = await wikimedia(text);
                                         if (results.length === 0) return reply(`⚠️ No images found on Wikimedia for "${text}".`);
@@ -1984,8 +1989,6 @@ break
                         case 'mangainfo': {
                                 const mangaName = args.join(' ');
                                 if (!mangaName) return reply(`*Example :*\n\n${prefix + command} Anime`);
-                                 // wait message
-                  reply(global.mess.wait)                               
                                 try {
                                         const mangaList = await komiku("manga", mangaName);
                                         if (mangaList.length === 0) {
@@ -2009,8 +2012,6 @@ break
                         case 'mangadetail': {
                                 const url = args[0];
                                 if (!url) return reply(`*Example :*\n\n${prefix + command} URL`);
-                                 // wait message
-                  reply(global.mess.wait)                               
                                 try {
                                         const mangaDetail = await detail(url);
                                         let captionText = `📚 *Manga Details* 📚\n\n`;
@@ -2034,8 +2035,6 @@ break
 
                         case 'jkt48news': {
                                 const lang = args[0] || "id";
-                                 // wait message
-                  reply(global.mess.wait)
                                 try {
                                         const news = await jktNews(lang);
                                         if (news.length === 0) {
@@ -2098,8 +2097,6 @@ break
                                         if (animeList.length === 0) {
                                                 return reply('_[ Invalid ⚠️ ]_ No latest anime data found at this time.');
                                         }
-                                 // wait message
-                  reply(global.mess.wait)
                                         let captionText = `🎌 *Latest Anime from Kusonime* 🎌\n\n`;
                                         animeList.slice(0, 5).forEach((anime, index) => {
                                                 captionText += `📺 *${index + 1}. ${anime.title}*\n`;
@@ -2118,8 +2115,6 @@ break
                         case 'kusonimesearch':
                         case 'animesearch': {
                                 if (!text) return reply(`*Example :*\n\n${prefix + command} Anime`);
-                                 // wait message
-                  reply(global.mess.wait)
                                 try {
                                         const searchResults = await Kusonime.search(text);
                                         if (typeof searchResults === 'string') {
@@ -2144,8 +2139,6 @@ break
                         case 'infobmkg':
                         case 'gempa':
                         case 'bmkg': {
-                                 // wait message
-                  reply(global.mess.wait)
                                 try {
                                         let result = await gempa();
                                         let gempaData = result.data;
@@ -2244,8 +2237,6 @@ break
 
                         case "ipwhois": {
                                 if (!text) return reply(`*Example :*\n\n${prefix + command} 114.5.213.103`);
-                                 // wait message
-                  reply(global.mess.wait)
                                 const ip = text.trim();
                                 const apiUrl = `https://ipwho.is/${ip}`;
                                 try {
@@ -2285,8 +2276,6 @@ case 'telestick': {
   async function telestick(url) {
     let match = url.match(/https:\/\/t\.me\/addstickers\/([^\/\?#]+)/)
     if (!match) return reply(`*Example :*\n\n${prefix + command} https://`);
-                                 // wait message
-                  reply(global.mess.wait)
     let { data: a } = await axios.get(`https://api.telegram.org/bot7935827856:AAGdbLXArulCigWyi6gqR07gi--ZPm7ewhc/getStickerSet?name=${match[1]}`)
     let stickers = await Promise.all(a.result.stickers.map(async v => {
       let { data: b } = await axios.get(`https://api.telegram.org/bot7935827856:AAGdbLXArulCigWyi6gqR07gi--ZPm7ewhc/getFile?file_id=${v.file_id}`)
@@ -2315,8 +2304,6 @@ break;
 
 case 'stikerly': {
 if (!text) return reply(`*Example :*\n\n ${prefix + command} anomali `)
-                                 // wait message
-                  reply(global.mess.wait)
 try {
 const searchRes = await fetch(`https://zenzxz.dpdns.org/search/stickerlysearch?query=${encodeURIComponent(text)}`)
 const searchJson = await searchRes.json()
@@ -2358,9 +2345,6 @@ break
 case 'quantum-ai':{
   if (!text) return reply(`Example:\n${prefix+command} what is artificial intelligence?`)
 
- // wait message
- reply(global.mess.wait)
-
   try {
     const api = `https://zelapioffciall.vercel.app/ai/quantum?text=${encodeURIComponent(text)}`
     const res = await fetch(api)
@@ -2379,8 +2363,6 @@ break
 case 'chatai':{
   try {
     if (!args.length) return reply('Please enter your question')    
- // wait message
- reply(global.mess.wait)
     let payload = { messages: [{ role: 'user', content: args.join(' ') }] }
     let headers = { headers: { Origin: 'https://chatai.org', Referer: 'https://chatai.org/' } }
     let { data } = await axios.post('https://chatai.org/api/chat', payload, headers)
@@ -2421,8 +2403,6 @@ case 'conciseai':{
   try {
     if (!args.length) throw 'Please enter your question'
     reply(await chatAI(args.join(' ')))
- // wait message
- reply(global.mess.wait)
   } catch (e) {
     reply(e.message || e)
   }
@@ -2430,7 +2410,6 @@ case 'conciseai':{
 break;
 case 'claudeai':{
   if (!text) return reply('Please enter your question')
-  reply(global.mess.wait)
   try {
     let { data } = await axios.post('https://text.pollinations.ai/openai', { messages: [{ role: 'system', content: 'You are Claude, an AI assistant made by Anthropic. You are helpful, harmless, and honest. Provide thoughtful and detailed responses.' }, { role: 'user', content: text }], model: 'openai', stream: false }, { headers: { 'Content-Type': 'application/json' } })
     let answer = data?.choices?.[0]?.message?.content || 'No response.'
@@ -2443,9 +2422,6 @@ case 'claudeai':{
 case 'chatgpt':{
     if (!text) return reply(`Please enter your question`)
     
- // wait message
- reply(global.mess.wait)
-     
     const model_list = {
         chatgpt4: {
             api: 'https://stablediffusion.fr/gpt4/predict2',
@@ -2490,8 +2466,6 @@ const axios = require('axios');
 break
 case 'venice': case 'veniceai':{
 if (!text) return reply(`Please enter your question`);
- // wait message
- reply(global.mess.wait)
 try {
 const axios = require('axios');
 const { data } = await axios.request({
@@ -2536,8 +2510,6 @@ case 'logic-eai':{
     if (!q) {
         return reply(`What would you like to ask?`);
     }
- // wait message
- reply(global.mess.wait)
     const customName = "logic-eai"; 
     const creator = "isOwner";
     const systemMessage = `Your name is now ${customName} and you were created by ${creator}`;
@@ -2567,7 +2539,6 @@ case 'gpt41-mini':{
     if (!text) {
         return reply(`Example: ${prefix+command} What is quantum computing?`);
     }
-    reply(global.mess.wait)    
     try {
         const ghToken = process.env.GITHUB_AI_TOKEN || '';
         if (!ghToken) return reply('AI service is not configured. Please set up the GITHUB_AI_TOKEN.');
@@ -2594,7 +2565,6 @@ case 'openai':{
     if (!text) {
         return reply(`Example: ${prefix+command} What is AI?`);
     }
-    reply(global.mess.wait)    
     try {
         const ghToken = process.env.GITHUB_AI_TOKEN || '';
         if (!ghToken) return reply('AI service is not configured. Please set up the GITHUB_AI_TOKEN.');
@@ -2620,7 +2590,6 @@ case 'openai':{
 break
 case 'metaai':{  
   if (!text) return reply(`Example: ${prefix+command} Who invented football`);
-  reply(global.mess.wait)
   try {
     let result = null
     try {
@@ -2640,7 +2609,6 @@ case 'metaai':{
 break
 case 'deepseek':{  
   if (!text) return reply(`Example: ${prefix+command} Who is Elon Musk`);
-  reply(global.mess.wait)
   try {
     let result = null
     try {
@@ -2660,7 +2628,6 @@ case 'deepseek':{
 break
 case 'gptlogic':{  
     if (!text) return reply(`Example: ${prefix+command} Who is Elon Musk`);
-    reply(global.mess.wait)
     try {
         let result = null
         try {
@@ -2682,7 +2649,6 @@ case 'gptlogic':{
 break
 case 'aoyoai':{  
   if (!text) return reply('Please enter your question?');
-  reply(global.mess.wait)
   try {
     let result = null
     try {
@@ -2699,7 +2665,6 @@ case 'aoyoai':{
 break
 case 'chatbotai':{  
   if (!text) return reply('Please enter your question?');
-  reply(global.mess.wait) 
   try {
     let result = null
     try {
@@ -2716,7 +2681,6 @@ case 'chatbotai':{
 break
 case 'blackbox-pro':{  
   if (!text) return reply('Please enter your question?');
-  reply(global.mess.wait)
   try {
     let result = null
     try {
@@ -2733,7 +2697,6 @@ case 'blackbox-pro':{
 break
 case 'zerogpt':
   if (!q) return reply('Please enter your question?');
-  reply(global.mess.wait)
   try {
     let { data } = await axios.post('https://text.pollinations.ai/openai', { messages: [{ role: 'system', content: 'You are ZeroGPT, an advanced AI assistant. Provide accurate and comprehensive answers.' }, { role: 'user', content: q }], stream: false }, { headers: { 'Content-Type': 'application/json' } })
     reply(data?.choices?.[0]?.message?.content || 'No response.')
@@ -2741,8 +2704,6 @@ case 'zerogpt':
   break
 case 'writecream':{
  if (!text) return reply(`Please enter your question\nExample : ${prefix+command} you are a psychologist|I often feel anxious at night, why?`);
- // wait message
- reply(global.mess.wait)
  const [logic, question] = text.split('|').map(v => v.trim());
  if (!logic || !question) return reply(`Wrong format\nExample: ${prefix+command} persona|question`);
  
@@ -2779,7 +2740,6 @@ case 'writecream':{
 break
 case 'yupraai':{
   if (!text) return reply('Please enter your question?');
-  reply(global.mess.wait)
   try {
     let result = null
     try {
@@ -2796,7 +2756,6 @@ case 'yupraai':{
 break
 case 'feloai':{
   if (!q) return reply('Please enter your question?');
-  reply(global.mess.wait)
   try {
     let { data } = await axios.post('https://text.pollinations.ai/openai', { messages: [{ role: 'system', content: 'You are Felo AI, a research-oriented AI assistant. Provide well-researched answers.' }, { role: 'user', content: q }], stream: false }, { headers: { 'Content-Type': 'application/json' } })
     let answer = data?.choices?.[0]?.message?.content || 'No response.'
@@ -2808,8 +2767,6 @@ break
 case 'aliceai' :{
   try {
     if (!text) return reply(`Write something after this command.\n\nExample:\n${prefix+command} hello how are you?\n${prefix+command} https://vt.tiktok.com/ZSFxYcCdr/\n${prefix+command} generate an image of a sunset`)
- // wait message
- reply(global.mess.wait)
     let regexTikTok = /(https?:\/\/)?(www\.|vm\.|vt\.)?tiktok\.com\/[^\s]+/gi
     let isTikTok = regexTikTok.test(text)
     let isImageReq = /(gambar|buatkan.*gambar|bikin.*gambar|buat.*gambar)/i.test(text)
@@ -2868,8 +2825,6 @@ break
 
 case 'magicstudio':{
     if (!args[0]) return reply(`Enter a prompt for image generation!\nExample: ${prefix+command} a woman holding a Coca-Cola bottle leaning against a wall`);
- // wait message
- reply(global.mess.wait) 
     let prompt = encodeURIComponent(args.join(' '));
     let apiUrl = `https://velyn.biz.id/api/ai/magicStudio?prompt=${prompt}&apikey=velyn`;
  
@@ -2894,8 +2849,6 @@ break
 
 case 'gemmaai' :{
   if (!text) return reply('Please enter your question?');
- // wait message
- reply(global.mess.wait)
   try {
     const res = await fetch(`https://www.velyn.biz.id/api/ai/gemma-2-9b-it?prompt=${encodeURIComponent(text)}`)
     if (res.ok) {
@@ -2917,8 +2870,6 @@ break
 case 'aivelyn':
 case 'velynai':{
   if (!text) return reply('Please enter your question?');
- // wait message
- reply(global.mess.wait)
   try {
     const url = `https://www.velyn.biz.id/api/ai/velyn-1.0-1b?prompt=${encodeURIComponent(text)}`;
     const response = await fetch(url);
@@ -2940,8 +2891,6 @@ break
 
 case 'muslimai':{
   if (!text) return reply('Please enter your question?');
- // wait message
- reply(global.mess.wait)
   try {
     const result = await muslimai(text);
 
@@ -2967,8 +2916,6 @@ let messages = [];
  
     if (!text) return reply('Please enter your question?');
     let response = await fetch(`https://restapii.rioooxdzz.web.id/api/llama?message=${encodeURIComponent(text)}`);
- // wait message
- reply(global.mess.wait) 
     if (!response.ok) {
       throw new Error("Request to OpenAI API failed");
     }
@@ -2990,7 +2937,6 @@ break
 
 case 'gptturbo':{
 if (!text) return reply(`Example:\n${prefix}${command} Hello?`);
-reply(global.mess.wait)
 try {
   let result = null
   try {
@@ -3044,8 +2990,6 @@ case 'gemini-ai':{
     } else {
         try {
             if (!text) return reply(`Example: ${prefix+command} Who is Elon Musk`);
- // wait message
- reply(global.mess.wait)
             const apiUrl = `https://gemini-api-5k0h.onrender.com/gemini/chat`;
             const params = { q: text };
 
@@ -3067,7 +3011,6 @@ break
 
 case 'lumin-ai':{
   if (!q) return reply(`How can I help you?`);
-  reply(global.mess.wait)  
   try {
     let { data } = await axios.post('https://text.pollinations.ai/openai', { messages: [{ role: 'system', content: 'You are Lumin AI, a bright and helpful AI assistant. Provide insightful and clear answers.' }, { role: 'user', content: q }], stream: false }, { headers: { 'Content-Type': 'application/json' } })
     let result = data?.choices?.[0]?.message?.content || 'No response.'
@@ -3078,7 +3021,6 @@ break
 
 case 'typli-ai':{
  if (!q) return reply(`_What would you like to ask?_`);
- reply(global.mess.wait) 
  try {
    let result = null
    try {
@@ -3096,7 +3038,6 @@ break;
 
 case 'poly-ai':{
   if (!q) return reply(`_What would you like to ask?_`);
-  reply(global.mess.wait)
   try {
     let result = null
     try {
@@ -3122,7 +3063,6 @@ case 'poly-ai':{
 
 case 'chatevery-where':{
   if (!text) return reply(`Example: ${prefix+command} axios`)
-  reply(global.mess.wait)
   try {
     let result = null
     try {
@@ -3144,7 +3084,6 @@ break
 
 case 'gemini-pro':{
   if (!text) return reply(`Example:\n${prefix+command} What is chatgpt`);
-  reply(global.mess.wait)
   try {
     let result = null
     try {
@@ -3162,7 +3101,6 @@ case 'gemini-pro':{
   
 case 'gpt-4o':{
   if (!text) return reply(`Example:\n${prefix}${command} What is chatgpt`);
-  reply(global.mess.wait)
   try {
     let result = null
     try {
@@ -3182,8 +3120,6 @@ case 'ai':{
   if (!text) {
     return reply(`What would you like to ask?`);
   }
- // wait message
- reply(global.mess.wait)
   const prompt = `You are an AI assistant with exceptional intelligence. You enjoy helping others and communicate in a polite and professional manner`
   const requestData = { content: text, user: m.sender, prompt: prompt };
   const quoted = m && (m.quoted || m);
@@ -3242,8 +3178,6 @@ case 'tebak': {
   if (!kategoriUnik.includes(kategori)) {
     return reply(`❌ Kategori "${kategori}" not found.\nAvailable categories: ${kategoriUnik.join(', ')}`);
   }
-// wait message
-reply(global.mess.wait)
   const soalKategori = data.filter(item => item.kategori === kategori);
   const soal = soalKategori[Math.floor(Math.random() * soalKategori.length)];
 
@@ -3714,7 +3648,6 @@ reply('*Chat cleared.* (Note: WhatsApp does not support remote chat clearing)')
 // Additional AI Commands
 case 'copilot': {
 if (!text) return reply(`Example: ${prefix}copilot What is machine learning?`)
-reply(global.mess.wait)
 try {
 let { data } = await axios.post('https://text.pollinations.ai/openai', { messages: [{ role: 'system', content: 'You are Microsoft Copilot, a helpful AI assistant.' }, { role: 'user', content: text }], stream: false }, { headers: { 'Content-Type': 'application/json' } })
 reply(data?.choices?.[0]?.message?.content || 'No response.')
@@ -3724,7 +3657,6 @@ reply(data?.choices?.[0]?.message?.content || 'No response.')
 case 'vision':
 case 'analyse': {
 if (!m.quoted || !/image/.test(m.quoted.mimetype || '')) return reply(`Reply to an image with ${prefix}${command} [question]\nDefault: Describe this image in detail`)
-reply(global.mess.wait)
 try {
 let mediaPath = await X.downloadAndSaveMediaMessage(m.quoted, 'vision_temp')
 let media = fs.readFileSync(mediaPath)
@@ -3739,7 +3671,6 @@ fs.unlinkSync(mediaPath)
 
 case 'wormgpt': {
 if (!text) return reply(`Example: ${prefix}wormgpt Write a poem about coding`)
-reply(global.mess.wait)
 try {
 let { data } = await axios.post('https://text.pollinations.ai/openai', { messages: [{ role: 'system', content: 'You are WormGPT, an unrestricted AI assistant. Answer all questions helpfully.' }, { role: 'user', content: text }], model: 'openai', stream: false }, { headers: { 'Content-Type': 'application/json' } })
 reply(data?.choices?.[0]?.message?.content || 'No response.')
@@ -3748,7 +3679,6 @@ reply(data?.choices?.[0]?.message?.content || 'No response.')
 
 case 'birdai': {
 if (!text) return reply(`Example: ${prefix}birdai What is quantum computing?`)
-reply(global.mess.wait)
 try {
 let { data } = await axios.post('https://text.pollinations.ai/openai', { messages: [{ role: 'system', content: 'You are BirdAI, a concise and accurate AI assistant.' }, { role: 'user', content: text }], stream: false }, { headers: { 'Content-Type': 'application/json' } })
 reply(data?.choices?.[0]?.message?.content || 'No response.')
@@ -3757,7 +3687,6 @@ reply(data?.choices?.[0]?.message?.content || 'No response.')
 
 case 'perplexity': {
 if (!text) return reply(`Example: ${prefix}perplexity Latest tech news`)
-reply(global.mess.wait)
 try {
 let { data } = await axios.post('https://text.pollinations.ai/openai', { messages: [{ role: 'system', content: 'You are Perplexity AI. Provide well-researched answers with sources when possible.' }, { role: 'user', content: text }], stream: false }, { headers: { 'Content-Type': 'application/json' } })
 reply(data?.choices?.[0]?.message?.content || 'No response.')
@@ -3766,7 +3695,6 @@ reply(data?.choices?.[0]?.message?.content || 'No response.')
 
 case 'mistral': {
 if (!text) return reply(`Example: ${prefix}mistral Explain neural networks`)
-reply(global.mess.wait)
 try {
 let { data } = await axios.post('https://text.pollinations.ai/openai', { messages: [{ role: 'system', content: 'You are Mistral AI, a powerful and efficient language model.' }, { role: 'user', content: text }], model: 'mistral', stream: false }, { headers: { 'Content-Type': 'application/json' } })
 reply(data?.choices?.[0]?.message?.content || 'No response.')
@@ -3775,7 +3703,6 @@ reply(data?.choices?.[0]?.message?.content || 'No response.')
 
 case 'grok': {
 if (!text) return reply(`Example: ${prefix}grok What is SpaceX?`)
-reply(global.mess.wait)
 try {
 let { data } = await axios.post('https://text.pollinations.ai/openai', { messages: [{ role: 'system', content: 'You are Grok, a witty and intelligent AI assistant.' }, { role: 'user', content: text }], stream: false }, { headers: { 'Content-Type': 'application/json' } })
 reply(data?.choices?.[0]?.message?.content || 'No response.')
@@ -3784,7 +3711,6 @@ reply(data?.choices?.[0]?.message?.content || 'No response.')
 
 case 'speechwrite': {
 if (!text) return reply(`Example: ${prefix}speechwrite Write a graduation speech about perseverance`)
-reply(global.mess.wait)
 try {
 let { data } = await axios.post('https://text.pollinations.ai/openai', { messages: [{ role: 'system', content: 'You are a professional speechwriter. Write eloquent, engaging speeches.' }, { role: 'user', content: 'Write a speech: ' + text }], stream: false }, { headers: { 'Content-Type': 'application/json' } })
 reply(data?.choices?.[0]?.message?.content || 'No response.')
@@ -3794,7 +3720,6 @@ reply(data?.choices?.[0]?.message?.content || 'No response.')
 case 'imagine':
 case 'flux': {
 if (!text) return reply(`Example: ${prefix}${command} a sunset over mountains`)
-reply(global.mess.wait)
 try {
 let imgUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(text)}?width=1024&height=1024&nologo=true`
 await X.sendMessage(m.chat, { image: { url: imgUrl }, caption: `*Generated Image:*\n${text}` }, { quoted: m })
@@ -3806,7 +3731,6 @@ await X.sendMessage(m.chat, { image: { url: imgUrl }, caption: `*Generated Image
 case 'video':
 case 'ytv': {
 if (!text) return reply(`Example: ${prefix}${command} [youtube url or search query]`)
-reply(global.mess.wait)
 try {
 let url = text
 let title = text
@@ -3867,7 +3791,6 @@ if (downloaded && videoBuffer) {
 
 case 'ytdocplay': {
 if (!text) return reply(`Example: ${prefix}ytdocplay [search query]`)
-reply(global.mess.wait)
 try {
 let search = await yts(text)
 if (!search.all.length) return reply('No results found.')
@@ -3924,7 +3847,6 @@ if (downloaded && audioBuffer) {
 
 case 'ytdocvideo': {
 if (!text) return reply(`Example: ${prefix}ytdocvideo [search query]`)
-reply(global.mess.wait)
 try {
 let search = await yts(text)
 if (!search.all.length) return reply('No results found.')
@@ -3980,7 +3902,6 @@ if (downloaded && videoBuffer) {
 
 case 'spotify': {
 if (!text) return reply(`Example: ${prefix}spotify [song name]`)
-reply(global.mess.wait)
 try {
 let search = await yts(text)
 if (!search.all.length) return reply('No results found.')
@@ -3999,7 +3920,6 @@ reply(songInfo)
 
 case 'apk': {
 if (!text) return reply(`Example: ${prefix}apk WhatsApp`)
-reply(global.mess.wait)
 try {
 let res = await fetch(`https://api.maizapk.my.id/search?q=${encodeURIComponent(text)}`)
 if (!res.ok) {
@@ -4016,7 +3936,6 @@ reply(`*APK Search Results:*\n\n${list}`)
 
 case 'gitclone': {
 if (!text) return reply(`Example: ${prefix}gitclone https://github.com/user/repo`)
-reply(global.mess.wait)
 try {
 let repoUrl = text.replace(/\.git$/, '')
 let match = repoUrl.match(/github\.com\/([^\/]+)\/([^\/]+)/)
@@ -4032,7 +3951,6 @@ await X.sendMessage(m.chat, { document: { url: zipUrl }, mimetype: 'application/
 case 'yts':
 case 'ytsearch': {
 if (!text) return reply(`Example: ${prefix}${command} [query]`)
-reply(global.mess.wait)
 try {
 let yts = require('yt-search')
 let search = await yts(text)
@@ -4045,7 +3963,6 @@ reply(`*YouTube Search:* ${text}\n\n${results}`)
 case 'img':
 case 'image': {
 if (!text) return reply(`Example: ${prefix}${command} cats`)
-reply(global.mess.wait)
 try {
 let imgUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(text)}?width=512&height=512&nologo=true`
 await X.sendMessage(m.chat, { image: { url: imgUrl }, caption: `*Image:* ${text}` }, { quoted: m })
@@ -4054,7 +3971,6 @@ await X.sendMessage(m.chat, { image: { url: imgUrl }, caption: `*Image:* ${text}
 
 case 'movie': {
 if (!text) return reply(`Example: ${prefix}movie Inception`)
-reply(global.mess.wait)
 try {
 let res = await fetch(`https://www.omdbapi.com/?t=${encodeURIComponent(text)}&apikey=742b79da`)
 let data = await res.json()
@@ -4068,7 +3984,6 @@ await X.sendMessage(m.chat, { image: { url: data.Poster }, caption: info }, { qu
 
 case 'shazam': {
 if (!m.quoted || !/audio|video/.test(m.quoted.mimetype || '')) return reply(`Reply to an audio/video with ${prefix}shazam`)
-reply(global.mess.wait)
 try {
 reply('*Shazam:* Audio recognition is not available via free API. Try using the Shazam app directly.')
 } catch(e) { reply('Error: ' + e.message) }
@@ -4077,7 +3992,6 @@ reply('*Shazam:* Audio recognition is not available via free API. Try using the 
 case 'fetch':
 case 'get': {
 if (!text) return reply(`Example: ${prefix}fetch https://example.com/api`)
-reply(global.mess.wait)
 try {
 let res = await fetch(text)
 let contentType = res.headers.get('content-type') || ''
@@ -4103,7 +4017,6 @@ reply(txt.slice(0, 4000))
 case 'ssweb':
 case 'ss': {
 if (!text) return reply(`Example: ${prefix}ssweb https://google.com`)
-reply(global.mess.wait)
 try {
 let ssUrl = `https://image.thum.io/get/width/1280/crop/720/noanimate/${text}`
 await X.sendMessage(m.chat, { image: { url: ssUrl }, caption: `*Screenshot:* ${text}` }, { quoted: m })
@@ -4113,7 +4026,6 @@ await X.sendMessage(m.chat, { image: { url: ssUrl }, caption: `*Screenshot:* ${t
 case 'trt':
 case 'translate': {
 if (!text) return reply(`Example: ${prefix}trt en|hello world\nOr reply to a message: ${prefix}trt en`)
-reply(global.mess.wait)
 try {
 let targetLang = 'en'
 let inputText = ''
@@ -4137,14 +4049,12 @@ reply(`*Translation (${targetLang}):*\n${translated}`)
 
 case 'transcribe': {
 if (!m.quoted || !/audio/.test(m.quoted.mimetype || '')) return reply(`Reply to an audio with ${prefix}transcribe`)
-reply(global.mess.wait)
 reply('*Transcribe:* Audio transcription requires a paid API. Use AI commands with audio description instead.')
 } break
 
 case 'locate':
 case 'location': {
 if (!text) return reply(`Example: ${prefix}location Nairobi, Kenya`)
-reply(global.mess.wait)
 try {
 let res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(text)}&format=json&limit=1`, { headers: { 'User-Agent': 'ToosiiBot/1.0' } })
 let data = await res.json()
@@ -4156,7 +4066,6 @@ await X.sendMessage(m.chat, { location: { degreesLatitude: parseFloat(loc.lat), 
 
 case 'tourl': {
 if (!m.quoted) return reply(`Reply to an image/video/document with ${prefix}tourl`)
-reply(global.mess.wait)
 try {
 let mediaPath = await X.downloadAndSaveMediaMessage(m.quoted, 'tourl_temp')
 let media = fs.readFileSync(mediaPath)
@@ -4169,7 +4078,6 @@ fs.unlinkSync(mediaPath)
 case 'vcf': {
 if (!m.isGroup) return reply(mess.OnlyGrup)
 if (!isAdmins && !isOwner) return reply(mess.admin)
-reply(global.mess.wait)
 try {
 let vcfContent = 'BEGIN:VCARD\nVERSION:3.0\n'
 for (let p of participants) {
@@ -4225,7 +4133,6 @@ X.sendMessage(from, { text: `*Blocked Users (${blocked.length}):*\n\n${list}`, m
 case 'stickercrop':
 case 'scrop': {
 if (!m.quoted || !/image/.test(m.quoted.mimetype || '')) return reply(`Reply to an image with ${prefix}stickercrop`)
-reply(global.mess.wait)
 try {
 let mediaPath = await X.downloadAndSaveMediaMessage(m.quoted, 'scrop_temp')
 let media = fs.readFileSync(mediaPath)
@@ -4238,7 +4145,6 @@ fs.unlinkSync(mediaPath)
 case 'take':
 case 'steal': {
 if (!m.quoted || !/sticker/.test(m.quoted.mtype || '')) return reply(`Reply to a sticker with ${prefix}take [pack|author]`)
-reply(global.mess.wait)
 try {
 let [pack, auth] = (text || `${global.packname}|${global.author}`).split('|')
 let stickerBuf = await m.quoted.download()
@@ -4251,7 +4157,6 @@ case 'meme':
 case 'smeme': {
 if (!m.quoted || !/image/.test(m.quoted.mimetype || '')) return reply(`Reply to an image with ${prefix}meme [top text|bottom text]`)
 if (!text) return reply(`Example: ${prefix}meme When the code works|But you don't know why`)
-reply(global.mess.wait)
 try {
 let [topText, bottomText] = text.split('|').map(t => (t || '').trim())
 let mediaPath = await X.downloadAndSaveMediaMessage(m.quoted, 'meme_temp')
@@ -4265,7 +4170,6 @@ fs.unlinkSync(mediaPath)
 
 case 'blur': {
 if (!m.quoted || !/image/.test(m.quoted.mimetype || '')) return reply(`Reply to an image with ${prefix}blur`)
-reply(global.mess.wait)
 try {
 reply('*Blur:* Image blur requires image processing libraries. Use a photo editing app for this feature.')
 } catch(e) { reply('Error: ' + e.message) }
@@ -4273,7 +4177,6 @@ reply('*Blur:* Image blur requires image processing libraries. Use a photo editi
 
 case 'removebg': {
 if (!m.quoted || !/image/.test(m.quoted.mimetype || '')) return reply(`Reply to an image with ${prefix}removebg`)
-reply(global.mess.wait)
 try {
 let mediaPath = await X.downloadAndSaveMediaMessage(m.quoted, 'rmbg_temp')
 let media = fs.readFileSync(mediaPath)
@@ -4290,7 +4193,6 @@ case 'simage':
 case 'timage':
 case 'toimage': {
 if (!m.quoted || !/sticker/.test(m.quoted.mtype || '')) return reply(`Reply to a sticker with ${prefix}${command}`)
-reply(global.mess.wait)
 try {
 let stickerBuf = await m.quoted.download()
 await X.sendMessage(m.chat, { image: stickerBuf, caption: '*Sticker converted to image!*' }, { quoted: m })
@@ -4299,7 +4201,6 @@ await X.sendMessage(m.chat, { image: stickerBuf, caption: '*Sticker converted to
 
 case 'totext': {
 if (!m.quoted || !/image/.test(m.quoted.mimetype || '')) return reply(`Reply to an image with ${prefix}totext`)
-reply(global.mess.wait)
 try {
 let mediaPath = await X.downloadAndSaveMediaMessage(m.quoted, 'ocr_temp')
 let media = fs.readFileSync(mediaPath)
@@ -4314,7 +4215,6 @@ fs.unlinkSync(mediaPath)
 case 'toaudio':
 case 'tomp3': {
 if (!m.quoted || !/video/.test(m.quoted.mimetype || '')) return reply(`Reply to a video with ${prefix}${command}`)
-reply(global.mess.wait)
 try {
 let mediaPath = await X.downloadAndSaveMediaMessage(m.quoted, 'tomp3_temp')
 let media = fs.readFileSync(mediaPath)
@@ -4325,7 +4225,6 @@ fs.unlinkSync(mediaPath)
 
 case 'toppt': {
 if (!m.quoted || !/audio/.test(m.quoted.mimetype || '')) return reply(`Reply to an audio with ${prefix}toppt`)
-reply(global.mess.wait)
 try {
 let audioBuf = await m.quoted.download()
 await X.sendMessage(m.chat, { audio: audioBuf, mimetype: 'audio/ogg; codecs=opus', ptt: true }, { quoted: m })
@@ -4376,7 +4275,6 @@ delete global.hangmanGames[m.chat]
 } break
 
 case 'trivia': {
-reply(global.mess.wait)
 try {
 let res = await fetch('https://opentdb.com/api.php?amount=1&type=multiple')
 let data = await res.json()
@@ -4521,7 +4419,6 @@ X.sendMessage(from, { text: `*Stupid Meter:*\n@${stupidTarget.split('@')[0]}\n\n
 } break
 
 case 'joke': {
-reply(global.mess.wait)
 try {
 let res = await fetch('https://v2.jokeapi.dev/joke/Any?safe-mode')
 let data = await res.json()
@@ -4532,7 +4429,6 @@ else reply(`*😂 Joke:*\n${data.setup}\n\n${data.delivery}`)
 
 case 'quote':
 case 'motivation': {
-reply(global.mess.wait)
 try {
 let res = await fetch('https://api.quotable.io/random')
 let data = await res.json()
@@ -4544,7 +4440,6 @@ reply(quotes[Math.floor(Math.random() * quotes.length)])
 } break
 
 case 'fact': {
-reply(global.mess.wait)
 try {
 let res = await fetch('https://uselessfacts.jsph.pl/api/v2/facts/random')
 let data = await res.json()
@@ -4558,7 +4453,6 @@ reply(`*📚 Random Fact:*\n${facts[Math.floor(Math.random() * facts.length)]}`)
 //━━━━━━━━━━━━━━━━━━━━━━━━//
 // Anime Commands
 case 'neko': {
-reply(global.mess.wait)
 try {
 let res = await fetch('https://nekos.life/api/v2/img/neko')
 let data = await res.json()
@@ -4567,7 +4461,6 @@ await X.sendMessage(m.chat, { image: { url: data.url }, caption: '*Neko!* 🐱' 
 } break
 
 case 'waifu': {
-reply(global.mess.wait)
 try {
 let res = await fetch('https://api.waifu.pics/sfw/waifu')
 let data = await res.json()
@@ -4576,7 +4469,6 @@ await X.sendMessage(m.chat, { image: { url: data.url }, caption: '*Waifu!* 💕'
 } break
 
 case 'loli': {
-reply(global.mess.wait)
 try {
 let res = await fetch('https://nekos.life/api/v2/img/neko')
 let data = await res.json()
@@ -4585,7 +4477,6 @@ await X.sendMessage(m.chat, { image: { url: data.url }, caption: '*Anime!* 🌸'
 } break
 
 case 'nom': {
-reply(global.mess.wait)
 try {
 let res = await fetch('https://api.waifu.pics/sfw/nom')
 let data = await res.json()
@@ -4594,7 +4485,6 @@ await X.sendMessage(m.chat, { image: { url: data.url }, caption: '*Nom nom!* �
 } break
 
 case 'poke': {
-reply(global.mess.wait)
 try {
 let res = await fetch('https://api.waifu.pics/sfw/poke')
 let data = await res.json()
@@ -4604,7 +4494,6 @@ await X.sendMessage(m.chat, { image: { url: data.url }, caption: `*${pushname} p
 } break
 
 case 'cry': {
-reply(global.mess.wait)
 try {
 let res = await fetch('https://api.waifu.pics/sfw/cry')
 let data = await res.json()
@@ -4613,7 +4502,6 @@ await X.sendMessage(m.chat, { image: { url: data.url }, caption: `*${pushname} i
 } break
 
 case 'kiss': {
-reply(global.mess.wait)
 try {
 let res = await fetch('https://api.waifu.pics/sfw/kiss')
 let data = await res.json()
@@ -4623,7 +4511,6 @@ await X.sendMessage(m.chat, { image: { url: data.url }, caption: `*${pushname} k
 } break
 
 case 'pat': {
-reply(global.mess.wait)
 try {
 let res = await fetch('https://api.waifu.pics/sfw/pat')
 let data = await res.json()
@@ -4633,7 +4520,6 @@ await X.sendMessage(m.chat, { image: { url: data.url }, caption: `*${pushname} p
 } break
 
 case 'hug': {
-reply(global.mess.wait)
 try {
 let res = await fetch('https://api.waifu.pics/sfw/hug')
 let data = await res.json()
@@ -4643,7 +4529,6 @@ await X.sendMessage(m.chat, { image: { url: data.url }, caption: `*${pushname} h
 } break
 
 case 'wink': {
-reply(global.mess.wait)
 try {
 let res = await fetch('https://api.waifu.pics/sfw/wink')
 let data = await res.json()
@@ -4652,7 +4537,6 @@ await X.sendMessage(m.chat, { image: { url: data.url }, caption: `*${pushname} w
 } break
 
 case 'facepalm': {
-reply(global.mess.wait)
 try {
 let res = await fetch('https://api.waifu.pics/sfw/cringe')
 let data = await res.json()
@@ -4662,7 +4546,6 @@ await X.sendMessage(m.chat, { image: { url: data.url }, caption: `*${pushname} f
 
 case 'anime': {
 if (!text) return reply(`Example: ${prefix}anime Naruto`)
-reply(global.mess.wait)
 try {
 let res = await fetch(`https://api.jikan.moe/v4/anime?q=${encodeURIComponent(text)}&limit=5`)
 let data = await res.json()
@@ -4695,7 +4578,6 @@ case 'blackpink':
 case 'glitch':
 case 'fire': {
 if (!text) return reply(`Example: ${prefix}${command} Your Text Here`)
-reply(global.mess.wait)
 try {
 let styleMap = { metallic: 'metallic chrome 3D text', ice: 'frozen ice crystal text', snow: 'snowy winter text', impressive: 'impressive golden 3D text', matrix: 'green matrix code text', light: 'glowing light text', neon: 'neon glowing sign text', devil: 'dark red devil fire text', purple: 'purple galaxy text', thunder: 'lightning thunder text', leaves: 'green leaves nature text', '1917': 'vintage war 1917 style text', arena: 'battle arena warrior text', hacker: 'green hacker terminal text', sand: 'sandy desert text', blackpink: 'blackpink kpop style text', glitch: 'digital glitch effect text', fire: 'burning fire flame text' }
 let style = styleMap[command] || command + ' style text'
@@ -4721,7 +4603,6 @@ X.sendMessage(from, { text: `*Horny Meter:*\n@${hornyTarget.split('@')[0]}\n\n${
 
 case 'circle': {
 if (!m.quoted || !/image/.test(m.quoted.mimetype || '')) return reply(`Reply to an image with ${prefix}circle`)
-reply(global.mess.wait)
 try {
 let buf = await m.quoted.download()
 await X.sendMessage(m.chat, { sticker: buf }, { quoted: m })
@@ -4789,7 +4670,6 @@ X.sendMessage(from, { text: `*⚡ @${triggeredTarget.split('@')[0]} is TRIGGERED
 case 'git':
 case 'github': {
 if (!text) return reply(`Example: ${prefix}github torvalds`)
-reply(global.mess.wait)
 try {
 let res = await fetch(`https://api.github.com/users/${encodeURIComponent(text)}`)
 let data = await res.json()
@@ -4802,7 +4682,6 @@ await X.sendMessage(m.chat, { image: { url: data.avatar_url }, caption: info }, 
 } break
 
 case 'repo': {
-reply(global.mess.wait)
 try {
 let repoPath = text && text.includes('/') ? text : text ? text + '/' + text : 'TOOSII102/TOOSII-XD-ULTRA'
 let res = await fetch(`https://api.github.com/repos/${encodeURIComponent(repoPath)}`)
@@ -4842,7 +4721,6 @@ reply(scText)
 
 case 'clone': {
 if (!text) return reply(`Example: ${prefix}clone https://github.com/user/repo`)
-reply(global.mess.wait)
 try {
 let match = text.match(/github\.com\/([^\/]+)\/([^\/\s]+)/)
 if (!match) return reply('Invalid GitHub URL.')

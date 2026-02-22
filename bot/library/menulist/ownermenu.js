@@ -1,58 +1,58 @@
 const ownerMenu = `
-╭─────『 *Owner Tools* 』
-│ .> / .$ / .=>
-│ .self / .mode self
-│ .public / .mode public
-│ .restart
-│ .join [group link]
-│ .setprefix [char/reset]
-│ .addplugin
-│ .rmplugin
-│ .cgplugin
-│ .getplugin
-│ .sudo add/remove [num]
-│ .setowner [number]
-│ .clearsession
-│ .cleartmp
-╰──────────────────
+┏❒ *ᴏᴡɴᴇʀ ᴛᴏᴏʟꜱ* ❒
+┃➤ .> / .$ / .=>
+┃➤ .self
+┃➤ .public
+┃➤ .restart
+┃➤ .join [ɢʀᴏᴜᴘ ʟɪɴᴋ]
+┃➤ .setprefix [ᴄʜᴀʀ/ʀᴇꜱᴇᴛ]
+┃➤ .addplugin
+┃➤ .rmplugin
+┃➤ .cgplugin
+┃➤ .getplugin
+┃➤ .sudo ᴀᴅᴅ/ʀᴇᴍᴏᴠᴇ [ɴᴜᴍ]
+┃➤ .setowner [ɴᴜᴍʙᴇʀ]
+┃➤ .clearsession
+┃➤ .cleartmp
+┗❒
 
-╭─────『 *Bot Settings* 』
-│ .botname [name]
-│ .author [name]
-│ .packname [name]
-│ .timezone [tz]
-│ .botpic [url/reply img]
-│ .boturl [url]
-│ .setpp (reply img)
-│ .menuimage [url/reply img]
-│ .configimage
-│ .setmenu
-│ .botsettings (View All)
-╰──────────────────
+┏❒ *ʙᴏᴛ ꜱᴇᴛᴛɪɴɢꜱ* ❒
+┃➤ .botname [ɴᴀᴍᴇ]
+┃➤ .author [ɴᴀᴍᴇ]
+┃➤ .packname [ɴᴀᴍᴇ]
+┃➤ .timezone [ᴛᴢ]
+┃➤ .botpic [ᴜʀʟ/ʀᴇᴘʟʏ ɪᴍɢ]
+┃➤ .boturl [ᴜʀʟ]
+┃➤ .setpp ʀᴇᴘʟʏ ɪᴍɢ
+┃➤ .menuimage [ᴜʀʟ/ʀᴇᴘʟʏ ɪᴍɢ]
+┃➤ .configimage
+┃➤ .setmenu
+┃➤ .botsettings
+┗❒
 
-╭─────『 *Protection* 』
-│ .anticall (On/Off)
-│ .antilink (On/Off)
-│ .antidelete (On/Off)
-│ .antistatusmention (On/Off)
-│ .pmblocker (On/Off)
-╰──────────────────
+┏❒ *ᴘʀᴏᴛᴇᴄᴛɪᴏɴ* ❒
+┃➤ .anticall ᴏɴ/ᴏꜰꜰ
+┃➤ .antilink ᴏɴ/ᴏꜰꜰ
+┃➤ .antidelete ᴏɴ/ᴏꜰꜰ
+┃➤ .antistatusmention ᴏɴ/ᴏꜰꜰ
+┃➤ .pmblocker ᴏɴ/ᴏꜰꜰ
+┗❒
 
-╭─────『 *Automation* 』
-│ .autoread (On/Off)
-│ .chatbot (On/Off)
-│ .autobio (On/Off)
-│ .autotyping (On/Off)
-│ .autoreact [emoji/on/off]
-│ .autoreplystatus [msg/off]
-│ .autoviewstatus (Toggle)
-│ .autolikestatus [emoji/off]
-╰──────────────────
+┏❒ *ᴀᴜᴛᴏᴍᴀᴛɪᴏɴ* ❒
+┃➤ .autoread ᴏɴ/ᴏꜰꜰ
+┃➤ .chatbot ᴏɴ/ᴏꜰꜰ
+┃➤ .autobio ᴏɴ/ᴏꜰꜰ
+┃➤ .autotyping ᴏɴ/ᴏꜰꜰ
+┃➤ .autoreact [ᴇᴍᴏᴊɪ/ᴏɴ/ᴏꜰꜰ]
+┃➤ .autoreplystatus [ᴍꜱɢ/ᴏꜰꜰ]
+┃➤ .autoviewstatus
+┃➤ .autolikestatus [ᴇᴍᴏᴊɪ/ᴏꜰꜰ]
+┗❒
 
-╭─────『 *Block Management* 』
-│ .block @user
-│ .unblock @user
-│ .listblock
-╰──────────────────`
+┏❒ *ʙʟᴏᴄᴋ ᴍᴀɴᴀɢᴇᴍᴇɴᴛ* ❒
+┃➤ .block @ᴜꜱᴇʀ
+┃➤ .unblock @ᴜꜱᴇʀ
+┃➤ .listblock
+┗❒`
 
 module.exports = ownerMenu

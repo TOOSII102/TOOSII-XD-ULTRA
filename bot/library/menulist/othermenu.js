@@ -1,81 +1,85 @@
 const otherMenu = `
-╭─────『 *Bot Info* 』
-│ .sc / .script / .source
-│ .owner
-│ .botinfo
-│ .infobot
-│ .infoserver
-╰──────────────────
+┏❒ *ʙᴏᴛ ɪɴꜰᴏ* ❒
+┃➤ .sc
+┃➤ .script
+┃➤ .source
+┃➤ .owner
+┃➤ .botinfo
+┃➤ .infobot
+┃➤ .infoserver
+┗❒
 
-╭─────『 *Fun & Social* 』
-│ .compliment @user
-│ .insult @user
-│ .flirt
-│ .shayari
-│ .goodnight
-│ .roseday
-│ .character
-│ .joke
-│ .quote / .motivation
-│ .fact
-│ .wasted @user
-│ .namecard [name]
-│ .tweet [text]
-│ .ytcomment [text]
-╰──────────────────
+┏❒ *ꜰᴜɴ & ꜱᴏᴄɪᴀʟ* ❒
+┃➤ .compliment @ᴜꜱᴇʀ
+┃➤ .insult @ᴜꜱᴇʀ
+┃➤ .flirt
+┃➤ .shayari
+┃➤ .goodnight
+┃➤ .roseday
+┃➤ .character
+┃➤ .joke
+┃➤ .quote
+┃➤ .motivation
+┃➤ .fact
+┃➤ .wasted @ᴜꜱᴇʀ
+┃➤ .namecard [ɴᴀᴍᴇ]
+┃➤ .tweet [ᴛᴇxᴛ]
+┃➤ .ytcomment [ᴛᴇxᴛ]
+┗❒
 
-╭─────『 *Anime* 』
-│ .anime [name]
-│ .waifu
-│ .neko
-│ .loli
-│ .nom
-│ .poke @user
-│ .cry
-│ .kiss @user
-│ .pat @user
-│ .hug @user
-│ .wink
-│ .facepalm
-╰──────────────────
+┏❒ *ᴀɴɪᴍᴇ* ❒
+┃➤ .anime [ɴᴀᴍᴇ]
+┃➤ .waifu
+┃➤ .neko
+┃➤ .loli
+┃➤ .nom
+┃➤ .poke @ᴜꜱᴇʀ
+┃➤ .cry
+┃➤ .kiss @ᴜꜱᴇʀ
+┃➤ .pat @ᴜꜱᴇʀ
+┃➤ .hug @ᴜꜱᴇʀ
+┃➤ .wink
+┃➤ .facepalm
+┗❒
 
-╭─────『 *Text Maker* 』
-│ .metallic [text]
-│ .ice [text]
-│ .snow [text]
-│ .neon [text]
-│ .fire [text]
-│ .glitch [text]
-│ .thunder [text]
-│ .matrix [text]
-│ .hacker [text]
-│ .devil [text]
-│ .purple [text]
-│ .blackpink [text]
-│ .sand [text]
-│ .arena [text]
-│ .1917 [text]
-│ .light [text]
-│ .impressive [text]
-│ .leaves [text]
-╰──────────────────
+┏❒ *ᴛᴇxᴛ ᴍᴀᴋᴇʀ* ❒
+┃➤ .metallic [ᴛᴇxᴛ]
+┃➤ .ice [ᴛᴇxᴛ]
+┃➤ .snow [ᴛᴇxᴛ]
+┃➤ .neon [ᴛᴇxᴛ]
+┃➤ .fire [ᴛᴇxᴛ]
+┃➤ .glitch [ᴛᴇxᴛ]
+┃➤ .thunder [ᴛᴇxᴛ]
+┃➤ .matrix [ᴛᴇxᴛ]
+┃➤ .hacker [ᴛᴇxᴛ]
+┃➤ .devil [ᴛᴇxᴛ]
+┃➤ .purple [ᴛᴇxᴛ]
+┃➤ .blackpink [ᴛᴇxᴛ]
+┃➤ .sand [ᴛᴇxᴛ]
+┃➤ .arena [ᴛᴇxᴛ]
+┃➤ .1917 [ᴛᴇxᴛ]
+┃➤ .light [ᴛᴇxᴛ]
+┃➤ .impressive [ᴛᴇxᴛ]
+┃➤ .leaves [ᴛᴇxᴛ]
+┗❒
 
-╭─────『 *Image Edit* 』
-│ .heart @user
-│ .circle (reply img)
-│ .jail @user
-│ .passed @user
-│ .triggered @user
-│ .comrade @user
-│ .lgbt @user
-│ .lolice @user
-│ .glass (reply img)
-╰──────────────────
+┏❒ *ɪᴍᴀɢᴇ ᴇᴅɪᴛ* ❒
+┃➤ .heart @ᴜꜱᴇʀ
+┃➤ .circle ʀᴇᴘʟʏ ɪᴍɢ
+┃➤ .jail @ᴜꜱᴇʀ
+┃➤ .passed @ᴜꜱᴇʀ
+┃➤ .triggered @ᴜꜱᴇʀ
+┃➤ .comrade @ᴜꜱᴇʀ
+┃➤ .lgbt @ᴜꜱᴇʀ
+┃➤ .lolice @ᴜꜱᴇʀ
+┃➤ .glass ʀᴇᴘʟʏ ɪᴍɢ
+┗❒
 
-╭─────『 *GitHub* 』
-│ .github / .git [username]
-│ .repo [user/repo]
-│ .clone [github url]
-╰──────────────────`
+┏❒ *ɢɪᴛʜᴜʙ* ❒
+┃➤ .github [ᴜꜱᴇʀɴᴀᴍᴇ]
+┃➤ .git [ᴜꜱᴇʀɴᴀᴍᴇ]
+┃➤ .repo [ᴜꜱᴇʀ/ʀᴇᴘᴏ]
+┃➤ .clone [ɢɪᴛʜᴜʙ ᴜʀʟ]
+┗❒`
 
 module.exports = otherMenu

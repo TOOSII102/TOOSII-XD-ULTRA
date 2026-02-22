@@ -1,24 +1,28 @@
 const stickerMenu = `
-╭─────『 *Sticker Tools* 』
-│ .sticker (reply media)
-│ .stickercrop / .scrop
-│ .take / .steal [pack|author]
-│ .qc [text]
-│ .brat [text]
-│ .bratv [text]
-│ .emojimix [emoji+emoji]
-│ .telestick [telegram url]
-│ .stikerly [query]
-│ .meme / .smeme [top|bottom]
-╰──────────────────
+┏❒ *ꜱᴛɪᴄᴋᴇʀ ᴛᴏᴏʟꜱ* ❒
+┃➤ .sticker ʀᴇᴘʟʏ ᴍᴇᴅɪᴀ
+┃➤ .stickercrop
+┃➤ .scrop
+┃➤ .take [ᴘᴀᴄᴋ|ᴀᴜᴛʜᴏʀ]
+┃➤ .steal [ᴘᴀᴄᴋ|ᴀᴜᴛʜᴏʀ]
+┃➤ .qc [ᴛᴇxᴛ]
+┃➤ .brat [ᴛᴇxᴛ]
+┃➤ .bratv [ᴛᴇxᴛ]
+┃➤ .emojimix [ᴇᴍᴏᴊɪ+ᴇᴍᴏᴊɪ]
+┃➤ .telestick [ᴛᴇʟᴇɢʀᴀᴍ ᴜʀʟ]
+┃➤ .stikerly [Qᴜᴇʀʏ]
+┃➤ .meme [ᴛᴏᴘ|ʙᴏᴛᴛᴏᴍ]
+┃➤ .smeme [ᴛᴏᴘ|ʙᴏᴛᴛᴏᴍ]
+┗❒
 
-╭─────『 *Converter* 』
-│ .toimage / .simage (sticker→img)
-│ .totext (image→text OCR)
-│ .toaudio / .tomp3 (video→audio)
-│ .toppt (audio→voice note)
-│ .tourl (media→url)
-│ .removebg (remove background)
-╰──────────────────`
+┏❒ *ᴄᴏɴᴠᴇʀᴛᴇʀ* ❒
+┃➤ .toimage ꜱᴛɪᴄᴋᴇʀ→ɪᴍɢ
+┃➤ .totext ɪᴍᴀɢᴇ→ᴛᴇxᴛ
+┃➤ .toaudio ᴠɪᴅᴇᴏ→ᴀᴜᴅɪᴏ
+┃➤ .tomp3 ᴠɪᴅᴇᴏ→ᴍᴘ3
+┃➤ .toppt ᴀᴜᴅɪᴏ→ᴠᴏɪᴄᴇ
+┃➤ .tourl ᴍᴇᴅɪᴀ→ᴜʀʟ
+┃➤ .removebg
+┗❒`
 
 module.exports = stickerMenu

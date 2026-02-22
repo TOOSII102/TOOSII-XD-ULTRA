@@ -1,16 +1,17 @@
 const downloaderMenu = `
-╭─────『 *Downloaders* 』
-│ .play / .song [query]
-│ .video / .ytv [query/url]
-│ .ytdocplay [query]
-│ .ytdocvideo [query]
-│ .ig [url]
-│ .tt [url]
-│ .fb [url]
-│ .mfdl / .mediafire [url]
-│ .spotify [song name]
-│ .apk [app name]
-│ .gitclone [github url]
-╰──────────────────`
+┏❒ *ᴅᴏᴡɴʟᴏᴀᴅᴇʀꜱ* ❒
+┃➤ .play [Qᴜᴇʀʏ]
+┃➤ .song [Qᴜᴇʀʏ]
+┃➤ .video [Qᴜᴇʀʏ/ᴜʀʟ]
+┃➤ .ytdocplay [Qᴜᴇʀʏ]
+┃➤ .ytdocvideo [Qᴜᴇʀʏ]
+┃➤ .ig [ᴜʀʟ]
+┃➤ .tt [ᴜʀʟ]
+┃➤ .fb [ᴜʀʟ]
+┃➤ .mediafire [ᴜʀʟ]
+┃➤ .spotify [ꜱᴏɴɢ ɴᴀᴍᴇ]
+┃➤ .apk [ᴀᴘᴘ ɴᴀᴍᴇ]
+┃➤ .gitclone [ɢɪᴛʜᴜʙ ᴜʀʟ]
+┗❒`
 
 module.exports = downloaderMenu

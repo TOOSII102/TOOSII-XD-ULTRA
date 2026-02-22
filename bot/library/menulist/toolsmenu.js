@@ -1,34 +1,40 @@
 const toolsMenu = `
-╭─────『 *Utilities* 』
-│ .ping / .info / .server
-│ .runtime / .alive
-│ .myip
-│ .ipwhois [ip]
-│ .fetch / .get [url]
-│ .ssweb / .ss [url]
-│ .trt / .translate [lang|text]
-│ .locate / .location [place]
-│ .shazam (reply audio)
-│ .transcribe (reply audio)
-│ .totalfitur
-│ .pair
-╰──────────────────
+┏❒ *ᴜᴛɪʟɪᴛɪᴇꜱ* ❒
+┃➤ .ping
+┃➤ .info
+┃➤ .server
+┃➤ .runtime
+┃➤ .alive
+┃➤ .myip
+┃➤ .ipwhois [ɪᴘ]
+┃➤ .fetch [ᴜʀʟ]
+┃➤ .ssweb [ᴜʀʟ]
+┃➤ .trt [ʟᴀɴɢ|ᴛᴇxᴛ]
+┃➤ .translate [ʟᴀɴɢ|ᴛᴇxᴛ]
+┃➤ .locate [ᴘʟᴀᴄᴇ]
+┃➤ .shazam ʀᴇᴘʟʏ ᴀᴜᴅɪᴏ
+┃➤ .transcribe ʀᴇᴘʟʏ ᴀᴜᴅɪᴏ
+┃➤ .totalfitur
+┃➤ .pair
+┃➤ .prefix
+┃➤ .save ʀᴇᴘʟʏ ᴍꜱɢ
+┗❒
 
-╭─────『 *Presence Tools* 』
-│ .vv (View Once Opener)
-│ .fakerecord (Toggle)
-│ .faketyping (Toggle)
-│ .fakeonline (Toggle)
-│ .fakestatus (Check Mode)
-╰──────────────────
+┏❒ *ᴘʀᴇꜱᴇɴᴄᴇ* ❒
+┃➤ .vv
+┃➤ .fakerecord
+┃➤ .faketyping
+┃➤ .fakeonline
+┃➤ .fakestatus
+┗❒
 
-╭─────『 *Status Tools* 』
-│ .autoviewstatus (Toggle)
-│ .autolikestatus [emoji/off]
-│ .togroupstatus (Fwd Status)
-│ .autostatus (View Config)
-│ .autoreplystatus [msg/off]
-│ .antistatusmention (On/Off)
-╰──────────────────`
+┏❒ *ꜱᴛᴀᴛᴜꜱ ᴛᴏᴏʟꜱ* ❒
+┃➤ .autoviewstatus
+┃➤ .autolikestatus [ᴇᴍᴏᴊɪ/ᴏꜰꜰ]
+┃➤ .togroupstatus
+┃➤ .autostatus
+┃➤ .autoreplystatus [ᴍꜱɢ/ᴏꜰꜰ]
+┃➤ .antistatusmention
+┗❒`
 
 module.exports = toolsMenu

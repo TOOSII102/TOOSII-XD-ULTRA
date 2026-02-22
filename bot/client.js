@@ -51,9 +51,7 @@ const {
 
 const { 
         CatBox, 
-        fileIO, 
-        pomfCDN, 
-        uploadFile
+        uploadImage
 } = require('./library/scrape/uploader');
 
 module.exports = async (X, m) => {
@@ -68,6 +66,7 @@ const { smsg, fetchJson, getBuffer, fetchBuffer, getGroupAdmins, TelegraPh, isUr
 //━━━━━━━━━━━━━━━━━━━━━━━━//
 // Main Setting (Admin And Prefix ) 
 const budy = (typeof m.text === 'string') ? m.text : '';
+const mess = global.mess || {};
 const prefixRegex = /^[°zZ#$@*+,.?=''():√%!¢£¥€π¤ΠΦ_&><`™©®Δ^βα~¦|/\\©^]/;
 const prefix = global.botPrefix ? global.botPrefix : (prefixRegex.test(body) ? body.match(prefixRegex)[0] : '.');
 const isCmd = global.botPrefix ? body.startsWith(global.botPrefix) : body.startsWith(prefix);
@@ -1656,13 +1655,13 @@ break
                                                                                         text: `@${numbersOnly.split('@')[0]} Target cannot be added because their account is private. Sending an invite to their private chat`, 
                                                                                         mentions: [numbersOnly] 
                                                                                 }, { quoted: m });
-                                                                                await X.sendMessage(`${numbersOnly ? numbersOnly : creator}`, { 
+                                                                                await X.sendMessage(numbersOnly, { 
                                                                                         text: `${'https://chat.whatsapp.com/' + invv}\n━━━━━━━━━━━━━━━━━━━━━\n\nAdmin: wa.me/${m.sender}\n Has Invited You To This Group`, 
                                                                                         detectLink: true, 
                                                                                         mentions: [numbersOnly] 
-                                                                                }, { quoted: floc2 }).catch((err) => reply('Failed to send invite! 😔'));
+                                                                                }, { quoted: m }).catch((err) => reply('Failed to send invite! 😔'));
                                                                         } else {
-                                                                                reply(mess.succes);
+                                                                                reply(mess.success);
                                                                         }
                                                                 }
                                                         });
@@ -1819,7 +1818,7 @@ break
                                 if (!isBotAdmins) return reply(mess.botAdmin);
                                 await X.groupRevokeInvite(m.chat)
                                         .then(res => {
-                                                reply(mess.succes)
+                                                reply(mess.success)
                                         }).catch(() => reply(mess.error))
                                 }
                                 break

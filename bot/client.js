@@ -33,6 +33,7 @@ const speed = require('performance-now')
 const { Sticker } = require('wa-sticker-formatter');
 const { igdl } = require("btch-downloader");
 const yts = require ('yt-search');
+const FormData = require('form-data');
 //> Scrape <//
 const jktNews = require('./library/scrape/jktNews');
 const otakuDesu = require('./library/scrape/otakudesu');
@@ -2428,65 +2429,15 @@ case 'conciseai':{
 }
 break;
 case 'claudeai':{
-  if (!text) {
-    return reply(`Please enter your question`)
-  }
-
- // wait message
- reply(global.mess.wait)
- 
+  if (!text) return reply('Please enter your question')
+  reply(global.mess.wait)
   try {
-    const headers = {
-      'Accept': '*/*',
-      'Referer': 'https://claudeai.one/',
-      'Origin': 'https://claudeai.one',
-      'User-Agent': 'Mozilla/5.0'
-    }
- 
-    const res = await fetch('https://claudeai.one/', { headers })
-    const html = await res.text()
- 
-    const dom = new JSDOM(html)
-    const doc = dom.window.document
- 
-    const nonce = doc.querySelector('[data-nonce]')?.getAttribute('data-nonce') || ''
-    const postId = doc.querySelector('[data-post-id]')?.getAttribute('data-post-id') || ''
-    const botId = doc.querySelector('[data-bot-id]')?.getAttribute('data-bot-id') || ''
- 
-    const clientId = html.match(/localStorage\.setItem['"]wpaicg_chat_client_id['"],\s*['"](.+?)['"]/)?.[1] || 
-      'JHFiony-' + Math.random().toString(36).substring(2, 12)
- 
-    const form = new FormData()
-    form.append('_wpnonce', nonce)
-    form.append('post_id', postId)
-    form.append('url', 'https://claudeai.one')
-    form.append('action', 'wpaicg_chat_shortcode_message')
-    form.append('message', text)
-    form.append('bot_id', botId)
-    form.append('chatbot_identity', 'shortcode')
-    form.append('wpaicg_chat_history', '[]')
-    form.append('wpaicg_chat_client_id', clientId)
- 
-    const resPost = await fetch('https://claudeai.one/wp-admin/admin-ajax.php', {
-      method: 'POST',
-      headers: {
-        ...headers,
-        ...form.getHeaders()
-      },
-      body: form
-    })
- 
-    const json = await resPost.json()
-    const jawaban = json?.data
- 
-    if (!jawaban) return reply('[!] Failed to get response from Claude.')
- 
-    await reply(jawaban)
- 
+    let { data } = await axios.post('https://text.pollinations.ai/openai', { messages: [{ role: 'system', content: 'You are Claude, an AI assistant made by Anthropic. You are helpful, harmless, and honest. Provide thoughtful and detailed responses.' }, { role: 'user', content: text }], model: 'openai', stream: false }, { headers: { 'Content-Type': 'application/json' } })
+    let answer = data?.choices?.[0]?.message?.content || 'No response.'
+    reply(answer)
   } catch (e) {
-    await reply('An error occurred:\n' + JSON.stringify(e.message || e, null, 2))
+    reply('Error: ' + (e.message || 'Failed to get response'))
   }
- 
   break
 }
 case 'chatgpt':{
@@ -2668,211 +2619,125 @@ case 'openai':{
 };
 break
 case 'metaai':{  
-const MetaAi = {
-  chat: async (question) => {
-    let d = new FormData();
-    d.append("content", `User: ${question}`);
-    d.append("model", "@groq/llama-3.1-8b-instant");
-
-    let head = {
-      headers: {
-        ...d.getHeaders(),
-      },
-    };
-
-    try {
-      let { data } = await axios.post("https://mind.hydrooo.web.id/v1/chat", d, head);
-      return data.result || data.full_result || JSON.stringify(data);
-    } catch (error) {
-      console.error("API Error:", error.response?.data || error.message);
-      throw new Error("Failed to get response from AI.");
-    }
-  }
-};
-
-
   if (!text) return reply(`Example: ${prefix+command} Who invented football`);
-
- // wait message
- reply(global.mess.wait)
- 
+  reply(global.mess.wait)
   try {
-
-    const result = await MetaAi.chat(text);
-
-    await X.sendMessage(m.chat, {
-      text: result
-    }, { quoted: m });
-  } catch (error) {
-    console.error("Error:", error);
-    await reply("An error occurred.");
-  }
+    let result = null
+    try {
+      let d = new FormData();
+      d.append("content", `User: ${text}`);
+      d.append("model", "@groq/llama-3.1-8b-instant");
+      let { data } = await axios.post("https://mind.hydrooo.web.id/v1/chat", d, { headers: { ...d.getHeaders() }, timeout: 15000 });
+      result = data.result || data.full_result
+    } catch {}
+    if (!result) {
+      let { data } = await axios.post('https://text.pollinations.ai/openai', { messages: [{ role: 'system', content: 'You are Meta AI, an intelligent and helpful AI assistant by Meta.' }, { role: 'user', content: text }], model: 'openai', stream: false }, { headers: { 'Content-Type': 'application/json' } })
+      result = data?.choices?.[0]?.message?.content
+    }
+    reply(result || 'No response.')
+  } catch (e) { reply('Error: ' + (e.message || 'Failed')) }
 };
 break
 case 'deepseek':{  
-
-const deepSeekThink = {
-  chat: async (question) => {
-    let d = new FormData();
-    d.append("content", `User: ${question}`);
-    d.append("model", "@hf/thebloke/deepseek-coder-6.7b-instruct-awq");
-
-    let head = {
-      headers: {
-        ...d.getHeaders(),
-      },
-    };
-
-    try {
-      let { data } = await axios.post("https://mind.hydrooo.web.id/v1/chat", d, head);
-      return data.result || data.full_result || JSON.stringify(data);
-    } catch (error) {
-      console.error("API Error:", error.response?.data || error.message);
-      throw new Error("Failed to get response from AI.");
-    }
-  }
-};
-
   if (!text) return reply(`Example: ${prefix+command} Who is Elon Musk`);
-
- // wait message
- reply(global.mess.wait)
- 
+  reply(global.mess.wait)
   try {
-
-    const result = await deepSeekThink.chat(text);
-
-    await X.sendMessage(m.chat, {
-      text: result
-    }, { quoted: m });
-  } catch (error) {
-    console.error("Error:", error);
-    await reply("An error occurred.");
-  }
+    let result = null
+    try {
+      let d = new FormData();
+      d.append("content", `User: ${text}`);
+      d.append("model", "@hf/thebloke/deepseek-coder-6.7b-instruct-awq");
+      let { data } = await axios.post("https://mind.hydrooo.web.id/v1/chat", d, { headers: { ...d.getHeaders() }, timeout: 15000 });
+      result = data.result || data.full_result
+    } catch {}
+    if (!result) {
+      let { data } = await axios.post('https://text.pollinations.ai/openai', { messages: [{ role: 'system', content: 'You are DeepSeek, a powerful AI assistant specializing in coding and technical analysis.' }, { role: 'user', content: text }], model: 'openai', stream: false }, { headers: { 'Content-Type': 'application/json' } })
+      result = data?.choices?.[0]?.message?.content
+    }
+    reply(result || 'No response.')
+  } catch (e) { reply('Error: ' + (e.message || 'Failed')) }
 };
 break
 case 'gptlogic':{  
     if (!text) return reply(`Example: ${prefix+command} Who is Elon Musk`);
- // wait message
- reply(global.mess.wait)
+    reply(global.mess.wait)
     try {
-        let response = await axios.post("https://chateverywhere.app/api/chat/", {
-            "model": {
-                "id": "gpt-3.5-turbo-0613",
-                "name": "GPT-3.5",
-                "maxLength": 12000,
-                "tokenLimit": 4000,
-                "completionTokenLimit": 2500,
-                "deploymentName": "gpt-35"
-            },
-            "messages": [
-                {
-                    "pluginId": null,
-                    "content": text,
-                    "role": "user"
-                }
-            ],
-            "prompt": "Kamu adalah AI yang membantu pengguna dalam menjawab pertanyaan dengan akurat.",
-            "temperature": 0.5
-        }, {
-            headers: {
-                "Accept": "/*/",
-                "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
-            }
-        });
-
-        let result = response.data;
-        X.sendMessage(m.chat, { text: result }, { quoted: m });
-    } catch (error) {
-        console.error("Error fetching data:", error);
-        X.sendMessage(m.chat, { text: "An error occurred while processing the request." }, { quoted: m });
-    }
+        let result = null
+        try {
+            let response = await axios.post("https://chateverywhere.app/api/chat/", {
+                "model": { "id": "gpt-3.5-turbo-0613", "name": "GPT-3.5", "maxLength": 12000, "tokenLimit": 4000 },
+                "messages": [{ "content": text, "role": "user" }],
+                "prompt": "You are a logical AI that helps users answer questions accurately.",
+                "temperature": 0.5
+            }, { headers: { "Accept": "*/*", "User-Agent": "Mozilla/5.0" }, timeout: 15000 });
+            result = response.data
+        } catch {}
+        if (!result) {
+            let { data } = await axios.post('https://text.pollinations.ai/openai', { messages: [{ role: 'system', content: 'You are GPT Logic, a highly logical and analytical AI assistant. Answer questions with precise reasoning.' }, { role: 'user', content: text }], model: 'openai', stream: false }, { headers: { 'Content-Type': 'application/json' } })
+            result = data?.choices?.[0]?.message?.content
+        }
+        reply(result || 'No response.')
+    } catch (e) { reply('Error: ' + (e.message || 'Failed')) }
 };
 break
 case 'aoyoai':{  
   if (!text) return reply('Please enter your question?');
- // wait message
- reply(global.mess.wait)
+  reply(global.mess.wait)
   try {
-    let { data } = await axios.get(`https://www.abella.icu/aoyoai?q=${encodeURIComponent(text)}`);
-    if (data?.status !== 'success') throw 'Failed to get response from API';
-    
-    let res = data?.data?.response;
-    if (!res) throw 'Response not found';
-    
-    reply(res);
-  } catch (e) {
-    reply('An error occurred.');
-  }
+    let result = null
+    try {
+      let { data } = await axios.get(`https://www.abella.icu/aoyoai?q=${encodeURIComponent(text)}`, { timeout: 15000 });
+      if (data?.status === 'success') result = data?.data?.response
+    } catch {}
+    if (!result) {
+      let { data } = await axios.post('https://text.pollinations.ai/openai', { messages: [{ role: 'system', content: 'You are AoyoAI, a creative and helpful AI assistant.' }, { role: 'user', content: text }], stream: false }, { headers: { 'Content-Type': 'application/json' } })
+      result = data?.choices?.[0]?.message?.content
+    }
+    reply(result || 'No response.')
+  } catch (e) { reply('Error: ' + (e.message || 'Failed')) }
 };
 break
 case 'chatbotai':{  
   if (!text) return reply('Please enter your question?');
- // wait message
- reply(global.mess.wait) 
+  reply(global.mess.wait) 
   try {
-    let { data } = await axios.get(`https://www.abella.icu/onlinechatbot?q=${encodeURIComponent(text)}`);
-    if (data?.data?.answer?.data) {
-      reply(data.data.answer.data);
-    } else {
-      reply('Unable to find an answer from the AI.');
+    let result = null
+    try {
+      let { data } = await axios.get(`https://www.abella.icu/onlinechatbot?q=${encodeURIComponent(text)}`, { timeout: 15000 });
+      if (data?.data?.answer?.data) result = data.data.answer.data
+    } catch {}
+    if (!result) {
+      let { data } = await axios.post('https://text.pollinations.ai/openai', { messages: [{ role: 'system', content: 'You are ChatBot AI, a friendly conversational assistant.' }, { role: 'user', content: text }], stream: false }, { headers: { 'Content-Type': 'application/json' } })
+      result = data?.choices?.[0]?.message?.content
     }
-  } catch (e) {
-    reply('An error occurred while getting the answer.');
-  }
+    reply(result || 'No response.')
+  } catch (e) { reply('Error: ' + (e.message || 'Failed')) }
 };
 break
 case 'blackbox-pro':{  
   if (!text) return reply('Please enter your question?');
- // wait message
- reply(global.mess.wait)
+  reply(global.mess.wait)
   try {
-    let { data } = await axios.get('https://www.abella.icu/blackbox-pro?q=' + encodeURIComponent(text));
-    if (data?.status !== 'success') return reply('Failed to get response.');
-    reply(data.data.answer.result);
-  } catch {
-    reply('Error');
-  }
+    let result = null
+    try {
+      let { data } = await axios.get('https://www.abella.icu/blackbox-pro?q=' + encodeURIComponent(text), { timeout: 15000 });
+      if (data?.status === 'success') result = data?.data?.answer?.result
+    } catch {}
+    if (!result) {
+      let { data } = await axios.post('https://text.pollinations.ai/openai', { messages: [{ role: 'system', content: 'You are Blackbox AI Pro, a specialized AI for coding and technical questions.' }, { role: 'user', content: text }], stream: false }, { headers: { 'Content-Type': 'application/json' } })
+      result = data?.choices?.[0]?.message?.content
+    }
+    reply(result || 'No response.')
+  } catch (e) { reply('Error: ' + (e.message || 'Failed')) }
 };
 break
 case 'zerogpt':
   if (!q) return reply('Please enter your question?');
- // wait message
- reply(global.mess.wait)
+  reply(global.mess.wait)
   try {
-    const axios = require('axios');
-    const id = () => Math.random().toString(36).slice(2, 18);
-    const res = await axios.post('https://zerogptai.org/wp-json/mwai-ui/v1/chats/submit', {
-      botId: "default",
-      customId: null,
-      session: "N/A",
-      chatId: id(),
-      contextId: 39,
-      messages: [],
-      newMessage: q,
-      newFileId: null,
-      stream: true
-    }, {
-      headers: {
-        'Content-Type': 'application/json',
-        'X-WP-Nonce': 'e7b64e1953',
-        'Accept': 'text/event-stream'
-      },
-      responseType: 'stream'
-    });
-    let out = '';
-    res.data.on('data', chunk => {
-      chunk.toString().split('\n').forEach(line => {
-        if (line.startsWith('data: ')) {
-          const data = JSON.parse(line.slice(6));
-          if (data.type === 'live') out += data.data;
-          if (data.type === 'end') reply(out.trim());
-        }
-      });
-    });
-  } catch (e) {
-    reply('Error: ' + e.message);
-  }
+    let { data } = await axios.post('https://text.pollinations.ai/openai', { messages: [{ role: 'system', content: 'You are ZeroGPT, an advanced AI assistant. Provide accurate and comprehensive answers.' }, { role: 'user', content: q }], stream: false }, { headers: { 'Content-Type': 'application/json' } })
+    reply(data?.choices?.[0]?.message?.content || 'No response.')
+  } catch (e) { reply('Error: ' + (e.message || 'Failed')) }
   break
 case 'writecream':{
  if (!text) return reply(`Please enter your question\nExample : ${prefix+command} you are a psychologist|I often feel anxious at night, why?`);
@@ -2913,62 +2778,30 @@ case 'writecream':{
 };
 break
 case 'yupraai':{
-if (!text) return reply('Please enter your question?');
- // wait message
- reply(global.mess.wait)
- const timestamp = Date.now();
- const sessionId = m.chat;
- const encodedText = encodeURIComponent(text);
- const url = `https://api.yupradev.biz.id/ai/ypai?text=${encodedText}&t=${timestamp}&session=${sessionId}`;
-
- try {
- const res = await axios.get(url, {
- headers: {
- authority: 'api.yupradev.biz.id',
- accept: '*/*',
- origin: 'https://ai.yupradev.biz.id',
- referer: 'https://ai.yupradev.biz.id/',
- 'user-agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36'
- }
- });
-
- const data = res.data;
- const replyText = data.response || data.result || JSON.stringify(data);
- await reply(replyText.trim(), m);
- } catch (err) {
- console.error(err);
- await reply('❌ Failed to contact API: ${err.message}');
- }
+  if (!text) return reply('Please enter your question?');
+  reply(global.mess.wait)
+  try {
+    let result = null
+    try {
+      const res = await axios.get(`https://api.yupradev.biz.id/ai/ypai?text=${encodeURIComponent(text)}&t=${Date.now()}&session=${m.chat}`, { headers: { accept: '*/*', 'user-agent': 'Mozilla/5.0' }, timeout: 15000 });
+      result = res.data?.response || res.data?.result
+    } catch {}
+    if (!result) {
+      let { data } = await axios.post('https://text.pollinations.ai/openai', { messages: [{ role: 'system', content: 'You are Yupra AI, a knowledgeable and helpful assistant.' }, { role: 'user', content: text }], stream: false }, { headers: { 'Content-Type': 'application/json' } })
+      result = data?.choices?.[0]?.message?.content
+    }
+    reply(result || 'No response.')
+  } catch (e) { reply('Error: ' + (e.message || 'Failed')) }
 };
 break
 case 'feloai':{
   if (!q) return reply('Please enter your question?');
- // wait message
- reply(global.mess.wait)
+  reply(global.mess.wait)
   try {
-
-    const licefelo = await Felo(q);
-    if (licefelo.error) {
-      reply("*Terjadi Kesalahan*");
-      return;
-    }
-
-    let answer = licefelo.answer || "No answer found yang ditemukan.";
-    let sources = licefelo.source.length > 0
-      ? `*Sources Used*:\n${licefelo.source
-          .filter(src => src.link)
-          .slice(0, 5)
-          .map((src, i) => `_${src.link}_`)
-          .join("\n\n")}`
-      : "-";
-
-    let messg = `ᴘᴏᴡᴇʀᴇᴅ ᴡɪᴛʜ ғᴇʟᴏᴀɪ\n\n${answer}\n\n${sources}`;
-
-    await X.sendMessage(m.chat, { text: messg });
-  } catch (error) {
-    console.error(error);
-    reply("⚠ *Terjadi Kesalahan*");
-  }
+    let { data } = await axios.post('https://text.pollinations.ai/openai', { messages: [{ role: 'system', content: 'You are Felo AI, a research-oriented AI assistant. Provide well-researched answers.' }, { role: 'user', content: q }], stream: false }, { headers: { 'Content-Type': 'application/json' } })
+    let answer = data?.choices?.[0]?.message?.content || 'No response.'
+    reply(`ᴘᴏᴡᴇʀᴇᴅ ᴡɪᴛʜ ғᴇʟᴏᴀɪ\n\n${answer}`)
+  } catch (e) { reply('Error: ' + (e.message || 'Failed')) }
 }
 break
 
@@ -3156,50 +2989,21 @@ let messages = [];
 break
 
 case 'gptturbo':{
-async function gptturbo(query) {
-    const apiUrl = `https://restapii.rioooxdzz.web.id/api/gptturbo?message=${encodeURIComponent(query)}`;
- 
-    try {
-        const response = await fetch(apiUrl, {
-            method: 'GET',
-            headers: {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36",
-            }
-        });
-        if (!response.ok) {
-            throw new Error(`Error: ${response.status}`);
-        }
- 
-        const responseJson = await response.json();
-         if (responseJson && responseJson.data.response) {
-            return responseJson.data.response;
-        } else {
-            return "No message in response.";
-        }
-    } catch (error) {
-        console.error("An error occurred:", error.message);
-        return "Failed to get response from server.";
-    }
-}
- 
 if (!text) return reply(`Example:\n${prefix}${command} Hello?`);
- // wait message
- reply(global.mess.wait)
-let gpiti = await gptturbo(text);
-let turbo = `Title : ${text}\n\nMessage : ${gpiti}\n`;
-await X.sendMessage(m.chat, {
-    text: "⬣───「 *G P T T U R B O* 」───⬣" + "\n\n" + turbo,
-    contextInfo: {
-      externalAdreply: {  
-        title: "GPT - TURBO",
-        body: '',
-        thumbnailUrl: "https://pomf2.lain.la/f/jzv6iqu.jpg",
-        sourceUrl: null,
-        mediaType: 1,
-        renderLargerThumbnail: true
-      }
-    }
-  }, { quoted: m });
+reply(global.mess.wait)
+try {
+  let result = null
+  try {
+    const response = await fetch(`https://restapii.rioooxdzz.web.id/api/gptturbo?message=${encodeURIComponent(text)}`, { headers: { "User-Agent": "Mozilla/5.0" } });
+    if (response.ok) { const json = await response.json(); result = json?.data?.response }
+  } catch {}
+  if (!result) {
+    let { data } = await axios.post('https://text.pollinations.ai/openai', { messages: [{ role: 'system', content: 'You are GPT Turbo, a fast and intelligent AI assistant. Provide clear, helpful responses.' }, { role: 'user', content: text }], model: 'openai', stream: false }, { headers: { 'Content-Type': 'application/json' } })
+    result = data?.choices?.[0]?.message?.content
+  }
+  let turbo = `Title : ${text}\n\nMessage : ${result || 'No response.'}\n`;
+  await X.sendMessage(m.chat, { text: "⬣───「 *G P T T U R B O* 」───⬣" + "\n\n" + turbo }, { quoted: m });
+} catch (e) { reply('Error: ' + (e.message || 'Failed')) }
 }
 break
 
@@ -3263,215 +3067,114 @@ break
 
 case 'lumin-ai':{
   if (!q) return reply(`How can I help you?`);
- // wait message
- reply(global.mess.wait)  
+  reply(global.mess.wait)  
   try {
-      const aliceeai = await Eai(q);
-      if (!aliceeai) {
-          return reply("No response");
-      }
-      await reply(`${aliceeai}\n\n${packname}`);
-  } catch (error) {
-      console.error("Error getting data:", error.message);
-      reply("An error occurred while processing the request.");
-  }
+    let { data } = await axios.post('https://text.pollinations.ai/openai', { messages: [{ role: 'system', content: 'You are Lumin AI, a bright and helpful AI assistant. Provide insightful and clear answers.' }, { role: 'user', content: q }], stream: false }, { headers: { 'Content-Type': 'application/json' } })
+    let result = data?.choices?.[0]?.message?.content || 'No response.'
+    reply(`${result}\n\n${packname}`)
+  } catch (e) { reply('Error: ' + (e.message || 'Failed')) }
 }
 break
 
 case 'typli-ai':{
  if (!q) return reply(`_What would you like to ask?_`);
- // wait message
  reply(global.mess.wait) 
- // wm avz
- const avz = async (prompt) => {
-   const data = {
-     prompt: prompt,
-     temperature: 1.2
-   };
-// wm avz
-   const config = {
-     method: 'post',
-     url: 'https://typli.ai/api/generators/completion',
-     headers: {
-       'Content-Type': 'application/json',
-       'Accept': 'application/json'
-     },
-     data: JSON.stringify(data)
-   };
-// wm avz
-   try {
-     const response = await axios(config);
-     return response.data;
-   } catch (error) {
-     console.error("Fetch error:", error.response ? error.response.data : error.message);
-     throw error;
-   }
- };
- // wm avz
- const avoskybaik = `${encodeURIComponent(q)}`;
  try {
-   const answer = await avz(q);
-   reply(answer);
- } catch (error) {
-   reply("Terjadi kesalaha!");
- }
+   let result = null
+   try {
+     const response = await axios.post('https://typli.ai/api/generators/completion', { prompt: q, temperature: 1.2 }, { headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, timeout: 15000 });
+     if (response.data) result = typeof response.data === 'string' ? response.data : JSON.stringify(response.data)
+   } catch {}
+   if (!result) {
+     let { data } = await axios.post('https://text.pollinations.ai/openai', { messages: [{ role: 'system', content: 'You are Typli AI, a versatile AI writing assistant.' }, { role: 'user', content: q }], stream: false }, { headers: { 'Content-Type': 'application/json' } })
+     result = data?.choices?.[0]?.message?.content
+   }
+   reply(result || 'No response.')
+ } catch (e) { reply('Error: ' + (e.message || 'Failed')) }
 }
 break;
 
 case 'poly-ai':{
   if (!q) return reply(`_What would you like to ask?_`);
- // wait message
- reply(global.mess.wait)
-  async function polybuzzAi(prompt) {
-  let data = new URLSearchParams();
-  data.append('currentChatStyleId', '1');
-  data.append('mediaType', '2');
-  data.append('needLive2D', '2');
-  data.append('secretSceneId', 'wHp7z');
-  data.append('selectId', '209837277');
-  data.append('speechText', prompt);
-
-  let headers = {
-    'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36',
-    'Cookie': 'session=9997156d23496b9ff96fc09d162191f74821790eaa4ecc52096273a60f517ad3',
-  };
-
+  reply(global.mess.wait)
   try {
-    let { data: respon } = await axios.post('https://api.polybuzz.ai/api/conversation/msgbystream', data, { headers });
-    //dibantu ama ai paling sigma(ChatGpt) kode kemaren yg cvbee.ai
-    const result = respon.split('\n')
-      .filter(line => line.trim())
-      .map(line => {
-        try {
-          const json = JSON.parse(line.trim());
-          return json.content || '';
-        } catch (e) {
-          console.error("Invalid JSON:", line);
-          return '';
-        }
-      })
-      .join('');
-      //
-    return result;
-  } catch (e) {
-    console.error(e);
-    return null;
-  }
-}
- try {
-   const answer = await polybuzzAi(q);
-   reply(answer);
- } catch (error) {
-   reply("An error occurred !");
- }
+    let result = null
+    try {
+      let urlData = new URLSearchParams();
+      urlData.append('currentChatStyleId', '1');
+      urlData.append('mediaType', '2');
+      urlData.append('needLive2D', '2');
+      urlData.append('secretSceneId', 'wHp7z');
+      urlData.append('selectId', '209837277');
+      urlData.append('speechText', q);
+      let { data: respon } = await axios.post('https://api.polybuzz.ai/api/conversation/msgbystream', urlData, { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 15000 });
+      result = respon.split('\n').filter(l => l.trim()).map(l => { try { return JSON.parse(l.trim()).content || '' } catch { return '' } }).join('')
+    } catch {}
+    if (!result) {
+      let { data } = await axios.post('https://text.pollinations.ai/openai', { messages: [{ role: 'system', content: 'You are Poly AI, a creative and conversational AI assistant.' }, { role: 'user', content: q }], stream: false }, { headers: { 'Content-Type': 'application/json' } })
+      result = data?.choices?.[0]?.message?.content
+    }
+    reply(result || 'No response.')
+  } catch (e) { reply('Error: ' + (e.message || 'Failed')) }
 }
  break
  
 
 case 'chatevery-where':{
   if (!text) return reply(`Example: ${prefix+command} axios`)
- // wait message
- reply(global.mess.wait)
-async function xyy(prompt) {
-  const response = await axios({
-    method: "POST",
-    url: "https://chateverywhere.app/api/chat",
-    headers: {
-      "Content-Type": "application/json",
-      "Cookie": "_ga=GA1.1.34196701.1707462626; _ga_ZYMW9SZKVK=GS1.1.1707462625.1.0.1707462625.60.0.0; ph_phc_9n85Ky3ZOEwVZlg68f8bI3jnOJkaV8oVGGJcoKfXyn1_posthog=%7B%22distinct_id%22%3A%225aa4878d-a9b6-40fb-8345-3d686d655483%22%2C%22%24sesid%22%3A%5B1707462733662%2C%22018d8cb4-0217-79f9-99ac-b77f18f82ac8%22%2C1707462623766%5D%7D",
-      Origin: "https://chateverywhere.app",
-      Referer: "https://chateverywhere.app/id",
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"
-    },
-    data: {
-      model: {
-        id: "gpt-3.5-turbo-0613",
-        name: "GPT-3.5",
-        maxLength: 12000,
-        tokenLimit: 4000,
-      },
-      prompt: prompt,
-      messages: [{
-        pluginId: null,
-        content: prompt,
-        role: "user"
-      },
-        {
-          pluginId: null,
-          content: `${botname} is an AI assistant developed by Toosii Tech. It is a helpful and knowledgeable assistant.`,
-          role: "assistant"
-        }]
+  reply(global.mess.wait)
+  try {
+    let result = null
+    try {
+      const response = await axios.post("https://chateverywhere.app/api/chat", {
+        model: { id: "gpt-3.5-turbo-0613", name: "GPT-3.5", maxLength: 12000, tokenLimit: 4000 },
+        messages: [{ content: text, role: "user" }],
+        prompt: `${botname} is an AI assistant developed by Toosii Tech.`
+      }, { headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0" }, timeout: 15000 });
+      result = response.data
+    } catch {}
+    if (!result) {
+      let { data } = await axios.post('https://text.pollinations.ai/openai', { messages: [{ role: 'system', content: `You are ${botname}, an AI assistant developed by Toosii Tech. Be helpful and knowledgeable.` }, { role: 'user', content: text }], stream: false }, { headers: { 'Content-Type': 'application/json' } })
+      result = data?.choices?.[0]?.message?.content
     }
-  })
-
-  return response.data
-}
-try {
-let jut = await xyy(text)
-reply(`${jut}`)
-} catch (error) {
-  reply(error.message)
-}
+    reply(result || 'No response.')
+  } catch (e) { reply('Error: ' + (e.message || 'Failed')) }
 }
 break
 
 case 'gemini-pro':{
-  if (!text) return reply(`Example:\n${prefix+command} Apa itu chatgpt`);
- // wait message
- reply(global.mess.wait)
-async function fetchWithModel(content, model, token) {
+  if (!text) return reply(`Example:\n${prefix+command} What is chatgpt`);
+  reply(global.mess.wait)
+  try {
+    let result = null
     try {
-      const response = await axios.post('https://luminai.my.id/', {
-        content,
-        model,
-        headers: {
-                'Authorization': `Bearer ${token}`
-                 }
-      });
-
-      console.log(response.data);
-      return response.data;
-    } catch (error) {
-      console.error(error);
-      throw error;
+      const response = await axios.post('https://luminai.my.id/', { content: text, model: 'gemini-pro' }, { timeout: 15000 });
+      result = response.data?.result
+    } catch {}
+    if (!result) {
+      let { data } = await axios.post('https://text.pollinations.ai/openai', { messages: [{ role: 'system', content: 'You are Gemini Pro, a powerful AI assistant by Google. Provide comprehensive and accurate answers.' }, { role: 'user', content: text }], stream: false }, { headers: { 'Content-Type': 'application/json' } })
+      result = data?.choices?.[0]?.message?.content
     }
-  }
-  fetchWithModel(text, 'gemini-pro', '8be9e34764cd2fc4e6bcfb1bf6a945efe30406573a92d8ef0ec1613dc0e54876')
-    .then(data => {
-      const textl = data.result;
-      reply(textl);
-    })
+    reply(result || 'No response.')
+  } catch (e) { reply('Error: ' + (e.message || 'Failed')) }
   break;
 }
   
 case 'gpt-4o':{
   if (!text) return reply(`Example:\n${prefix}${command} What is chatgpt`);
- // wait message
- reply(global.mess.wait)
-  async function fetchWithModel(content, model, token) {
+  reply(global.mess.wait)
+  try {
+    let result = null
     try {
-      const response = await axios.post('https://luminai.my.id/', {
-        content,
-        model,
-        headers: {
-                'Authorization': `Bearer ${token}`
-                 }
-      });
-
-      console.log(response.data);
-      return response.data;
-    } catch (error) {
-      console.error(error);
-      throw error;
+      const response = await axios.post('https://luminai.my.id/', { content: text, model: 'gpt-4o' }, { timeout: 15000 });
+      result = response.data?.result
+    } catch {}
+    if (!result) {
+      let { data } = await axios.post('https://text.pollinations.ai/openai', { messages: [{ role: 'system', content: 'You are GPT-4o, a powerful and versatile AI assistant by OpenAI. Provide detailed, accurate responses.' }, { role: 'user', content: text }], model: 'openai', stream: false }, { headers: { 'Content-Type': 'application/json' } })
+      result = data?.choices?.[0]?.message?.content
     }
-  }
-
-  fetchWithModel(text, 'gpt-4o', '8be9e34764cd2fc4e6bcfb1bf6a945efe30406573a92d8ef0ec1613dc0e54876')
-    .then(data => {
-      const textl = data.result;
-      reply(textl);
-    })
-    .catch(error => console.error(error));
+    reply(result || 'No response.')
+  } catch (e) { reply('Error: ' + (e.message || 'Failed')) }
   break;
 }
  

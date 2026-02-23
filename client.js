@@ -127,6 +127,15 @@ const groupName = isGroup ? groupMetadata.subject : ''
 const participants = isGroup ? await groupMetadata.participants : ''
 const groupAdmins = isGroup ? await getGroupAdmins(participants) : ''
 
+if (isGroup && participants && participants.length) {
+    console.log('[DEBUG ROLES] botJid:', botJid, '| botLid:', botLid, '| botClean:', botClean, '| botLidClean:', botLidClean)
+    console.log('[DEBUG ROLES] senderJid:', senderJid, '| senderFromKey:', senderFromKey, '| senderClean:', senderClean, '| senderKeyClean:', senderKeyClean)
+    console.log('[DEBUG ROLES] X.user.id:', X.user?.id, '| X.user.lid:', X.user?.lid)
+    participants.forEach(p => {
+        if (p.admin) console.log('[DEBUG ROLES] Admin participant:', p.id, '| admin:', p.admin, '| decoded:', X.decodeJid(p.id))
+    })
+}
+
 const isBotAdmins = isGroup ? participants.some(p => {
     return matchesJid(p.id, botJid, botLid, botClean, botLidClean) && (p.admin === 'admin' || p.admin === 'superadmin')
 }) : false
@@ -138,6 +147,10 @@ const isAdmins = isGroup ? (isOwner || participants.some(p => {
 const isSuperAdmin = isGroup ? participants.some(p => {
     return matchesSender(p.id) && p.admin === 'superadmin'
 }) : false
+
+if (isGroup) {
+    console.log('[DEBUG ROLES] Results -> isBotAdmins:', isBotAdmins, '| isAdmins:', isAdmins, '| isOwner:', isOwner, '| isSuperAdmin:', isSuperAdmin)
+}
 //━━━━━━━━━━━━━━━━━━━━━━━━//
 // Setting Console
 if (m.message) {

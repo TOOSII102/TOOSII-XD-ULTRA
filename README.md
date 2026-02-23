@@ -1,19 +1,4 @@
-const { Octokit } = require('@octokit/rest');
-
-async function getAccessToken() {
-  let cs;
-  const h = process.env.REPLIT_CONNECTORS_HOSTNAME;
-  const t = process.env.REPL_IDENTITY ? 'repl ' + process.env.REPL_IDENTITY : process.env.WEB_REPL_RENEWAL ? 'depl ' + process.env.WEB_REPL_RENEWAL : null;
-  cs = await fetch('https://' + h + '/api/v2/connection?include_secrets=true&connector_names=github', { headers: { 'Accept': 'application/json', 'X_REPLIT_TOKEN': t } }).then(r => r.json()).then(d => d.items?.[0]);
-  return cs?.settings?.access_token || cs?.settings?.oauth?.credentials?.access_token;
-}
-
-async function main() {
-  const token = await getAccessToken();
-  const octokit = new Octokit({ auth: token });
-  const owner = 'TOOSII102', repo = 'TOOSII-XD-ULTRA';
-
-  const readme = `<p align="center">
+<p align="center">
   <img src="https://files.catbox.moe/qbcebp.jpg" width="200" height="200" style="border-radius: 50%;" alt="TOOSII-XD ULTRA">
 </p>
 
@@ -75,7 +60,7 @@ async function main() {
 
 ### Quick Start
 
-\`\`\`bash
+```bash
 # Clone the repository
 git clone https://github.com/TOOSII102/TOOSII-XD-ULTRA.git
 
@@ -87,11 +72,11 @@ npm install
 
 # Start the bot
 node index.js
-\`\`\`
+```
 
 When the bot starts, you will see:
 
-\`\`\`
+```
 +==========================================+
 |         TOOSII-XD ULTRA v2.0.0           |
 |      WhatsApp Multi-Device Bot           |
@@ -101,9 +86,9 @@ When the bot starts, you will see:
 Choose login method:
 1) Enter WhatsApp Number (Pairing Code)
 2) Paste Session ID
-\`\`\`
+```
 
-Enter your WhatsApp number (with country code, e.g. \`254748340864\`) and use the pairing code displayed in the terminal to link your WhatsApp.
+Enter your WhatsApp number (with country code, e.g. `254748340864`) and use the pairing code displayed in the terminal to link your WhatsApp.
 
 ---
 
@@ -115,11 +100,11 @@ Enter your WhatsApp number (with country code, e.g. \`254748340864\`) and use th
 1. Fork this repository
 2. Create a new Heroku app
 3. Connect your GitHub repo to Heroku
-4. Set buildpack to \`heroku/nodejs\`
+4. Set buildpack to `heroku/nodejs`
 5. Deploy and scale the worker dyno:
-   \`\`\`bash
+   ```bash
    heroku ps:scale worker=1
-   \`\`\`
+   ```
 </details>
 
 <details>
@@ -134,7 +119,7 @@ Enter your WhatsApp number (with country code, e.g. \`254748340864\`) and use th
 <details>
 <summary><b>VPS / Server</b></summary>
 
-\`\`\`bash
+```bash
 # Install Node.js 18+
 curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
 sudo apt install -y nodejs
@@ -149,14 +134,14 @@ npm install -g pm2
 pm2 start index.js --name toosii-bot
 pm2 save
 pm2 startup
-\`\`\`
+```
 </details>
 
 <details>
 <summary><b>Katabump / Bot Panels</b></summary>
 
 1. Upload the bot files or ZIP
-2. Set start command: \`node index.js\`
+2. Set start command: `node index.js`
 3. Ensure Node.js v18+ runtime
 4. Start the bot from the panel
 </details>
@@ -165,39 +150,39 @@ pm2 startup
 
 ## Configuration
 
-Edit \`setting.js\` to customize the bot:
+Edit `setting.js` to customize the bot:
 
 | Setting | Description | Default |
 |---------|-------------|---------|
-| \`global.owner\` | Owner WhatsApp number(s) | \`["254748340864"]\` |
-| \`global.botname\` | Bot display name | \`TOOSII-XD ULTRA\` |
-| \`global.packname\` | Sticker pack name | \`TOOSII-XD ULTRA\` |
-| \`global.author\` | Sticker author | \`Toosii Tech\` |
-| \`global.autoRead\` | Auto-read messages | \`false\` |
-| \`global.chatBot\` | AI auto-reply | \`false\` |
-| \`global.antiCall\` | Block calls | \`false\` |
-| \`global.antiLink\` | Delete links in groups | \`false\` |
+| `global.owner` | Owner WhatsApp number(s) | `["254748340864"]` |
+| `global.botname` | Bot display name | `TOOSII-XD ULTRA` |
+| `global.packname` | Sticker pack name | `TOOSII-XD ULTRA` |
+| `global.author` | Sticker author | `Toosii Tech` |
+| `global.autoRead` | Auto-read messages | `false` |
+| `global.chatBot` | AI auto-reply | `false` |
+| `global.antiCall` | Block calls | `false` |
+| `global.antiLink` | Delete links in groups | `false` |
 
 ---
 
 ## Command Usage
 
-All commands use the \`.\` prefix by default (configurable).
+All commands use the `.` prefix by default (configurable).
 
-\`\`\`
+```
 .menu          - Show full command list
 .menu ai       - AI commands only
 .menu group    - Group commands only
 .menu games    - Game commands only
 .ping          - Bot speed & server info
 .alive         - Check if bot is online
-\`\`\`
+```
 
 ---
 
 ## Architecture
 
-\`\`\`
+```
 TOOSII-XD-ULTRA/
 +-- index.js          # Main entry & WhatsApp connection
 +-- client.js         # Command handler (350+ commands)
@@ -210,7 +195,7 @@ TOOSII-XD-ULTRA/
 |   +-- scrape/       # Web scrapers & uploaders
 |   +-- menulist/     # Command menu displays
 +-- plugin/           # Modular plugin system
-\`\`\`
+```
 
 ---
 
@@ -235,23 +220,3 @@ This project is proprietary software by **Toosii Tech**. Unauthorized modificati
   Made with care by <a href="https://wa.me/254748340864">Toosii Tech</a><br>
   &copy; 2024 - 2026
 </p>
-`;
-
-  let sha;
-  try {
-    const { data } = await octokit.repos.getContent({ owner, repo, path: 'README.md' });
-    sha = data.sha;
-  } catch {}
-
-  await octokit.repos.createOrUpdateFileContents({
-    owner, repo,
-    path: 'README.md',
-    message: 'Add professional README',
-    content: Buffer.from(readme).toString('base64'),
-    sha
-  });
-
-  console.log('README pushed!');
-  console.log('https://github.com/TOOSII102/TOOSII-XD-ULTRA');
-}
-main().catch(e => { console.error(e.message); process.exit(1); });

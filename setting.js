@@ -77,7 +77,7 @@ global.mess = {
     OnlyOwner: '👑 Owner only.',
     OnlyGrup: '👥 Group only.',
     private: '📩 Private chat only.',
-    wait: '⏳ Processing...',
+    wait: '',
     error: '⚠️ Error occurred.',
 }
 //━━━━━━━━━━━━━━━━━━━━━━━━//

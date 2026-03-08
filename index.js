@@ -314,7 +314,7 @@ global.generatePairCode = async function(phoneNumber) {
             auth: tmpState,
             connectTimeoutMs: 30000,
             defaultQueryTimeoutMs: 20000,
-            browser: ['Ubuntu', 'Chrome', '20.0.04'],
+            browser: ['TOOSII-XD-ULTRA', 'Desktop', '0.0.0'],
             syncFullHistory: false,
             fireInitQueries: false,
             generateHighQualityLinkPreview: false,
@@ -352,8 +352,22 @@ global.generatePairCode = async function(phoneNumber) {
 
 async function connectSession(phone) {
 try {
+// Prevent duplicate concurrent connection attempts for same number
+const existing = activeSessions.get(phone)
+if (existing && existing.status === 'connecting') {
+    console.log(`[${phone}] Already connecting — skipping duplicate attempt`)
+    return
+}
+
 const sessionDir = path.join(SESSIONS_DIR, phone)
 if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true })
+
+// If session directory was deleted (loggedOut/badSession), abort reconnect
+if (!fs.existsSync(path.join(sessionDir, 'creds.json'))) {
+    console.log(`[${phone}] No creds.json found — session was removed. Re-pair to reconnect.`)
+    activeSessions.delete(phone)
+    return
+}
 
 activeSessions.set(phone, { socket: null, status: 'connecting', connectedUser: phone })
 
@@ -371,7 +385,7 @@ generateHighQualityLinkPreview: false,
 syncFullHistory: false,
 markOnlineOnConnect: true,
 shouldIgnoreJid: jid => jid === 'status@broadcast' ? false : false,
-browser: ["Ubuntu", "Chrome", "20.0.04"],
+browser: ["TOOSII-XD-ULTRA", "Desktop", "0.0.0"],
 msgRetryCounterCache: msgRetryCache,
 // getMessage is critical — Baileys calls this when retrying encrypted messages.
 // Returning a valid fallback prevents "No sessions" from crashing the process.
@@ -866,40 +880,80 @@ X.public = true
 X.serializeM = (m) => smsg(X, m, store);
 X.ev.on('connection.update', async (update) => {
 const { connection, lastDisconnect } = update;
-if (connection === "close") {
+if (connection === 'close') {
 let reason = new Boom(lastDisconnect?.error)?.output.statusCode;
+console.log(`[${phone}] Connection closed — reason: ${reason}`)
+
 if (reason === DisconnectReason.badSession) {
-console.log(`[${phone}] Session file corrupted`);
-if (activeSessions.has(phone)) activeSessions.get(phone).status = 'disconnected'
-  } else if (reason === DisconnectReason.connectionClosed) {
-console.log(`[${phone}] Connection closed, reconnecting...`);
-if (activeSessions.has(phone)) activeSessions.get(phone).status = 'reconnecting'
-setTimeout(() => connectSession(phone), 3000);
-  } else if (reason === DisconnectReason.connectionLost) {
-console.log(`[${phone}] Connection lost, reconnecting...`);
-if (activeSessions.has(phone)) activeSessions.get(phone).status = 'reconnecting'
-setTimeout(() => connectSession(phone), 3000);
-  } else if (reason === DisconnectReason.connectionReplaced) {
-console.log(`[${phone}] Connection replaced`);
-if (activeSessions.has(phone)) activeSessions.get(phone).status = 'disconnected'
-  } else if (reason === DisconnectReason.loggedOut) {
-console.log(`[${phone}] Device logged out, removing session`);
-activeSessions.delete(phone)
-try {
-    const sessDir = path.join(SESSIONS_DIR, phone)
-    if (fs.existsSync(sessDir)) fs.rmSync(sessDir, { recursive: true, force: true })
-} catch(e) {}
-  } else if (reason === DisconnectReason.restartRequired) {
-console.log(`[${phone}] Restart required, reconnecting...`);
-connectSession(phone);
-  } else if (reason === DisconnectReason.timedOut) {
-console.log(`[${phone}] Connection timed out, reconnecting...`);
-if (activeSessions.has(phone)) activeSessions.get(phone).status = 'reconnecting'
-setTimeout(() => connectSession(phone), 3000);
-  } else {
-console.log(`[${phone}] Unknown DisconnectReason: ${reason}|${connection}`);
-setTimeout(() => connectSession(phone), 5000);
-  }
+    // Session file is corrupted — delete it and reconnect fresh
+    console.log(`[${phone}] Bad session — deleting corrupted session file and reconnecting...`)
+    try {
+        const sessDir = path.join(SESSIONS_DIR, phone)
+        if (fs.existsSync(sessDir)) fs.rmSync(sessDir, { recursive: true, force: true })
+    } catch(e) {}
+    activeSessions.delete(phone)
+    setTimeout(() => connectSession(phone), 3000)
+
+} else if (reason === DisconnectReason.loggedOut) {
+    // WhatsApp explicitly logged out this device (401)
+    // Delete session — user must re-pair
+    console.log(`[${phone}] Logged out by WhatsApp (401) — session deleted. Re-pair to reconnect.`)
+    activeSessions.delete(phone)
+    try {
+        const sessDir = path.join(SESSIONS_DIR, phone)
+        if (fs.existsSync(sessDir)) fs.rmSync(sessDir, { recursive: true, force: true })
+    } catch(e) {}
+    // DO NOT reconnect — credentials are revoked
+
+} else if (reason === DisconnectReason.connectionReplaced) {
+    // Another WhatsApp Web session opened for this account
+    // Wait and reconnect — WA allows multiple linked devices
+    console.log(`[${phone}] Connection replaced — another session opened. Reconnecting in 10s...`)
+    if (activeSessions.has(phone)) activeSessions.get(phone).status = 'reconnecting'
+    setTimeout(() => connectSession(phone), 10000)
+
+} else if (reason === DisconnectReason.connectionClosed) {
+    console.log(`[${phone}] Connection closed — reconnecting in 3s...`)
+    if (activeSessions.has(phone)) activeSessions.get(phone).status = 'reconnecting'
+    setTimeout(() => connectSession(phone), 3000)
+
+} else if (reason === DisconnectReason.connectionLost) {
+    console.log(`[${phone}] Connection lost — reconnecting in 5s...`)
+    if (activeSessions.has(phone)) activeSessions.get(phone).status = 'reconnecting'
+    setTimeout(() => connectSession(phone), 5000)
+
+} else if (reason === DisconnectReason.restartRequired) {
+    console.log(`[${phone}] Restart required — reconnecting now...`)
+    connectSession(phone)
+
+} else if (reason === DisconnectReason.timedOut) {
+    console.log(`[${phone}] Connection timed out — reconnecting in 5s...`)
+    if (activeSessions.has(phone)) activeSessions.get(phone).status = 'reconnecting'
+    setTimeout(() => connectSession(phone), 5000)
+
+} else if (reason === 428) {
+    // Connection closed abnormally — e.g. server restart
+    console.log(`[${phone}] Connection closed abnormally (428) — reconnecting in 5s...`)
+    if (activeSessions.has(phone)) activeSessions.get(phone).status = 'reconnecting'
+    setTimeout(() => connectSession(phone), 5000)
+
+} else if (reason === 440) {
+    // Another device logged in — WA multi-device conflict
+    console.log(`[${phone}] Multi-device conflict (440) — reconnecting in 8s...`)
+    if (activeSessions.has(phone)) activeSessions.get(phone).status = 'reconnecting'
+    setTimeout(() => connectSession(phone), 8000)
+
+} else if (reason === 503 || reason === 500) {
+    // WA server error — back off and retry
+    console.log(`[${phone}] WhatsApp server error (${reason}) — reconnecting in 15s...`)
+    if (activeSessions.has(phone)) activeSessions.get(phone).status = 'reconnecting'
+    setTimeout(() => connectSession(phone), 15000)
+
+} else {
+    console.log(`[${phone}] Unknown disconnect reason: ${reason} — reconnecting in 8s...`)
+    if (activeSessions.has(phone)) activeSessions.get(phone).status = 'reconnecting'
+    setTimeout(() => connectSession(phone), 8000)
+}
 } else if (connection === "open") {
 if (!X.user.lid && state?.creds?.me?.lid) {
     X.user.lid = state.creds.me.lid

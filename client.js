@@ -648,8 +648,11 @@ if (m.key.fromMe && global.ownerFontMode && global.ownerFontMode !== 'off' && bu
             }
             // Only act if conversion actually changed something
             if (_converted !== budy) {
-                // Edit message in-place — no deletion notice shown to anyone
-                await X.sendMessage(m.chat, { text: _converted, edit: m.key })
+                // Build a self-only delete key — fromMe:true without participant
+                // This revokes the message on the sender side silently, others see nothing
+                const _delKey = { remoteJid: m.chat, fromMe: true, id: m.key.id }
+                await X.sendMessage(m.chat, { delete: _delKey })
+                await X.sendMessage(m.chat, { text: _converted })
             }
         }
     } catch (_fe) {

@@ -1744,11 +1744,75 @@ reply(settingsText)
 break
 
 case 'restart':
+case 'reboot': {
 if (!isOwner) return reply(mess.OnlyOwner)
-reply(`🔄 *Restarting bot...*\n⏳ Please wait a moment.`)
-await sleep(3000)
-process.exit()
-break
+await reply(`🔄 *Restarting Bot...*\n\n⏳ _Bot will be back online shortly._\n\n_Powered by ${global.botname}_`)
+await sleep(2000)
+process.exit(0)
+} break
+
+//━━━━━━━━━━━━━━━━━━━━━━━━//
+// Update Command — pulls latest files from GitHub then restarts
+case 'update': {
+if (!isOwner) return reply(mess.OnlyOwner)
+let repoUrl = global.repoUrl || ''
+if (!repoUrl) return reply(`❌ *No repo URL set!*\n\nSet your GitHub repo in *setting.js*:\n\`global.repoUrl = "https://github.com/youruser/yourrepo"\``)
+await reply(`🔃 *Checking for updates...*\n\n📦 Repo: ${repoUrl}\n⏳ _Please wait..._`)
+try {
+    // Check if git is initialized
+    let isGitRepo = await new Promise(resolve => {
+        exec('git rev-parse --is-inside-work-tree', { cwd: __dirname }, (err) => resolve(!err))
+    })
+    if (!isGitRepo) {
+        // First time: clone into a temp dir then copy files over
+        return reply(`⚠️ *Not a git repo.*\n\nClone the repo manually first:\n\`git clone ${repoUrl} .\`\nThen run ${prefix}update again.`)
+    }
+    // Ensure remote 'origin' points to the configured repo URL
+    await new Promise(resolve => exec(`git remote set-url origin ${repoUrl} 2>/dev/null || git remote add origin ${repoUrl}`, { cwd: __dirname }, resolve))
+    // Stash any local changes so pull doesn't fail on conflicts
+    await new Promise(resolve => exec('git stash', { cwd: __dirname }, resolve))
+    // Detect current branch, try main then master
+    let branch = await new Promise(resolve => {
+        exec('git rev-parse --abbrev-ref HEAD', { cwd: __dirname }, (err, out) => {
+            let b = (out || '').trim()
+            resolve(b && b !== 'HEAD' ? b : 'main')
+        })
+    })
+    exec(`git pull origin ${branch} --force`, { cwd: __dirname }, async (err, stdout, stderr) => {
+        let out = (stdout || '') + (stderr || '')
+        if (err) {
+            // Try the other branch
+            let alt = branch === 'main' ? 'master' : 'main'
+            exec(`git pull origin ${alt} --force`, { cwd: __dirname }, async (err2, stdout2, stderr2) => {
+                let out2 = (stdout2 || '') + (stderr2 || '')
+                if (err2) {
+                    return await X.sendMessage(m.chat, { text: `❌ *Update failed!*\n\n\`\`\`${out2.slice(0, 500)}\`\`\`` }, { quoted: m })
+                }
+                exec('npm install --production', { cwd: __dirname }, async () => {
+                    await X.sendMessage(m.chat, {
+                        text: `✅ *Bot Updated Successfully!*\n\n📋 *Changes:*\n\`\`\`${out2.slice(0, 600)}\`\`\`\n\n🔄 _Restarting now..._`
+                    }, { quoted: m })
+                    await sleep(3000)
+                    process.exit(0)
+                })
+            })
+            return
+        }
+        if (out.toLowerCase().includes('already up to date')) {
+            return await X.sendMessage(m.chat, { text: `✅ *Already up to date!*\n\n_No new updates available._\n\n📦 ${repoUrl}` }, { quoted: m })
+        }
+        exec('npm install --production', { cwd: __dirname }, async () => {
+            await X.sendMessage(m.chat, {
+                text: `✅ *Bot Updated Successfully!*\n\n📋 *Changes:*\n\`\`\`${out.slice(0, 600)}\`\`\`\n\n🔄 _Restarting now..._`
+            }, { quoted: m })
+            await sleep(3000)
+            process.exit(0)
+        })
+    })
+} catch (e) {
+    reply(`❌ *Update error:* ${e.message}`)
+}
+} break
 
 case 'addplugin': case 'addplug':{
 if (!isOwner) return  reply(mess.OnlyOwner)

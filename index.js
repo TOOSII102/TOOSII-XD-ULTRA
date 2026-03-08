@@ -55,8 +55,6 @@ process.on('uncaughtException', (err) => {
         em.includes('bad mac') || em.includes('failed to decrypt') ||
         em.includes('no senderkey') || em.includes('invalid prekey') ||
         em.includes('invalid message') || em.includes('nosuchsession') ||
-        em.includes('websocket was closed') || em.includes('connection closed') ||
-        em.includes('econnreset') || em.includes('socket hang up') ||
         es.includes('session_cipher') || es.includes('libsignal') || es.includes('queue_job')
     )
     if (isSignal) {
@@ -73,8 +71,6 @@ process.on('unhandledRejection', (err) => {
         em.includes('bad mac') || em.includes('failed to decrypt') ||
         em.includes('no senderkey') || em.includes('invalid prekey') ||
         em.includes('invalid message') || em.includes('nosuchsession') ||
-        em.includes('websocket was closed') || em.includes('connection closed') ||
-        em.includes('econnreset') || em.includes('socket hang up') ||
         es.includes('session_cipher') || es.includes('libsignal') || es.includes('queue_job')
     )
     if (isSignal) {
@@ -130,49 +126,22 @@ async function handleSessionLogin(sessionId) {
     }
     try {
         console.log(`[ ${_bn} ] Processing Session ID...`)
-
-        // ── Strip known prefixes ─────────────────────────────────────
-        // Session generator outputs: TOOSII-XD~<base64creds>
-        // Some older generators use: ULTRA~, TOOSII~, etc.
-        let raw = sessionId.trim()
-        const knownPrefixes = ['TOOSII-XD~', 'TOOSII~', 'ULTRA~', 'XTRA~']
-        for (const prefix of knownPrefixes) {
-            if (raw.startsWith(prefix)) {
-                raw = raw.slice(prefix.length)
-                console.log(`[ ${_bn} ] Detected prefix "${prefix}" — stripped.`)
-                break
-            }
-        }
-
         let credsData
-        // Try base64 decode first (what the session generator produces)
         try {
-            const decoded = Buffer.from(raw, 'base64').toString('utf-8')
-            credsData = JSON.parse(decoded)
+            credsData = JSON.parse(Buffer.from(sessionId, 'base64').toString('utf-8'))
         } catch {
-            // Fallback: try raw JSON (manual creds.json paste)
             try {
-                credsData = JSON.parse(raw)
+                credsData = JSON.parse(sessionId)
             } catch {
-                console.log(`[ ${_bn} ] ✗ Invalid Session ID format.`)
-                console.log(`[ ${_bn} ]   Expected: TOOSII-XD~<base64> from the Session Generator`)
-                console.log(`[ ${_bn} ]   Got: ${raw.slice(0, 40)}...`)
+                console.log(`[ ${_bn} ] Invalid Session ID format. Must be base64 encoded or JSON.`)
                 return
             }
         }
-
-        // Validate it looks like real creds
-        if (!credsData.noiseKey && !credsData.me && !credsData.signedIdentityKey) {
-            console.log(`[ ${_bn} ] ✗ Session ID decoded but does not look like valid WhatsApp credentials.`)
-            console.log(`[ ${_bn} ]   Make sure you copied the full Session ID from the generator.`)
-            return
-        }
-
         const sessionPhone = credsData.me?.id?.split(':')[0]?.split('@')[0] || 'imported_' + Date.now()
         const sessionDir = path.join(SESSIONS_DIR, sessionPhone)
         if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true })
         fs.writeFileSync(path.join(sessionDir, 'creds.json'), JSON.stringify(credsData, null, 2))
-        console.log(`[ ${_bn} ] ✓ Session saved for: ${sessionPhone}`)
+        console.log(`[ ${_bn} ] Session ID saved for ${sessionPhone}`)
         console.log(`[ ${_bn} ] Connecting...`)
         await connectSession(sessionPhone)
     } catch (err) {
@@ -208,7 +177,7 @@ function waitForConsoleInput() {
                     return
                 }
                 console.log(`${c.green}[ ${_bn} ]${c.r} ${c.cyan}Connecting with number: ${c.bold}${phone}${c.r}${c.cyan}...${c.r}`)
-                await connectSession(phone, true)  // isPairing=true — skip creds.json check
+                await connectSession(phone)
                 waitForConsoleInput()
             })
         } else if (cmd === '2') {
@@ -225,7 +194,7 @@ function waitForConsoleInput() {
         } else if (cmd.length >= 10 && /^[0-9]+$/.test(cmd)) {
             console.log(`${c.green}[ ${_bn} ]${c.r} Detected phone number: ${c.cyan}${c.bold}${cmd}${c.r}`)
             console.log(`${c.green}[ ${_bn} ]${c.r} ${c.cyan}Connecting...${c.r}`)
-            await connectSession(cmd, true)  // isPairing=true
+            await connectSession(cmd)
             waitForConsoleInput()
         } else if (cmd) {
             console.log(`${c.red}[ ${_bn} ] ✗ Unknown command: "${cmd}"${c.r}`)
@@ -283,16 +252,6 @@ async function startBot() {
         console.log('')
     }
 
-    // ── Auto-login via SESSION_ID environment variable ──────────────────
-    // Useful for Render, Railway, Koyeb, Heroku — paste TOOSII-XD~... as env var
-    const envSession = process.env.SESSION_ID || process.env.TOOSII_SESSION || ''
-    if (envSession && envSession.length > 20) {
-        console.log(`${c.green}[ ${_bn} ]${c.r} ${c.cyan}SESSION_ID env variable detected — auto-logging in...${c.r}`)
-        await handleSessionLogin(envSession)
-        // Don't call waitForConsoleInput on hosted platforms — no terminal
-        if (!process.stdin.isTTY) return
-    }
-
     waitForConsoleInput()
 }
 
@@ -301,127 +260,10 @@ const store = makeInMemoryStore({ logger: pino().child({ level: 'silent', stream
 //━━━━━━━━━━━━━━━━━━━━━━━━//
 // Connection Bot - Multi-Session
 
-// ── Safe Pairing Code Generator ─────────────────────────────────────────────
-// Spawns a TEMPORARY isolated socket to generate a pairing code.
-// Does NOT touch the active bot session — prevents logout.
-global.generatePairCode = async function(phoneNumber) {
-    const cleanPhone = phoneNumber.replace(/[^0-9]/g, '')
-
-    // Save auth into the REAL session folder so creds.json lands in the right place
-    const sessDir = path.join(SESSIONS_DIR, cleanPhone)
-    fs.mkdirSync(sessDir, { recursive: true })
-    const { state: pairState, saveCreds: savePairCreds } = await useMultiFileAuthState(sessDir)
-
-    return new Promise((resolve, reject) => {
-        const sock = makeWASocket({
-            logger: pino({ level: 'silent' }),
-            printQRInTerminal: false,
-            auth: pairState,
-            connectTimeoutMs: 60000,
-            defaultQueryTimeoutMs: undefined,
-            keepAliveIntervalMs: 25000,
-            fireInitQueries: true,
-            generateHighQualityLinkPreview: false,
-            syncFullHistory: false,
-            markOnlineOnConnect: false,
-            browser: ['TOOSII-XD-ULTRA', 'Desktop', '0.0.0'],
-        })
-
-        if (sock.ws) sock.ws.on('error', () => {})
-        sock.ev.on('CB:error', () => {})
-        sock.ev.on('creds.update', savePairCreds)
-
-        let codeRequested = false
-        let resolved = false
-
-        const masterTimeout = setTimeout(() => {
-            if (!resolved) {
-                resolved = true
-                try { sock.end() } catch {}
-                resolve()
-            }
-        }, 90000)
-
-        sock.ev.on('connection.update', async (update) => {
-            const { connection, lastDisconnect, qr } = update
-
-            if (!pairState.creds.registered && !codeRequested) {
-                if (connection === 'connecting' || qr) {
-                    codeRequested = true
-                    setTimeout(async () => {
-                        try {
-                            const code = await sock.requestPairingCode(cleanPhone)
-                            if (!code) throw new Error('No code returned')
-                            const fmt = code.replace(/[^A-Z0-9]/gi, '').toUpperCase().match(/.{1,4}/g)?.join('-') || code
-                            console.log('')
-                            console.log(`${c.green}${c.bold}╔══════════════════════════════════════════╗${c.r}`)
-                            console.log(`${c.green}${c.bold}║${c.r}  ${c.bgGreen}${c.white}${c.bold} PAIRING CODE: ${fmt} ${c.r}`)
-                            console.log(`${c.green}${c.bold}╚══════════════════════════════════════════╝${c.r}`)
-                            console.log('')
-                            console.log(`${c.yellow}${c.bold}→${c.r} ${c.white}Open WhatsApp > Settings > Linked Devices > Link a Device${c.r}`)
-                            console.log(`${c.yellow}${c.bold}→${c.r} ${c.white}Choose "Link with phone number" and enter the code above${c.r}`)
-                            console.log(`${c.yellow}${c.bold}→${c.r} ${c.white}You have ~60 seconds to enter the code${c.r}`)
-                            console.log('')
-                        } catch (err) {
-                            const msg = (err.message || '').toLowerCase()
-                            clearTimeout(masterTimeout)
-                            resolved = true
-                            try { sock.end() } catch {}
-                            if (msg.includes('rate') || msg.includes('limit')) {
-                                reject(new Error('Rate limited. Wait 2 minutes and try again.'))
-                            } else if (msg.includes('not registered') || msg.includes('not supported')) {
-                                reject(new Error('Number not on WhatsApp.'))
-                            } else {
-                                reject(new Error(err.message || 'Failed to get pairing code'))
-                            }
-                        }
-                    }, 3000)
-                }
-            }
-
-            if (connection === 'open') {
-                clearTimeout(masterTimeout)
-                resolved = true
-                console.log(`${c.green}[pair] ✅ Device linked successfully!${c.r}`)
-                setTimeout(() => { try { sock.end() } catch {}; resolve() }, 2000)
-            }
-
-            if (connection === 'close') {
-                const statusCode = lastDisconnect?.error?.output?.statusCode
-                // Fatal rejection codes — don't retry
-                if (!resolved && (statusCode === 401 || statusCode === 403)) {
-                    clearTimeout(masterTimeout)
-                    resolved = true
-                    try { sock.end() } catch {}
-                    reject(new Error(`WhatsApp rejected the session (${statusCode}). Try again.`))
-                    return
-                }
-                // WS closed before code shown — gifted-baileys auto-reconnects, just wait
-                // WS closed after code shown — WA briefly disconnects during link, wait for open
-            }
-        })
-    })
-}
-
-
-async function connectSession(phone, isPairing = false) {
+async function connectSession(phone) {
 try {
-// Prevent duplicate concurrent connection attempts for same number
-const existing = activeSessions.get(phone)
-if (existing && existing.status === 'connecting') {
-    console.log(`[${phone}] Already connecting — skipping duplicate attempt`)
-    return
-}
-
 const sessionDir = path.join(SESSIONS_DIR, phone)
 if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true })
-
-// Only block reconnects when creds are missing — NOT fresh pairings from option 1
-if (!isPairing && !fs.existsSync(path.join(sessionDir, 'creds.json'))) {
-    console.log(`[${phone}] No creds.json found — session was removed. Re-pair to reconnect.`)
-    activeSessions.delete(phone)
-    return
-}
 
 activeSessions.set(phone, { socket: null, status: 'connecting', connectedUser: phone })
 
@@ -439,7 +281,7 @@ generateHighQualityLinkPreview: false,
 syncFullHistory: false,
 markOnlineOnConnect: true,
 shouldIgnoreJid: jid => jid === 'status@broadcast' ? false : false,
-browser: ["TOOSII-XD-ULTRA", "Desktop", "0.0.0"],
+browser: ["Ubuntu", "Chrome", "20.0.04"],
 msgRetryCounterCache: msgRetryCache,
 // getMessage is critical — Baileys calls this when retrying encrypted messages.
 // Returning a valid fallback prevents "No sessions" from crashing the process.
@@ -497,39 +339,45 @@ X.ev.on('CB:error', () => {})
 // Per-session signal noise suppression (already handled globally above)
 
 if (!X.authState.creds.registered) {
-    // ── ISOLATED PAIRING — generatePairCode() uses its own clean socket ───────
-    console.log(`${c.cyan}[${phone}]${c.r} ${c.dim}Generating pairing code via isolated socket...${c.r}`)
-
-    // Kill X now — pairing on X causes WA session conflicts
-    try { X.end() } catch {}
-    activeSessions.delete(phone)
-
-    // generatePairCode creates isolated socket, requests code, waits for user to link
-    // It only returns AFTER connection.open fires (linked) OR 90s timeout
-    const sessDir = path.join(SESSIONS_DIR, phone)
-    fs.mkdirSync(sessDir, { recursive: true })
-    let linked = false
-    try {
-        // Pass sessDir so creds.json is saved directly to the session folder
-        await global.generatePairCode(phone, sessDir)
-        // generatePairCode resolves after connection.open — creds.json should exist now
-        const credsPath = path.join(sessDir, 'creds.json')
-        for (let i = 0; i < 10; i++) {
-            if (fs.existsSync(credsPath)) { linked = true; break }
-            await new Promise(r => setTimeout(r, 500))
+    console.log(`[${phone}] Waiting for WebSocket handshake...`)
+    await new Promise(resolve => setTimeout(resolve, 5000))
+    console.log(`${c.cyan}[${phone}]${c.r} ${c.dim}Requesting pairing code...${c.r}`)
+    let retries = 0
+    const maxRetries = 3
+    let paired = false
+    while (retries < maxRetries && !paired) {
+        try {
+            let code = await X.requestPairingCode(phone);
+            code = code?.match(/.{1,4}/g)?.join("-") || code;
+            console.log(`[PAIRING_CODE:${code}]`)
+            console.log('')
+            console.log(`${c.green}${c.bold}╔══════════════════════════════════════════╗${c.r}`)
+            console.log(`${c.green}${c.bold}║${c.r}  ${c.bgGreen}${c.white}${c.bold} PAIRING CODE: ${code} ${c.r}                   ${c.green}${c.bold}║${c.r}`)
+            console.log(`${c.green}${c.bold}╚══════════════════════════════════════════╝${c.r}`)
+            console.log('')
+            console.log(`${c.yellow}${c.bold}→${c.r} ${c.white}Open WhatsApp > Settings > Linked Devices > Link a Device${c.r}`)
+            console.log(`${c.yellow}${c.bold}→${c.r} ${c.white}Choose "Link with phone number" and enter the code above${c.r}`)
+            console.log('')
+            paired = true
+        } catch (err) {
+            retries++
+            console.error(`[${phone}] Pairing attempt ${retries}/${maxRetries} failed:`, err.message || err)
+            if (retries < maxRetries) {
+                console.log(`[${phone}] Retrying in 3 seconds...`)
+                await new Promise(resolve => setTimeout(resolve, 3000))
+            }
         }
-    } catch (err) {
-        console.error(`[${phone}] Pairing error: ${err.message}`)
     }
-
-    if (!linked) {
-        console.log(`${c.yellow}[${phone}]${c.r} Code timed out or not entered. Run option 1 again.`)
+    if (!paired) {
+        console.error(`[${phone}] All pairing attempts failed`)
+        activeSessions.delete(phone)
+        try { X.end(); } catch(e) {}
+        try {
+            const sessDir = path.join(SESSIONS_DIR, phone)
+            if (fs.existsSync(sessDir)) fs.rmSync(sessDir, { recursive: true, force: true })
+        } catch(e) {}
         return
     }
-
-    console.log(`${c.green}[${phone}]${c.r} ✅ Linked! Starting bot session...`)
-    await connectSession(phone)
-    return
 } else {
     console.log(`[${phone}] Reconnecting existing session...`)
 }
@@ -605,29 +453,10 @@ if (mek.key && mek.key.remoteJid === 'status@broadcast') {
             if (global.autoReplyStatus && global.autoReplyStatusMsg) {
                 let statusPoster = mek.key.participant || mek.key.remoteJid
                 try {
-                    // Send reply the SAME WAY a human would reply to a status —
-                    // using contextInfo that quotes the original status message.
-                    // This makes it appear in the poster's chat as a reply to
-                    // their specific status, not a random incoming DM.
-                    await X.sendMessage(statusPoster, {
-                        text: global.autoReplyStatusMsg,
-                        contextInfo: {
-                            // Quote the original status post
-                            stanzaId: mek.key.id,
-                            participant: statusPoster,
-                            quotedMessage: mek.message,
-                            remoteJid: 'status@broadcast'
-                        }
-                    })
+                    await X.sendMessage(statusPoster, { text: global.autoReplyStatusMsg })
                     console.log(`[${phone}] Auto-replied to status from ${statusPoster}`)
                 } catch (arErr) {
-                    // Fallback: plain DM if contextInfo reply fails
-                    try {
-                        await X.sendMessage(statusPoster, { text: global.autoReplyStatusMsg })
-                        console.log(`[${phone}] Auto-replied (fallback) to status from ${statusPoster}`)
-                    } catch (arErr2) {
-                        console.log(`[${phone}] Auto-reply status error:`, arErr2.message || arErr2)
-                    }
+                    console.log(`[${phone}] Auto-reply status error:`, arErr.message || arErr)
                 }
             }
             if (global.antiStatusMention) {
@@ -928,80 +757,40 @@ X.public = true
 X.serializeM = (m) => smsg(X, m, store);
 X.ev.on('connection.update', async (update) => {
 const { connection, lastDisconnect } = update;
-if (connection === 'close') {
+if (connection === "close") {
 let reason = new Boom(lastDisconnect?.error)?.output.statusCode;
-console.log(`[${phone}] Connection closed — reason: ${reason}`)
-
 if (reason === DisconnectReason.badSession) {
-    // Session file is corrupted — delete it and reconnect fresh
-    console.log(`[${phone}] Bad session — deleting corrupted session file and reconnecting...`)
-    try {
-        const sessDir = path.join(SESSIONS_DIR, phone)
-        if (fs.existsSync(sessDir)) fs.rmSync(sessDir, { recursive: true, force: true })
-    } catch(e) {}
-    activeSessions.delete(phone)
-    setTimeout(() => connectSession(phone), 3000)
-
-} else if (reason === DisconnectReason.loggedOut) {
-    // WhatsApp explicitly logged out this device (401)
-    // Delete session — user must re-pair
-    console.log(`[${phone}] Logged out by WhatsApp (401) — session deleted. Re-pair to reconnect.`)
-    activeSessions.delete(phone)
-    try {
-        const sessDir = path.join(SESSIONS_DIR, phone)
-        if (fs.existsSync(sessDir)) fs.rmSync(sessDir, { recursive: true, force: true })
-    } catch(e) {}
-    // DO NOT reconnect — credentials are revoked
-
-} else if (reason === DisconnectReason.connectionReplaced) {
-    // Another WhatsApp Web session opened for this account
-    // Wait and reconnect — WA allows multiple linked devices
-    console.log(`[${phone}] Connection replaced — another session opened. Reconnecting in 10s...`)
-    if (activeSessions.has(phone)) activeSessions.get(phone).status = 'reconnecting'
-    setTimeout(() => connectSession(phone), 10000)
-
-} else if (reason === DisconnectReason.connectionClosed) {
-    console.log(`[${phone}] Connection closed — reconnecting in 3s...`)
-    if (activeSessions.has(phone)) activeSessions.get(phone).status = 'reconnecting'
-    setTimeout(() => connectSession(phone), 3000)
-
-} else if (reason === DisconnectReason.connectionLost) {
-    console.log(`[${phone}] Connection lost — reconnecting in 5s...`)
-    if (activeSessions.has(phone)) activeSessions.get(phone).status = 'reconnecting'
-    setTimeout(() => connectSession(phone), 5000)
-
-} else if (reason === DisconnectReason.restartRequired) {
-    console.log(`[${phone}] Restart required — reconnecting now...`)
-    connectSession(phone)
-
-} else if (reason === DisconnectReason.timedOut) {
-    console.log(`[${phone}] Connection timed out — reconnecting in 5s...`)
-    if (activeSessions.has(phone)) activeSessions.get(phone).status = 'reconnecting'
-    setTimeout(() => connectSession(phone), 5000)
-
-} else if (reason === 428) {
-    // Connection closed abnormally — e.g. server restart
-    console.log(`[${phone}] Connection closed abnormally (428) — reconnecting in 5s...`)
-    if (activeSessions.has(phone)) activeSessions.get(phone).status = 'reconnecting'
-    setTimeout(() => connectSession(phone), 5000)
-
-} else if (reason === 440) {
-    // Another device logged in — WA multi-device conflict
-    console.log(`[${phone}] Multi-device conflict (440) — reconnecting in 8s...`)
-    if (activeSessions.has(phone)) activeSessions.get(phone).status = 'reconnecting'
-    setTimeout(() => connectSession(phone), 8000)
-
-} else if (reason === 503 || reason === 500) {
-    // WA server error — back off and retry
-    console.log(`[${phone}] WhatsApp server error (${reason}) — reconnecting in 15s...`)
-    if (activeSessions.has(phone)) activeSessions.get(phone).status = 'reconnecting'
-    setTimeout(() => connectSession(phone), 15000)
-
-} else {
-    console.log(`[${phone}] Unknown disconnect reason: ${reason} — reconnecting in 8s...`)
-    if (activeSessions.has(phone)) activeSessions.get(phone).status = 'reconnecting'
-    setTimeout(() => connectSession(phone), 8000)
-}
+console.log(`[${phone}] Session file corrupted`);
+if (activeSessions.has(phone)) activeSessions.get(phone).status = 'disconnected'
+  } else if (reason === DisconnectReason.connectionClosed) {
+console.log(`[${phone}] Connection closed, reconnecting...`);
+if (activeSessions.has(phone)) activeSessions.get(phone).status = 'reconnecting'
+setTimeout(() => connectSession(phone), 3000);
+  } else if (reason === DisconnectReason.connectionLost) {
+console.log(`[${phone}] Connection lost, reconnecting...`);
+if (activeSessions.has(phone)) activeSessions.get(phone).status = 'reconnecting'
+setTimeout(() => connectSession(phone), 3000);
+  } else if (reason === DisconnectReason.connectionReplaced) {
+console.log(`[${phone}] Connection replaced`);
+if (activeSessions.has(phone)) activeSessions.get(phone).status = 'disconnected'
+  } else if (reason === DisconnectReason.loggedOut) {
+console.log(`[${phone}] Device logged out, removing session`);
+activeSessions.delete(phone)
+try {
+    const sessDir = path.join(SESSIONS_DIR, phone)
+    if (fs.existsSync(sessDir)) fs.rmSync(sessDir, { recursive: true, force: true })
+} catch(e) {}
+  } else if (reason === DisconnectReason.restartRequired) {
+console.log(`[${phone}] Restart required, reconnecting...`);
+connectSession(phone);
+  } else if (reason === DisconnectReason.timedOut) {
+console.log(`[${phone}] Connection timed out, reconnecting...`);
+if (activeSessions.has(phone)) activeSessions.get(phone).status = 'reconnecting'
+setTimeout(() => connectSession(phone), 3000);
+  } else {
+console.log(`[${phone}] Unknown DisconnectReason: ${reason}|${connection}`);
+setTimeout(() => connectSession(phone), 5000);
+  }
 } else if (connection === "open") {
 if (!X.user.lid && state?.creds?.me?.lid) {
     X.user.lid = state.creds.me.lid

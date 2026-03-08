@@ -3940,8 +3940,35 @@ await X.groupLeave(m.chat)
 } break
 
 case 'pair': {
-if (!isOwner) return reply(mess.OnlyOwner)
-reply(`*Bot Pairing Info:*\nBot Number: ${botNumber}\nUse the console to pair a new device.`)
+if (!isDeployedNumber) return reply(mess.OnlyOwner)
+// Usage: .pair 254712345678  OR  just .pair (pairs the sender's own number)
+let pairPhone = text ? text.replace(/[^0-9]/g, '') : ''
+if (!pairPhone) {
+    return reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  🔗 *PAIRING CODE*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\nGenerate a WhatsApp pairing code to link a device.\n\n*Usage:*\n${prefix}pair [phone number]\n\n*Example:*\n${prefix}pair 254712345678\n\n_Include country code. Do not use + or spaces._\n\n*Steps after receiving code:*\n➊ Open WhatsApp on your phone\n➋ Go to *Settings > Linked Devices*\n➌ Tap *Link a Device*\n➍ Choose *Link with phone number*\n➎ Enter the pairing code`)
+}
+if (pairPhone.length < 7 || pairPhone.length > 15) {
+    return reply(`❌ *Invalid phone number.*\nMust be 7–15 digits including country code.\n\n*Example:* ${prefix}pair 254712345678`)
+}
+try {
+    await reply('🔗 _Generating pairing code, please wait..._')
+    let code = await X.requestPairingCode(pairPhone)
+    if (!code) throw new Error('No code returned')
+    // Format as XXXX-XXXX like WhatsApp shows it
+    code = code.replace(/[^A-Z0-9]/gi, '').toUpperCase()
+    let formatted = code.match(/.{1,4}/g)?.join('-') || code
+    await reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  🔗 *PAIRING CODE READY!*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n📱 *Phone:* +${pairPhone}\n\n┌─────────────────────\n│  🔑  *${formatted}*\n└─────────────────────\n\n*How to link:*\n➊ Open WhatsApp\n➋ Settings > Linked Devices\n➌ Link a Device\n➍ Link with phone number\n➎ Enter the code above\n\n⏳ _Code expires in a few minutes._`)
+} catch(e) {
+    let msg = (e.message || '').toLowerCase()
+    if (msg.includes('bad request') || msg.includes('invalid')) {
+        reply(`❌ *Invalid phone number:* +${pairPhone}\n\nMake sure the number is correct with country code.\n_Example: 254712345678_`)
+    } else if (msg.includes('rate') || msg.includes('limit')) {
+        reply(`⏳ *Rate limited.* Too many pairing requests.\nWait a few minutes and try again.`)
+    } else if (msg.includes('not supported') || msg.includes('registered')) {
+        reply(`❌ *This number is not registered on WhatsApp.*\n\nVerify the number +${pairPhone} has WhatsApp installed.`)
+    } else {
+        reply(`❌ *Failed to generate pairing code.*\n_${e.message || 'Unknown error'}_\n\nTry again in a few seconds.`)
+    }
+}
 } break
 
 case 'clear': {

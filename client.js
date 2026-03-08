@@ -1620,7 +1620,7 @@ if (!arsArg) {
 } else {
     global.autoReplyStatusMsg = arsArg
     global.autoReplyStatus = true
-    reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  💌 *AUTO REPLY STATUS*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n✅ *Enabled*\n\n*Reply message set to:*\n❝ ${arsArg} ❞\n\n_The bot will now send this message to anyone whose status you view._`)
+    reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  💌 *AUTO REPLY STATUS*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n✅ *Enabled*\n\n*Reply message set to:*\n❝ ${arsArg} ❞\n\n_The bot will reply to each status *exactly like a human would* — as a quoted reply to that specific status post, not a plain DM._`)
 }
 }
 break

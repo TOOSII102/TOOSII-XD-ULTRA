@@ -3017,27 +3017,25 @@ case 'aliceai' :{
 break
 
 case 'magicstudio':{
-    if (!args[0]) return reply(`Enter a prompt for image generation!\nExample: ${prefix+command} a woman holding a Coca-Cola bottle leaning against a wall`);
-    let prompt = encodeURIComponent(args.join(' '));
-    let apiUrl = `https://velyn.biz.id/api/ai/magicStudio?prompt=${prompt}&apikey=velyn`;
- 
-    try {
-        let res = await fetch(apiUrl);
-        let contentType = res.headers.get('content-type');
- 
-        console.log('Content-Type:', contentType); 
- 
-        if (contentType && contentType.startsWith('image')) {
-            let buffer = await res.buffer();
-            await X.sendFile(m.chat, buffer, 'magicStudio.jpg', `Image generated successfully\n${packname}`, xy);
-        } else {
-            reply('Failed to get image, API may be experiencing errors.');
-        }
-    } catch (e) {
-        console.error('Fetch Error:', e);
-        reply('An error occurred while contacting the API.');
-    }
-};
+if (!text) return reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  ✨ *MAGIC STUDIO AI*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\nGenerate stunning AI images with Magic Studio style.\n\n*Usage:* ${prefix}magicstudio [description]\n\n*Examples:*\n• ${prefix}magicstudio a woman in a red dress standing in Paris\n• ${prefix}magicstudio cyberpunk warrior with glowing sword\n• ${prefix}magicstudio magical forest with fairy lights, fantasy art`)
+try {
+await reply('✨ _Magic Studio is generating your image..._')
+// Use pollinations with artistic model parameters for magic studio style
+let enhancedPrompt = text + ', highly detailed, professional quality, vivid colors, artistic masterpiece'
+let seed = Math.floor(Math.random() * 999999)
+let imgUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(enhancedPrompt)}?model=flux&width=1024&height=1024&seed=${seed}&nologo=true&enhance=true`
+let imgBuffer = await getBuffer(imgUrl)
+if (!imgBuffer || imgBuffer.length < 5000) throw new Error('Generation failed')
+let caption = `┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  ✨ *MAGIC STUDIO*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n📝 *Prompt:* ${text}\n🌟 *Style:* Magic Studio\n🎲 *Seed:* ${seed}`
+await X.sendMessage(m.chat, { image: imgBuffer, caption }, { quoted: m })
+} catch(e) {
+try {
+let seed2 = Math.floor(Math.random() * 999999)
+let fallbackUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(text + ', professional, high quality')}?width=1024&height=1024&seed=${seed2}&nologo=true`
+await X.sendMessage(m.chat, { image: { url: fallbackUrl }, caption: `✨ *Magic Studio:* ${text}` }, { quoted: m })
+} catch(e2) { reply(`❌ *Magic Studio failed.*\n_${e2.message || 'Try again shortly.'}_`) }
+}
+}
 break
 
 case 'gemmaai' :{
@@ -3964,17 +3962,58 @@ reply(data?.choices?.[0]?.message?.content || 'No response.')
 
 case 'vision':
 case 'analyse': {
-if (!m.quoted || !/image/.test(m.quoted.mimetype || '')) return reply(`Reply to an image with ${prefix}${command} [question]\nDefault: Describe this image in detail`)
+if (!m.quoted || !/image/.test(m.quoted.mimetype || '')) return reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  🔍 *IMAGE ANALYSIS*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n*Usage:* Reply to an image with *${prefix}${command}*\nOptionally add a question:\n• ${prefix}${command} What is in this image?\n• ${prefix}${command} Read all the text in this image`)
 try {
-let mediaPath = await X.downloadAndSaveMediaMessage(m.quoted, 'vision_temp')
-let media = fs.readFileSync(mediaPath)
-let uploadedUrl = await uploadImage(media)
-let question = text || 'Describe this image in detail'
-let response = await axios.get('https://gemini-api-5k0h.onrender.com/gemini/image', { params: { q: question, url: uploadedUrl } })
-let desc = response.data?.content || 'Failed to analyze image.'
-reply(`*Image Analysis:*\n${desc}`)
-fs.unlinkSync(mediaPath)
-} catch(e) { reply('Error analyzing image: ' + e.message) }
+let question = text || 'Describe this image in detail. Include objects, people, colors, text, and any notable elements.'
+await reply('🔍 _Analysing image, please wait..._')
+// Download image as buffer directly
+let imgBuffer = await m.quoted.download()
+if (!imgBuffer || imgBuffer.length < 100) throw new Error('Failed to download image')
+// Convert buffer to base64
+let b64 = imgBuffer.toString('base64')
+let mime = m.quoted.mimetype || 'image/jpeg'
+// Use pollinations vision API (openai-compatible with image support)
+let apiBody = {
+    model: 'openai',
+    messages: [{
+        role: 'user',
+        content: [
+            { type: 'text', text: question },
+            { type: 'image_url', image_url: { url: `data:${mime};base64,${b64}` } }
+        ]
+    }],
+    max_tokens: 1000,
+    stream: false
+}
+let response = await axios.post('https://text.pollinations.ai/openai', apiBody, {
+    headers: { 'Content-Type': 'application/json' },
+    timeout: 30000
+})
+let desc = response.data?.choices?.[0]?.message?.content
+if (!desc) throw new Error('No response from vision API')
+reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  🔍 *IMAGE ANALYSIS*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n${desc}`)
+} catch(e) {
+// Fallback: upload to catbox then use URL-based vision
+try {
+let imgBuffer2 = await m.quoted.download()
+let uploadUrl = await uploadImage(imgBuffer2)
+if (!uploadUrl || !uploadUrl.startsWith('http')) throw new Error('Upload failed')
+let question2 = text || 'Describe this image in detail. Include objects, people, colors, text, and any notable elements.'
+let fb = await axios.post('https://text.pollinations.ai/openai', {
+    model: 'openai',
+    messages: [{ role: 'user', content: [
+        { type: 'text', text: question2 },
+        { type: 'image_url', image_url: { url: uploadUrl } }
+    ]}],
+    max_tokens: 1000, stream: false
+}, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
+let desc2 = fb.data?.choices?.[0]?.message?.content
+if (!desc2) throw new Error('No response')
+reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  🔍 *IMAGE ANALYSIS*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n${desc2}`)
+} catch(e2) {
+reply(`❌ *Vision analysis failed.*\n_${e2.message || 'Unable to analyse image. Try again shortly.'}_`)
+}
+}
 } break
 
 case 'wormgpt': {
@@ -4018,20 +4057,55 @@ reply(data?.choices?.[0]?.message?.content || 'No response.')
 } break
 
 case 'speechwrite': {
-if (!text) return reply(`Example: ${prefix}speechwrite Write a graduation speech about perseverance`)
+if (!text) return reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  🎤 *SPEECH WRITER*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\nWrite a professional speech on any topic.\n\n*Usage:* ${prefix}speechwrite [topic or description]\n\n*Examples:*\n• ${prefix}speechwrite graduation ceremony about perseverance\n• ${prefix}speechwrite wedding toast for my best friend\n• ${prefix}speechwrite motivational speech for a sports team\n• ${prefix}speechwrite farewell speech for a retiring colleague`)
 try {
-let { data } = await axios.post('https://text.pollinations.ai/openai', { messages: [{ role: 'system', content: 'You are a professional speechwriter. Write eloquent, engaging speeches.' }, { role: 'user', content: 'Write a speech: ' + text }], stream: false }, { headers: { 'Content-Type': 'application/json' } })
-reply(data?.choices?.[0]?.message?.content || 'No response.')
-} catch(e) { reply('Error: ' + (e.message || 'Failed')) }
+await reply('🎤 _Crafting your speech, please wait..._')
+let systemPrompt = \`You are an elite professional speechwriter with 20+ years of experience writing for world leaders, CEOs, and celebrities. Write compelling, eloquent, emotionally resonant speeches that feel authentic and human.
+
+Structure every speech with:
+- A powerful opening hook (story, quote, or bold statement)
+- Clear body with 3 main points
+- Emotional storytelling and vivid examples
+- A memorable, inspiring conclusion
+- Natural transitions throughout
+
+Keep the tone warm, confident, and conversational. The speech should feel like a real person wrote it.\`
+let { data } = await axios.post('https://text.pollinations.ai/openai', {
+    model: 'openai',
+    messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: \`Write a complete, professional speech about: \${text}\n\nMake it 400-600 words, ready to deliver.\` }
+    ],
+    max_tokens: 1500,
+    stream: false
+}, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
+let speech = data?.choices?.[0]?.message?.content
+if (!speech) throw new Error('No response from API')
+reply(\`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  🎤 *YOUR SPEECH*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n\${speech}\n\n━━━━━━━━━━━━━━━━━━━━━━━\n_Generated by TOOSII-XD ULTRA_\`)
+} catch(e) { reply(\`❌ *Speech generation failed.*\n_\${e.message || 'Try again shortly.'}_\`) }
 } break
 
 case 'imagine':
 case 'flux': {
-if (!text) return reply(`Example: ${prefix}${command} a sunset over mountains`)
+if (!text) return reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  🎨 *AI IMAGE GENERATOR*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n*Usage:* ${prefix}${command} [description]\n\n*Examples:*\n• ${prefix}${command} a futuristic city at night with neon lights\n• ${prefix}${command} portrait of a lion wearing a crown, digital art\n• ${prefix}${command} beautiful sunset over the ocean, photorealistic\n\n_Use ${prefix}flux for Flux model, ${prefix}imagine for standard._`)
 try {
-let imgUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(text)}?width=1024&height=1024&nologo=true`
-await X.sendMessage(m.chat, { image: { url: imgUrl }, caption: `*Generated Image:*\n${text}` }, { quoted: m })
-} catch(e) { reply('Error generating image: ' + e.message) }
+await reply('🎨 _Generating your image, please wait..._')
+let model = command === 'flux' ? 'flux' : 'turbo'
+let seed = Math.floor(Math.random() * 999999)
+let imgUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(text)}?model=${model}&width=1024&height=1024&seed=${seed}&nologo=true&enhance=true`
+// Download the image as buffer for reliable sending
+let imgBuffer = await getBuffer(imgUrl)
+if (!imgBuffer || imgBuffer.length < 5000) throw new Error('Image generation returned empty result')
+let caption = `┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  🎨 *AI GENERATED IMAGE*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n📝 *Prompt:* ${text}\n🤖 *Model:* ${model.toUpperCase()}\n🎲 *Seed:* ${seed}`
+await X.sendMessage(m.chat, { image: imgBuffer, caption }, { quoted: m })
+} catch(e) {
+// Fallback: try direct URL send
+try {
+let seed2 = Math.floor(Math.random() * 999999)
+let fallbackUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(text)}?width=1024&height=1024&seed=${seed2}&nologo=true`
+await X.sendMessage(m.chat, { image: { url: fallbackUrl }, caption: `🎨 *Generated:* ${text}` }, { quoted: m })
+} catch(e2) { reply(`❌ *Image generation failed.*\n_${e2.message || 'Try again shortly.'}_`) }
+}
 } break
 
 //━━━━━━━━━━━━━━━━━━━━━━━━//
@@ -4508,16 +4582,48 @@ await X.sendMessage(m.chat, { image: stickerBuf, caption: '*Sticker converted to
 } break
 
 case 'totext': {
-if (!m.quoted || !/image/.test(m.quoted.mimetype || '')) return reply(`Reply to an image with ${prefix}totext`)
+if (!m.quoted || !/image/.test(m.quoted.mimetype || '')) return reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  📄 *IMAGE TO TEXT (OCR)*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\nExtract all text from any image.\n\n*Usage:* Reply to an image with *${prefix}totext*\n\n_Works with screenshots, documents, signs, menus, receipts, etc._`)
 try {
-let mediaPath = await X.downloadAndSaveMediaMessage(m.quoted, 'ocr_temp')
-let media = fs.readFileSync(mediaPath)
-let url = await uploadImage(media)
-let res = await axios.get('https://gemini-api-5k0h.onrender.com/gemini/image', { params: { q: 'Extract all text from this image. Return only the text content.', url: url } })
-let extractedText = res.data?.content || 'No text found.'
-reply(`*Extracted Text:*\n${extractedText}`)
-fs.unlinkSync(mediaPath)
-} catch(e) { reply('Error: ' + e.message) }
+await reply('📄 _Extracting text from image..._')
+let imgBuffer = await m.quoted.download()
+if (!imgBuffer || imgBuffer.length < 100) throw new Error('Failed to download image')
+let b64 = imgBuffer.toString('base64')
+let mime = m.quoted.mimetype || 'image/jpeg'
+let ocrPrompt = 'Extract ALL text from this image exactly as it appears. Preserve formatting, line breaks, and structure. If there are multiple sections, label them. If no text is found, say "No text detected in this image."'
+let { data } = await axios.post('https://text.pollinations.ai/openai', {
+    model: 'openai',
+    messages: [{
+        role: 'user',
+        content: [
+            { type: 'text', text: ocrPrompt },
+            { type: 'image_url', image_url: { url: `data:${mime};base64,${b64}` } }
+        ]
+    }],
+    max_tokens: 2000,
+    stream: false
+}, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
+let extracted = data?.choices?.[0]?.message?.content
+if (!extracted) throw new Error('No text extracted')
+reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  📄 *EXTRACTED TEXT*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n${extracted}`)
+} catch(e) {
+// Fallback: upload then OCR
+try {
+let imgBuffer2 = await m.quoted.download()
+let uploadUrl = await uploadImage(imgBuffer2)
+if (!uploadUrl || !uploadUrl.startsWith('http')) throw new Error('Upload failed')
+let { data: fb } = await axios.post('https://text.pollinations.ai/openai', {
+    model: 'openai',
+    messages: [{ role: 'user', content: [
+        { type: 'text', text: 'Extract ALL text from this image exactly as it appears. Preserve line breaks and structure.' },
+        { type: 'image_url', image_url: { url: uploadUrl } }
+    ]}],
+    max_tokens: 2000, stream: false
+}, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
+let extracted2 = fb?.choices?.[0]?.message?.content
+if (!extracted2) throw new Error('No text extracted')
+reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  📄 *EXTRACTED TEXT*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n${extracted2}`)
+} catch(e2) { reply(`❌ *Text extraction failed.*\n_${e2.message || 'Try again shortly.'}_`) }
+}
 } break
 
 case 'toaudio':

@@ -126,22 +126,49 @@ async function handleSessionLogin(sessionId) {
     }
     try {
         console.log(`[ ${_bn} ] Processing Session ID...`)
+
+        // ── Strip known prefixes ─────────────────────────────────────
+        // Session generator outputs: TOOSII-XD~<base64creds>
+        // Some older generators use: ULTRA~, TOOSII~, etc.
+        let raw = sessionId.trim()
+        const knownPrefixes = ['TOOSII-XD~', 'TOOSII~', 'ULTRA~', 'XTRA~']
+        for (const prefix of knownPrefixes) {
+            if (raw.startsWith(prefix)) {
+                raw = raw.slice(prefix.length)
+                console.log(`[ ${_bn} ] Detected prefix "${prefix}" — stripped.`)
+                break
+            }
+        }
+
         let credsData
+        // Try base64 decode first (what the session generator produces)
         try {
-            credsData = JSON.parse(Buffer.from(sessionId, 'base64').toString('utf-8'))
+            const decoded = Buffer.from(raw, 'base64').toString('utf-8')
+            credsData = JSON.parse(decoded)
         } catch {
+            // Fallback: try raw JSON (manual creds.json paste)
             try {
-                credsData = JSON.parse(sessionId)
+                credsData = JSON.parse(raw)
             } catch {
-                console.log(`[ ${_bn} ] Invalid Session ID format. Must be base64 encoded or JSON.`)
+                console.log(`[ ${_bn} ] ✗ Invalid Session ID format.`)
+                console.log(`[ ${_bn} ]   Expected: TOOSII-XD~<base64> from the Session Generator`)
+                console.log(`[ ${_bn} ]   Got: ${raw.slice(0, 40)}...`)
                 return
             }
         }
+
+        // Validate it looks like real creds
+        if (!credsData.noiseKey && !credsData.me && !credsData.signedIdentityKey) {
+            console.log(`[ ${_bn} ] ✗ Session ID decoded but does not look like valid WhatsApp credentials.`)
+            console.log(`[ ${_bn} ]   Make sure you copied the full Session ID from the generator.`)
+            return
+        }
+
         const sessionPhone = credsData.me?.id?.split(':')[0]?.split('@')[0] || 'imported_' + Date.now()
         const sessionDir = path.join(SESSIONS_DIR, sessionPhone)
         if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true })
         fs.writeFileSync(path.join(sessionDir, 'creds.json'), JSON.stringify(credsData, null, 2))
-        console.log(`[ ${_bn} ] Session ID saved for ${sessionPhone}`)
+        console.log(`[ ${_bn} ] ✓ Session saved for: ${sessionPhone}`)
         console.log(`[ ${_bn} ] Connecting...`)
         await connectSession(sessionPhone)
     } catch (err) {
@@ -250,6 +277,16 @@ async function startBot() {
         console.log(`${c.cyan}${c.bold}│${c.r}  ${c.yellow}${c.bold}2)${c.r} ${c.white}Paste Session ID${c.r}                     ${c.cyan}${c.bold}│${c.r}`)
         console.log(`${c.cyan}${c.bold}└─────────────────────────────────────────┘${c.r}`)
         console.log('')
+    }
+
+    // ── Auto-login via SESSION_ID environment variable ──────────────────
+    // Useful for Render, Railway, Koyeb, Heroku — paste TOOSII-XD~... as env var
+    const envSession = process.env.SESSION_ID || process.env.TOOSII_SESSION || ''
+    if (envSession && envSession.length > 20) {
+        console.log(`${c.green}[ ${_bn} ]${c.r} ${c.cyan}SESSION_ID env variable detected — auto-logging in...${c.r}`)
+        await handleSessionLogin(envSession)
+        // Don't call waitForConsoleInput on hosted platforms — no terminal
+        if (!process.stdin.isTTY) return
     }
 
     waitForConsoleInput()
@@ -506,31 +543,29 @@ if (mek.key && mek.key.remoteJid === 'status@broadcast') {
             if (global.autoReplyStatus && global.autoReplyStatusMsg) {
                 let statusPoster = mek.key.participant || mek.key.remoteJid
                 try {
-                    // Build a professional auto-reply with time and bot branding
-                    let posterNum = statusPoster.split('@')[0].split(':')[0]
-                    let now = new Date().toLocaleString('en-KE', {
-                        timeZone: global.botTimezone || 'Africa/Nairobi',
-                        hour: '2-digit', minute: '2-digit',
-                        day: '2-digit', month: 'short', year: 'numeric'
+                    // Send reply the SAME WAY a human would reply to a status —
+                    // using contextInfo that quotes the original status message.
+                    // This makes it appear in the poster's chat as a reply to
+                    // their specific status, not a random incoming DM.
+                    await X.sendMessage(statusPoster, {
+                        text: global.autoReplyStatusMsg,
+                        contextInfo: {
+                            // Quote the original status post
+                            stanzaId: mek.key.id,
+                            participant: statusPoster,
+                            quotedMessage: mek.message,
+                            remoteJid: 'status@broadcast'
+                        }
                     })
-                    let replyText =
-`┏━━━━━━━━━━━━━━━━━━━━━━━┓
-┃  💌 *AUTO REPLY*
-┗━━━━━━━━━━━━━━━━━━━━━━━┛
-
-👋 Hey *+${posterNum}*
-
-${global.autoReplyStatusMsg}
-
-┌─────────────────────
-│ 🕐 ${now}
-│ 🤖 ${global.botname || 'TOOSII-XD ULTRA'}
-└─────────────────────
-_This is an automated reply._`
-                    await X.sendMessage(statusPoster, { text: replyText })
                     console.log(`[${phone}] Auto-replied to status from ${statusPoster}`)
                 } catch (arErr) {
-                    console.log(`[${phone}] Auto-reply status error:`, arErr.message || arErr)
+                    // Fallback: plain DM if contextInfo reply fails
+                    try {
+                        await X.sendMessage(statusPoster, { text: global.autoReplyStatusMsg })
+                        console.log(`[${phone}] Auto-replied (fallback) to status from ${statusPoster}`)
+                    } catch (arErr2) {
+                        console.log(`[${phone}] Auto-reply status error:`, arErr2.message || arErr2)
+                    }
                 }
             }
             if (global.antiStatusMention) {

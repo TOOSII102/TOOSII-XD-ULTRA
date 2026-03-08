@@ -339,46 +339,57 @@ if (mek.key && mek.key.remoteJid === 'status@broadcast') {
             let statusPosterJid = mek.key.participant || mek.key.remoteJid
             let botSelfJid = X.decodeJid(X.user.id)
 
+            // ── Auto View Status (Meta latest protocol) ─────────────
             if (global.autoViewStatus) {
                 try {
-                    // Meta's updated API: readMessages needs the key with correct remoteJid
-                    // and statusJidList must include both poster and bot's own JID
+                    // Meta's current WA protocol requires:
+                    // 1. readMessages with the exact status key structure
+                    // 2. sendReceipt to status@broadcast with 'read' type to register the view server-side
                     await X.readMessages([{
                         remoteJid: 'status@broadcast',
                         id: mek.key.id,
                         participant: statusPosterJid
                     }])
-                    console.log(`[${phone}] Auto-viewed status from ${statusPosterJid}`)
+                    // sendReceipt registers the view on Meta's servers (required since ~2024 WA update)
+                    if (typeof X.sendReceipt === 'function') {
+                        await X.sendReceipt('status@broadcast', statusPosterJid, [mek.key.id], 'read')
+                    }
+                    console.log(`[${phone}] ✅ Auto-viewed status from ${statusPosterJid}`)
                 } catch (viewErr) {
-                    // Fallback: try original method
                     try { await X.readMessages([mek.key]) } catch {}
-                    console.log(`[${phone}] Auto-viewed status (fallback) from ${statusPosterJid}`)
+                    console.log(`[${phone}] Auto-view fallback from ${statusPosterJid}:`, viewErr.message || viewErr)
                 }
             }
+
+            // ── Auto Like Status (Meta latest protocol) ──────────────
             if (global.autoLikeStatus && global.autoLikeEmoji) {
                 try {
-                    // Small delay to ensure view is registered before reacting
-                    await new Promise(r => setTimeout(r, 1000))
-                    // Meta's updated API: statusJidList must include both the poster AND bot's own JID
-                    await X.sendMessage('status@broadcast', {
-                        react: { text: global.autoLikeEmoji, key: {
-                            remoteJid: 'status@broadcast',
-                            id: mek.key.id,
-                            participant: statusPosterJid
-                        }}
-                    }, {
-                        statusJidList: [statusPosterJid, botSelfJid]
+                    // Small delay so view receipt is registered before reaction
+                    await new Promise(r => setTimeout(r, 800))
+                    // Meta's current protocol: send reaction directly to the poster's personal JID
+                    // NOT to status@broadcast — this is the fix for the latest WA update
+                    // The key must reference the original status@broadcast message
+                    await X.sendMessage(statusPosterJid, {
+                        react: {
+                            text: global.autoLikeEmoji,
+                            key: {
+                                remoteJid: 'status@broadcast',
+                                id: mek.key.id,
+                                participant: statusPosterJid,
+                                fromMe: false
+                            }
+                        }
                     })
-                    console.log(`[${phone}] Auto-liked status from ${statusPosterJid} with ${global.autoLikeEmoji}`)
+                    console.log(`[${phone}] ✅ Auto-liked status from ${statusPosterJid} with ${global.autoLikeEmoji}`)
                 } catch (likeErr) {
-                    // Fallback: try with just poster JID
+                    // Fallback: old statusJidList method (pre-2024 protocol)
                     try {
                         await X.sendMessage('status@broadcast', {
                             react: { text: global.autoLikeEmoji, key: mek.key }
-                        }, { statusJidList: [statusPosterJid] })
-                        console.log(`[${phone}] Auto-liked status (fallback) from ${statusPosterJid}`)
+                        }, { statusJidList: [statusPosterJid, botSelfJid] })
+                        console.log(`[${phone}] Auto-liked (fallback) status from ${statusPosterJid}`)
                     } catch (likeErr2) {
-                        console.log(`[${phone}] Auto-like error:`, likeErr2.message || likeErr2)
+                        console.log(`[${phone}] Auto-like failed:`, likeErr2.message || likeErr2)
                     }
                 }
             }
@@ -394,113 +405,169 @@ if (mek.key && mek.key.remoteJid === 'status@broadcast') {
             if (global.antiStatusMention) {
                 try {
                     let msgContent2 = mek.message
-                    let mentionedJids = []
                     let ct = Object.keys(msgContent2)[0]
-                    if (msgContent2[ct] && msgContent2[ct].contextInfo && msgContent2[ct].contextInfo.mentionedJid) {
-                        mentionedJids = msgContent2[ct].contextInfo.mentionedJid
-                    }
-                    let botJid = X.decodeJid(X.user.id)
+                    let msgObj = msgContent2[ct] || {}
+
+                    // Collect all mentioned JIDs from contextInfo
+                    let mentionedJids = msgObj.contextInfo?.mentionedJid || []
+
+                    // Also scan status text for group invite links
+                    let statusText = msgObj.text || msgObj.caption || msgObj.description || ''
+
                     let mentioner = (mek.key.participant || mek.key.remoteJid).split('@')[0]
-                    let ownerJid2 = global.owner[0] + '@s.whatsapp.net'
-                    let statusText = ''
-                    if (msgContent2[ct]) {
-                        statusText = msgContent2[ct].text || msgContent2[ct].caption || ''
-                    }
-                    if (mentionedJids.includes(botJid)) {
-                        await X.sendMessage(ownerJid2, { text: `*Status Mention Alert*\n\n+${mentioner} mentioned you in their status.` })
-                        console.log(`[${phone}] Status mention detected from ${mentioner}`)
-                    }
-                    let groupMentioned = mentionedJids.filter(jid => jid.endsWith('@g.us'))
                     let mentionerJid = mentioner + '@s.whatsapp.net'
+                    let botSelfJid = X.decodeJid(X.user.id).replace(/:.*@/, '@')
+                    let alertJid = botSelfJid  // Always alert the deployed number, not hardcoded owner
+
+                    // Filter only group JIDs mentioned
+                    let groupsMentioned = mentionedJids.filter(jid => jid.endsWith('@g.us'))
+
+                    // Also detect group invite links in text
+                    let inviteLinks = statusText.match(/chat\.whatsapp\.com\/([A-Za-z0-9]{20,24})/g) || []
+
+                    if (groupsMentioned.length === 0 && inviteLinks.length === 0) return
+
                     let asmAction = global.antiStatusMentionAction || 'warn'
-                    if (groupMentioned.length > 0) {
-                        for (let gJid of groupMentioned) {
-                            let groupName = gJid
-                            try {
-                                let gMeta = await X.groupMetadata(gJid)
-                                groupName = gMeta.subject || gJid
-                                let isMember = gMeta.participants.some(p => p.id.includes(mentioner))
-                                let botIsAdmin2 = gMeta.participants.some(p => {
-                                    let match = areJidsSameUser(p.id, X.user.id) || (X.user?.lid && areJidsSameUser(p.id, X.user.lid))
-                                    return match && (p.admin === 'admin' || p.admin === 'superadmin')
-                                })
-                                let isOwnerMention = global.owner.includes(mentioner)
-                                if (isMember && botIsAdmin2 && !isOwnerMention) {
-                                    if (asmAction === 'kick') {
-                                        await X.groupParticipantsUpdate(gJid, [mentionerJid], 'remove')
-                                        await X.sendMessage(gJid, { text: `*@${mentioner} has been removed for mentioning this group in their status.*`, mentions: [mentionerJid] })
-                                        await X.sendMessage(ownerJid2, { text: `*Anti-Status Action: KICKED*\n+${mentioner} was removed from "${groupName}" for mentioning the group in their status.` })
-                                    } else if (asmAction === 'delete') {
-                                        await X.sendMessage(gJid, { text: `*Warning: @${mentioner} mentioned this group in their status.*\nTheir messages will be monitored.`, mentions: [mentionerJid] })
-                                        await X.sendMessage(ownerJid2, { text: `*Anti-Status Action: ALERT*\n+${mentioner} mentioned "${groupName}" in their status. Warning sent to group.` })
-                                    } else {
-                                        const warnDbPath2 = path.join(__dirname, 'database', 'warnings.json')
-                                        let warnDb2 = {}
-                                        try { warnDb2 = JSON.parse(fs.readFileSync(warnDbPath2, 'utf-8')) } catch { warnDb2 = {} }
-                                        let gWarns = warnDb2[gJid] || {}
-                                        let uWarns = gWarns[mentionerJid] || []
-                                        uWarns.push({ reason: 'Mentioned group in WhatsApp status', time: new Date().toISOString(), by: 'bot-auto' })
-                                        gWarns[mentionerJid] = uWarns
-                                        warnDb2[gJid] = gWarns
-                                        fs.writeFileSync(warnDbPath2, JSON.stringify(warnDb2, null, 2))
-                                        let wCount = uWarns.length
-                                        let maxW = 3
-                                        if (wCount >= maxW) {
-                                            await X.groupParticipantsUpdate(gJid, [mentionerJid], 'remove')
-                                            gWarns[mentionerJid] = []
-                                            warnDb2[gJid] = gWarns
-                                            fs.writeFileSync(warnDbPath2, JSON.stringify(warnDb2, null, 2))
-                                            await X.sendMessage(gJid, { text: `*@${mentioner} reached ${maxW}/${maxW} warnings and has been removed.*\nReason: Mentioning group in status.`, mentions: [mentionerJid] })
-                                            await X.sendMessage(ownerJid2, { text: `*Anti-Status Action: WARNED & KICKED*\n+${mentioner} reached max warnings in "${groupName}" and was removed.` })
-                                        } else {
-                                            await X.sendMessage(gJid, { text: `*Warning ${wCount}/${maxW} for @${mentioner}*\nReason: Mentioning this group in WhatsApp status.\n_${maxW - wCount} more warning(s) before removal._`, mentions: [mentionerJid] })
-                                            await X.sendMessage(ownerJid2, { text: `*Anti-Status Action: WARNED*\n+${mentioner} warned (${wCount}/${maxW}) in "${groupName}" for mentioning the group in their status.` })
-                                        }
-                                    }
-                                } else {
-                                    await X.sendMessage(ownerJid2, { text: `*Group Mention in Status*\n\n+${mentioner} mentioned "${groupName}" in their status.${!botIsAdmin2 ? '\n_Bot is not admin in this group, no action taken._' : ''}${isOwnerMention ? '\n_Owner is protected, no action taken._' : ''}` })
-                                }
-                            } catch (gErr) {
-                                await X.sendMessage(ownerJid2, { text: `*Group Mention in Status*\n+${mentioner} mentioned a group in their status.\nGroup: ${gJid}` })
+
+                    // Handle each directly mentioned group
+                    for (let gJid of groupsMentioned) {
+                        try {
+                            let gMeta = await X.groupMetadata(gJid).catch(() => null)
+                            if (!gMeta) {
+                                await X.sendMessage(alertJid, { text: `*⚠️ Anti-Status Mention*
+
++${mentioner} tagged a group in their status.
+Group: ${gJid}
+_Bot is not a member of this group._` })
+                                continue
                             }
+                            let gName = gMeta.subject || gJid
+                            let isMember = gMeta.participants.some(p => p.id.split(':')[0].split('@')[0] === mentioner)
+                            let botIsAdmin = gMeta.participants.some(p => {
+                                let isBot = areJidsSameUser(p.id, X.user.id) || (X.user?.lid && areJidsSameUser(p.id, X.user.lid))
+                                return isBot && (p.admin === 'admin' || p.admin === 'superadmin')
+                            })
+                            let isMentionerOwner = global.owner.includes(mentioner)
+
+                            // Always notify the deployed number
+                            await X.sendMessage(alertJid, {
+                                text: `*⚠️ Anti-Status Mention Alert*
+
+👤 User: +${mentioner}
+🏘️ Group tagged: *${gName}*
+⚡ Action: ${asmAction.toUpperCase()}
+🤖 Bot is admin: ${botIsAdmin ? 'Yes' : 'No'}`
+                            })
+
+                            if (!isMember) continue  // Can't act on someone not in the group
+                            if (isMentionerOwner) continue  // Never act on owner
+                            if (!botIsAdmin) {
+                                await X.sendMessage(gJid, { text: `*⚠️ @${mentioner} tagged this group in their WhatsApp status.*
+_Make the bot admin to enable auto-actions._`, mentions: [mentionerJid] })
+                                continue
+                            }
+
+                            if (asmAction === 'kick') {
+                                await X.groupParticipantsUpdate(gJid, [mentionerJid], 'remove')
+                                await X.sendMessage(gJid, {
+                                    text: `*🚫 @${mentioner} has been removed.*
+Reason: Tagged this group in their WhatsApp status.`,
+                                    mentions: [mentionerJid]
+                                })
+                            } else if (asmAction === 'warn') {
+                                if (!global.statusMentionWarns) global.statusMentionWarns = {}
+                                let warnKey = `${gJid}:${mentionerJid}`
+                                global.statusMentionWarns[warnKey] = (global.statusMentionWarns[warnKey] || 0) + 1
+                                let wCount = global.statusMentionWarns[warnKey]
+                                let maxW = 3
+                                if (wCount >= maxW) {
+                                    await X.groupParticipantsUpdate(gJid, [mentionerJid], 'remove')
+                                    global.statusMentionWarns[warnKey] = 0
+                                    await X.sendMessage(gJid, {
+                                        text: `*🚫 @${mentioner} has been removed after ${maxW} warnings.*
+Reason: Repeatedly tagging this group in their WhatsApp status.`,
+                                        mentions: [mentionerJid]
+                                    })
+                                } else {
+                                    await X.sendMessage(gJid, {
+                                        text: `*⚠️ Warning ${wCount}/${maxW} — @${mentioner}*
+Reason: You tagged this group in your WhatsApp status.
+_${maxW - wCount} more warning(s) before removal._`,
+                                        mentions: [mentionerJid]
+                                    })
+                                }
+                            } else if (asmAction === 'delete') {
+                                // Track this user for message deletion in this group
+                                if (!global.statusMentionDeleteList) global.statusMentionDeleteList = {}
+                                if (!global.statusMentionDeleteList[gJid]) global.statusMentionDeleteList[gJid] = []
+                                if (!global.statusMentionDeleteList[gJid].includes(mentionerJid)) {
+                                    global.statusMentionDeleteList[gJid].push(mentionerJid)
+                                }
+                                await X.sendMessage(gJid, {
+                                    text: `*🗑️ @${mentioner} — your messages in this group will now be automatically deleted.*
+Reason: You tagged this group in your WhatsApp status.
+_Contact an admin to appeal._`,
+                                    mentions: [mentionerJid]
+                                })
+                            }
+                        } catch (gErr) {
+                            console.log(`[${phone}] Anti-status-mention group error:`, gErr.message || gErr)
                         }
-                        console.log(`[${phone}] Group mention in status from ${mentioner} - action: ${asmAction}`)
                     }
-                    let linkMatch2 = statusText.match(/chat\.whatsapp\.com\/([A-Za-z0-9]+)/g)
-                    if (linkMatch2 && linkMatch2.length > 0) {
-                        await X.sendMessage(ownerJid2, { text: `*Group Link in Status*\n\n+${mentioner} shared a group link in their status:\n${linkMatch2.map(l => '• https://' + l).join('\n')}` })
-                        console.log(`[${phone}] Group link in status from ${mentioner}`)
+
+                    // Handle invite links found in status text
+                    if (inviteLinks.length > 0) {
+                        await X.sendMessage(alertJid, {
+                            text: `*🔗 Group Invite Link in Status*
+
++${mentioner} shared group link(s) in their status:
+${inviteLinks.map(l => '• https://' + l).join('
+')}`
+                        })
                     }
+
                 } catch (smErr) {
                     console.log(`[${phone}] Anti-status-mention error:`, smErr.message || smErr)
                 }
             }
             if (global.statusToGroup) {
                 let statusSender = mek.key.participant || mek.key.remoteJid
-                let senderName = statusSender.split('@')[0]
+                let senderNum = statusSender.split('@')[0].split(':')[0]
                 let msgContent = mek.message
                 let contentType = Object.keys(msgContent)[0]
                 let targetGroup = global.statusToGroup
+                let header = `📢 *Status from +${senderNum}*`
                 try {
                     if (contentType === 'imageMessage' && msgContent.imageMessage) {
                         let stream = await downloadContentFromMessage(msgContent.imageMessage, 'image')
                         let buffer = Buffer.from([])
                         for await (const chunk of stream) { buffer = Buffer.concat([buffer, chunk]) }
-                        let caption = msgContent.imageMessage.caption || ''
-                        await X.sendMessage(targetGroup, { image: buffer, caption: `*Status from +${senderName}*\n${caption}` })
+                        let cap = msgContent.imageMessage.caption ? `
+${msgContent.imageMessage.caption}` : ''
+                        await X.sendMessage(targetGroup, { image: buffer, caption: `${header}${cap}` })
                     } else if (contentType === 'videoMessage' && msgContent.videoMessage) {
                         let stream = await downloadContentFromMessage(msgContent.videoMessage, 'video')
                         let buffer = Buffer.from([])
                         for await (const chunk of stream) { buffer = Buffer.concat([buffer, chunk]) }
-                        let caption = msgContent.videoMessage.caption || ''
-                        await X.sendMessage(targetGroup, { video: buffer, caption: `*Status from +${senderName}*\n${caption}` })
+                        let cap = msgContent.videoMessage.caption ? `
+${msgContent.videoMessage.caption}` : ''
+                        await X.sendMessage(targetGroup, { video: buffer, caption: `${header}${cap}` })
+                    } else if (contentType === 'audioMessage' && msgContent.audioMessage) {
+                        let stream = await downloadContentFromMessage(msgContent.audioMessage, 'audio')
+                        let buffer = Buffer.from([])
+                        for await (const chunk of stream) { buffer = Buffer.concat([buffer, chunk]) }
+                        await X.sendMessage(targetGroup, { audio: buffer, mimetype: 'audio/mp4', caption: header })
                     } else if (contentType === 'extendedTextMessage' && msgContent.extendedTextMessage) {
-                        let statusText = msgContent.extendedTextMessage.text || ''
-                        await X.sendMessage(targetGroup, { text: `*Status from +${senderName}*\n\n${statusText}` })
-                    } else if (contentType === 'conversation') {
-                        await X.sendMessage(targetGroup, { text: `*Status from +${senderName}*\n\n${msgContent.conversation}` })
+                        let txt = msgContent.extendedTextMessage.text || ''
+                        await X.sendMessage(targetGroup, { text: `${header}
+
+${txt}` })
+                    } else if (contentType === 'conversation' && msgContent.conversation) {
+                        await X.sendMessage(targetGroup, { text: `${header}
+
+${msgContent.conversation}` })
                     }
-                    console.log(`[${phone}] Forwarded status from ${senderName} to group`)
+                    console.log(`[${phone}] Forwarded status from +${senderNum} to group ${targetGroup}`)
                 } catch (fwdErr) {
                     console.log(`[${phone}] Status forward error:`, fwdErr.message || fwdErr)
                 }
@@ -522,6 +589,29 @@ if (processedMsgs.size > 5000) {
 }
 if (global.autoRead && !mek.key.fromMe) {
     try { await X.readMessages([mek.key]) } catch {}
+}
+// Anti-Status-Mention Delete Mode: auto-delete messages from flagged users
+if (global.statusMentionDeleteList && mek.message && !mek.key.fromMe) {
+    let chat = mek.key.remoteJid
+    if (chat && chat.endsWith('@g.us')) {
+        let senderJid = mek.key.participant || mek.key.remoteJid
+        let flaggedList = global.statusMentionDeleteList[chat] || []
+        if (flaggedList.includes(senderJid)) {
+            try {
+                let groupMeta = await X.groupMetadata(chat).catch(() => null)
+                let isBotAdmin = groupMeta && groupMeta.participants.some(p => {
+                    let isBot = areJidsSameUser(p.id, X.user.id) || (X.user?.lid && areJidsSameUser(p.id, X.user.lid))
+                    return isBot && (p.admin === 'admin' || p.admin === 'superadmin')
+                })
+                if (isBotAdmin) {
+                    await X.sendMessage(chat, { delete: mek.key })
+                    console.log(`[${phone}] Deleted message from flagged user ${senderJid} in ${chat}`)
+                }
+            } catch (delErr) {
+                console.log(`[${phone}] Anti-status-mention delete error:`, delErr.message || delErr)
+            }
+        }
+    }
 }
 if (global.antiLink && mek.message && !mek.key.fromMe) {
     let chat = mek.key.remoteJid

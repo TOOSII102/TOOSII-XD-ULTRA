@@ -5541,15 +5541,51 @@ if (global.chatBot && budy && !budy.startsWith('>') && !budy.startsWith('=>') &&
 }
 
 } catch (err) {
-  let error = err.stack || err.message || util.format(err);
-  console.log('====== ERROR REPORT ======');
-  console.log(error);
-  console.log('==========================');
+  let errMsg = (err.message || '').toLowerCase()
+  let errStack = err.stack || err.message || util.format(err)
 
-  await X.sendMessage(`${owner}@s.whatsapp.net`, {
-    text: `⚠️ *LAPORAN ERROR!*\n\n📌 *Message:* ${err.message || '-'}\n📂 *Stack Trace:*\n${error}`,
-    contextInfo: { forwardingScore: 9999999, isForwarded: true }
-  }, { quoted: m });
+  // ── Silently ignore known non-critical WhatsApp protocol errors ──────────
+  const silentErrors = [
+    'no sessions',           // Signal protocol — no encryption session yet
+    'sessionerror',          // Signal session missing for this JID
+    'bad mac',               // Decryption mismatch — WhatsApp will retry
+    'failed to decrypt',     // E2E decryption failure — not our bug
+    'rate-overlimit',        // WA rate limit — will recover on its own
+    'connection closed',     // Temporary network drop
+    'connection lost',       // Network drop
+    'timed out',             // Request timeout — not fatal
+    'timedout',
+    'socket hang up',        // TCP socket issue
+    'econnreset',            // Connection reset by WA servers
+    'enotfound',             // DNS / network
+    'not-authorized',        // WA auth on specific request — not fatal
+    'item-not-found',        // WA node not found — e.g. deleted message
+    'invalid protocol',      // WA protocol mismatch — temporary
+    'stream errored',        // WA stream error — will auto-reconnect
+    'aborted',               // Request aborted
+  ]
+  const isSilent = silentErrors.some(e => errMsg.includes(e))
+
+  console.log('====== ERROR REPORT ======')
+  console.log(errStack)
+  console.log('==========================')
+
+  if (isSilent) {
+    // Log only — do NOT spam owner with known protocol noise
+    console.log(`[SILENT ERROR] ${err.message || 'Unknown'} — suppressed owner notification`)
+    return
+  }
+
+  // Only report real unexpected errors to owner
+  try {
+    let shortStack = errStack.length > 1500 ? errStack.slice(0, 1500) + '\n...(truncated)' : errStack
+    await X.sendMessage(`${owner}@s.whatsapp.net`, {
+      text: `⚠️ *ERROR REPORT*\n\n📌 *Message:* ${err.message || '-'}\n📂 *Stack:*\n${shortStack}`,
+      contextInfo: { forwardingScore: 9999999, isForwarded: true }
+    }, { quoted: m })
+  } catch (reportErr) {
+    console.log('[Error Reporter] Failed to send error to owner:', reportErr.message || reportErr)
+  }
 }
 }
 //━━━━━━━━━━━━━━━━━━━━━━━━//

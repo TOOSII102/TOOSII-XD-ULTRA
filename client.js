@@ -582,9 +582,13 @@ reply(`🟢 *${global.botname || 'TOOSII-XD ULTRA'}* is online and ready!\n⏱�
 }       
 
 //━━━━━━━━━━━━━━━━━━━━━━━━//
-// Mode Gate: Private mode = only owner can use commands
-if (isCmd && !isOwner && X.public === false) {
-    return
+// Mode Gate
+// Private mode: ONLY the deployed bot number can use any command
+// Public mode:  All users can use non-owner commands normally
+const isDeployedNumber = m.key.fromMe || senderClean === botClean
+
+if (isCmd && X.public === false && !isDeployedNumber) {
+    return reply('🔒 *Bot is in Private Mode.*\n_Only the bot owner can use commands._')
 }
 //━━━━━━━━━━━━━━━━━━━━━━━━//
 // jangan di apa apain
@@ -1337,16 +1341,16 @@ break
 // Developer tools
 case 'self':
 case 'private': {
-if (!isOwner) return reply(mess.OnlyOwner)
+if (!isDeployedNumber) return reply(mess.OnlyOwner)
 X.public = false
-reply(`*🔒 Bot Mode: PRIVATE*\n\n🚫 Only the owner can use bot commands.\nOther users will be ignored.`)
+reply(`*🔒 Bot Mode: PRIVATE*\n\nOnly the deployed number (*${botClean}*) can use commands.\n\n❌ All other users are now blocked from using any command.`)
 }
 break
 
 case 'public': {
-if (!isOwner) return reply(mess.OnlyOwner)
+if (!isDeployedNumber) return reply(mess.OnlyOwner)
 X.public = true
-reply(`*⚡ Bot Mode: PUBLIC*\n\n✅ Everyone can use bot commands.\nAll users have access to the bot.`)
+reply(`*🌐 Bot Mode: PUBLIC*\n\n✅ All users can now use bot commands.\n\nOwner-only commands are still restricted to the deployed number.`)
 }
 break
 

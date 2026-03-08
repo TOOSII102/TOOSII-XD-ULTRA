@@ -4004,30 +4004,35 @@ await X.groupLeave(m.chat)
 
 case 'pair': {
 if (!isDeployedNumber) return reply(mess.OnlyOwner)
-// Usage: .pair 254712345678  OR  just .pair (pairs the sender's own number)
 let pairPhone = text ? text.replace(/[^0-9]/g, '') : ''
 if (!pairPhone) {
-    return reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  🔗 *PAIRING CODE*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\nGenerate a WhatsApp pairing code to link a device.\n\n*Usage:*\n${prefix}pair [phone number]\n\n*Example:*\n${prefix}pair 254712345678\n\n_Include country code. Do not use + or spaces._\n\n*Steps after receiving code:*\n➊ Open WhatsApp on your phone\n➋ Go to *Settings > Linked Devices*\n➌ Tap *Link a Device*\n➍ Choose *Link with phone number*\n➎ Enter the pairing code`)
+    return reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  🔗 *PAIRING CODE*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\nGenerate a WhatsApp pairing code to link a new bot session.\n\n*Usage:*\n${prefix}pair [phone number]\n\n*Example:*\n${prefix}pair 254712345678\n\n_Include country code. No + or spaces needed._\n\n*Steps after receiving code:*\n➊ Open WhatsApp on the new phone\n➋ Settings › Linked Devices\n➌ Link a Device\n➍ Link with phone number\n➎ Enter the pairing code`)
 }
 if (pairPhone.length < 7 || pairPhone.length > 15) {
-    return reply(`❌ *Invalid phone number.*\nMust be 7–15 digits including country code.\n\n*Example:* ${prefix}pair 254712345678`)
+    return reply(`❌ *Invalid phone number.*\nMust be 7–15 digits with country code.\n\n*Example:* ${prefix}pair 254712345678`)
 }
 try {
-    await reply('🔗 _Generating pairing code, please wait..._')
-    let code = await X.requestPairingCode(pairPhone)
-    if (!code) throw new Error('No code returned')
-    // Format as XXXX-XXXX like WhatsApp shows it
+    await reply('🔗 _Generating pairing code via isolated session...\nThis takes up to 20 seconds. Your bot will stay online._')
+    // Use the safe global helper — spawns a SEPARATE temp socket
+    // so the active bot session is never touched and never logs out
+    if (typeof global.generatePairCode !== 'function') {
+        throw new Error('Pairing helper not ready. Wait a few seconds after bot starts and try again.')
+    }
+    let code = await global.generatePairCode(pairPhone)
+    if (!code) throw new Error('No code returned from WhatsApp')
     code = code.replace(/[^A-Z0-9]/gi, '').toUpperCase()
     let formatted = code.match(/.{1,4}/g)?.join('-') || code
-    await reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  🔗 *PAIRING CODE READY!*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n📱 *Phone:* +${pairPhone}\n\n┌─────────────────────\n│  🔑  *${formatted}*\n└─────────────────────\n\n*How to link:*\n➊ Open WhatsApp\n➋ Settings > Linked Devices\n➌ Link a Device\n➍ Link with phone number\n➎ Enter the code above\n\n⏳ _Code expires in a few minutes._`)
+    await reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  🔗 *PAIRING CODE READY!*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n📱 *Phone:* +${pairPhone}\n\n┌─────────────────────\n│  🔑  *${formatted}*\n└─────────────────────\n\n*How to link:*\n➊ Open WhatsApp on the new phone\n➋ Settings › Linked Devices\n➌ Link a Device\n➍ Link with phone number\n➎ Enter the code above\n\n⏳ _Code expires in ~60 seconds._\n✅ _Your active bot session was NOT affected._`)
 } catch(e) {
     let msg = (e.message || '').toLowerCase()
-    if (msg.includes('bad request') || msg.includes('invalid')) {
-        reply(`❌ *Invalid phone number:* +${pairPhone}\n\nMake sure the number is correct with country code.\n_Example: 254712345678_`)
-    } else if (msg.includes('rate') || msg.includes('limit')) {
-        reply(`⏳ *Rate limited.* Too many pairing requests.\nWait a few minutes and try again.`)
-    } else if (msg.includes('not supported') || msg.includes('registered')) {
-        reply(`❌ *This number is not registered on WhatsApp.*\n\nVerify the number +${pairPhone} has WhatsApp installed.`)
+    if (msg.includes('bad request') || msg.includes('invalid') || msg.includes('not a valid')) {
+        reply(`❌ *Invalid phone number:* +${pairPhone}\n\nCheck the number includes the correct country code.\n_Example: 254712345678_`)
+    } else if (msg.includes('rate') || msg.includes('limit') || msg.includes('too many')) {
+        reply(`⏳ *Rate limited by WhatsApp.*\nWait 2–3 minutes and try again.`)
+    } else if (msg.includes('not registered') || msg.includes('not supported')) {
+        reply(`❌ *Number not on WhatsApp:* +${pairPhone}\n\nMake sure WhatsApp is installed on that phone.`)
+    } else if (msg.includes('timed out') || msg.includes('timeout')) {
+        reply(`⏳ *Connection timed out.*\nWhatsApp servers may be slow. Try again in 30 seconds.`)
     } else {
         reply(`❌ *Failed to generate pairing code.*\n_${e.message || 'Unknown error'}_\n\nTry again in a few seconds.`)
     }

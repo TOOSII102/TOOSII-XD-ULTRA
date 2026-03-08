@@ -517,12 +517,9 @@ _Contact an admin to appeal._`,
 
                     // Handle invite links found in status text
                     if (inviteLinks.length > 0) {
+                        let linkListText = inviteLinks.map(l => '• https://' + l).join('\n')
                         await X.sendMessage(alertJid, {
-                            text: `*🔗 Group Invite Link in Status*
-
-+${mentioner} shared group link(s) in their status:
-${inviteLinks.map(l => '• https://' + l).join('
-')}`
+                            text: '*🔗 Group Invite Link in Status*\n\n+' + mentioner + ' shared group link(s) in their status:\n' + linkListText
                         })
                     }
 

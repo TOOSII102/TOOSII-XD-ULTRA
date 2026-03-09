@@ -30,12 +30,14 @@ const toolsMenu = `
 ┗❒
 
 ┏❒ *ꜱᴛᴀᴛᴜꜱ ᴛᴏᴏʟꜱ* ❒
-┃➤ .autoviewstatus
+┃➤ .autostatus — config overview
+┃➤ .autoviewstatus — auto view
 ┃➤ .autolikestatus [ᴇᴍᴏᴊɪ/ᴏꜰꜰ]
-┃➤ .togroupstatus
-┃➤ .autostatus
 ┃➤ .autoreplystatus [ᴍꜱɢ/ᴏꜰꜰ]
-┃➤ .antistatusmention
+┃➤ .togroupstatus [ᴛᴇxᴛ] — post to status
+┃➤ .togroupstatus on — fwd all statuses here
+┃➤ .togroupstatus off — stop forwarding
+┃➤ .antistatusmention [on/warn/kick/del]
 ┗❒`
 
 module.exports = toolsMenu

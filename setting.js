@@ -45,6 +45,13 @@ global.antiCall = false
 global.autoRead = false
 global.chatBot = false
 global.autoBio = false
+//━━━━━━━━━━━━━━━━━━━━━━━━//
+// AI ChatBot Mode Settings (set via .setaimode command)
+global.aiBotDM = false        // Auto-reply in private/DM chats
+global.aiBotGroup = false     // Auto-reply in whitelisted groups
+global.aiBotGlobal = false    // Auto-reply everywhere (overrides DM+Group)
+global.aiBotGroupChats = {}   // { 'groupJid@g.us': true } whitelist
+global.aiBotDMChats = {}      // { 'number@s.whatsapp.net': true } whitelist
 global.autoReplyStatus = false
 global.autoReplyStatusMsg = ''
 global.antiStatusMention = false

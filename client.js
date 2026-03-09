@@ -5988,7 +5988,9 @@ case 'sand':
 case 'blackpink':
 case 'glitch':
 case 'fire': {
-let tmText = text || (m.quoted && (m.quoted.text || m.quoted.caption || m.quoted.body || '').trim()) || ''
+let _tmRaw = text || (m.quoted && (m.quoted.text || m.quoted.caption || m.quoted.body || '').trim()) || ''
+// Strip any "*Xxx Text:*" or "Text:*" prefixes from quoted bot replies to prevent nesting
+let tmText = _tmRaw.replace(/^(\*[\w\s]+ Text:\*\s*)+/i, '').replace(/^(Text:\*\s*)+/i, '').trim()
 if (!tmText) return reply(`Example: ${prefix}${command} Your Text Here\n_Or reply to a message containing the text_`)
 
 const _label = command.charAt(0).toUpperCase() + command.slice(1)

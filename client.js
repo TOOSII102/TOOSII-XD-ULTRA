@@ -6093,60 +6093,72 @@ print('OK')
 const _pyFile = _path.join(_os.tmpdir(), `tm_${Date.now()}_gen.py`)
 _fs.writeFileSync(_pyFile, _pyScript)
 
-try {
-    const { spawnSync: _spawn } = require('child_process')
-    
-    // Try python3 then python
-    let _pyResult = null
-    for (const _pyBin of ['python3', 'python']) {
-        _pyResult = _spawn(_pyBin, [_pyFile], { timeout: 25000, encoding: 'utf8' })
-        if (_pyResult.status === 0) break
-    }
-    
-    if (_pyResult.status !== 0) {
-        const _pyErr = (_pyResult.stderr || '').trim() || (_pyResult.error && _pyResult.error.message) || 'python not available'
-        throw new Error('Python: ' + _pyErr.split('\n').slice(-3).join(' | '))
-    }
-    
-    const _buf = _fs.readFileSync(_outFile)
-    try { _fs.unlinkSync(_pyFile); _fs.unlinkSync(_outFile) } catch {}
-    if (!_buf || _buf.length < 2000) throw new Error('Empty render output')
-    await X.sendMessage(m.chat, { image: _buf, caption: _caption }, { quoted: m })
-} catch(e) {
-    try { _fs.unlinkSync(_pyFile) } catch {}
-    try { _fs.unlinkSync(_outFile) } catch {}
-    
-    // Fallback: pure Jimp (always installed via package.json)
-    try {
-        const Jimp = require('jimp')
-        const _sty2 = _sty
-        const _W = 1024, _H = 400
-        const _img = new Jimp(_W, _H, Jimp.rgbaToInt(_sty2.bg[0], _sty2.bg[1], _sty2.bg[2], 255))
-        const _font = await Jimp.loadFont(Jimp.FONT_SANS_64_WHITE)
-        const _tw = Jimp.measureText(_font, tmText)
-        const _th = Jimp.measureTextHeight(_font, tmText, _W)
-        const _cx = Math.max(0, Math.floor((_W - _tw) / 2))
-        const _cy = Math.max(0, Math.floor((_H - _th) / 2))
-        
-        for (const [_ox, _oy, _r, _g, _b] of _sty2.layers) {
-            const _layer = new Jimp(_W, _H, 0x00000000)
-            _layer.print(_font, _cx + _ox, _cy + _oy, tmText)
-            _layer.scan(0, 0, _W, _H, function(_x, _y, _i) {
-                if (this.bitmap.data[_i + 3] > 10) {
-                    this.bitmap.data[_i] = _r
-                    this.bitmap.data[_i + 1] = _g
-                    this.bitmap.data[_i + 2] = _b
-                }
-            })
-            _img.composite(_layer, 0, 0, { mode: Jimp.BLEND_SOURCE_OVER, opacitySource: 1, opacityDest: 1 })
+// Use async exec — keeps event loop alive during render so WA gets ACKs
+// spawnSync was blocking the loop → WA retried the message → double image
+await new Promise((resolve) => {
+    const { exec: _exec } = require('child_process')
+    // Try python3 first, fall back to python
+    const _tryRender = (bins, idx) => {
+        if (idx >= bins.length) {
+            // All python attempts failed — fall back to Jimp
+            resolve({ usedJimp: true })
+            return
         }
-        
-        const _buf2 = await _img.getBufferAsync(Jimp.MIME_JPEG)
-        await X.sendMessage(m.chat, { image: _buf2, caption: _caption }, { quoted: m })
-    } catch(e2) {
-        reply(`❌ *Text maker failed:* ${e.message.slice(0, 200)}`)
+        _exec(`${bins[idx]} "${_pyFile}"`, { timeout: 25000 }, (err, stdout, stderr) => {
+            if (!err) {
+                resolve({ usedJimp: false })
+            } else if (idx + 1 < bins.length) {
+                _tryRender(bins, idx + 1)
+            } else {
+                resolve({ usedJimp: true, pyErr: (stderr || err.message || '').trim().split('\n').slice(-3).join(' | ') })
+            }
+        })
     }
-}
+    _tryRender(['python3', 'python'], 0)
+}).then(async ({ usedJimp, pyErr }) => {
+    if (!usedJimp) {
+        // Python succeeded
+        try {
+            const _buf = _fs.readFileSync(_outFile)
+            try { _fs.unlinkSync(_pyFile); _fs.unlinkSync(_outFile) } catch {}
+            if (!_buf || _buf.length < 2000) throw new Error('Empty render')
+            await X.sendMessage(m.chat, { image: _buf, caption: _caption }, { quoted: m })
+        } catch(e) {
+            try { _fs.unlinkSync(_pyFile); _fs.unlinkSync(_outFile) } catch {}
+            reply(`❌ *Text maker failed:* ${e.message.slice(0, 150)}`)
+        }
+    } else {
+        // Jimp fallback
+        try { _fs.unlinkSync(_pyFile) } catch {}
+        try { _fs.unlinkSync(_outFile) } catch {}
+        try {
+            const Jimp = require('jimp')
+            const _W = 1024, _H = 400
+            const _img = new Jimp(_W, _H, Jimp.rgbaToInt(_sty.bg[0], _sty.bg[1], _sty.bg[2], 255))
+            const _font = await Jimp.loadFont(Jimp.FONT_SANS_64_WHITE)
+            const _tw = Jimp.measureText(_font, tmText)
+            const _th = Jimp.measureTextHeight(_font, tmText, _W)
+            const _cx = Math.max(0, Math.floor((_W - _tw) / 2))
+            const _cy = Math.max(0, Math.floor((_H - _th) / 2))
+            for (const [_ox, _oy, _r, _g, _b] of _sty.layers) {
+                const _layer = new Jimp(_W, _H, 0x00000000)
+                _layer.print(_font, _cx + _ox, _cy + _oy, tmText)
+                _layer.scan(0, 0, _W, _H, function(_x, _y, _i) {
+                    if (this.bitmap.data[_i + 3] > 10) {
+                        this.bitmap.data[_i] = _r
+                        this.bitmap.data[_i + 1] = _g
+                        this.bitmap.data[_i + 2] = _b
+                    }
+                })
+                _img.composite(_layer, 0, 0, { mode: Jimp.BLEND_SOURCE_OVER, opacitySource: 1, opacityDest: 1 })
+            }
+            const _buf2 = await _img.getBufferAsync(Jimp.MIME_JPEG)
+            await X.sendMessage(m.chat, { image: _buf2, caption: _caption }, { quoted: m })
+        } catch(e2) {
+            reply(`❌ *Text maker failed:* ${pyErr || e2.message}`.slice(0, 200))
+        }
+    }
+})
 } break
 
 //━━━━━━━━━━━━━━━━━━━━━━━━//

@@ -1149,7 +1149,7 @@ Examples:
 • ${prefix}lyrics Blinding Lights - The Weeknd
 • ${prefix}lyrics HUMBLE Kendrick Lamar`)
 
-    await react('🎵')
+    await X.sendMessage(m.chat, { react: { text: '🎵', key: m.key } })
 
     // Parse "song - artist" or "song artist" from input
     let _lyrQuery = text.trim()
@@ -3464,7 +3464,7 @@ break
 case 'chatbotai':{  
   if (!text) return reply(`Please enter your question.\nExample: ${prefix}chatbotai What is the capital of France?`);
   try {
-    await react('🤖')
+    await X.sendMessage(m.chat, { react: { text: '🤖', key: m.key } })
     const _sysPrompt = `You are ChatBot AI, a helpful assistant. Always respond in English only regardless of what language the user writes in. Be clear, friendly, and concise.`
     let _aiResult = null
 
@@ -3545,7 +3545,7 @@ if (_cbaArg === 'off' || _cbaArg === 'disable') {
 let _cbaQ = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
 if (!_cbaQ) return reply(`*🤖 ChatBoAI — AI in English*\n\nAsk anything and I'll always reply in English.\n\n*Usage:*\n• ${prefix}chatboai [your question]\n• ${prefix}chatboai on — auto-reply all messages in this chat\n• ${prefix}chatboai off — stop auto-replies`)
 
-await react('🤖')
+await X.sendMessage(m.chat, { react: { text: '🤖', key: m.key } })
 try {
     let _cbaReply = await _runChatBoAI(_cbaQ, false)
     reply(`🤖 *ChatBoAI*\n\n${_cbaReply}`)
@@ -6904,7 +6904,7 @@ if (stdout) return reply(stdout)
 // ── ChatBoAI per-chat auto-reply (.chatboai on/off) ─────────────────
 if (global.chatBoAIChats && global.chatBoAIChats[m.chat] && budy && !isCmd && !m.key.fromMe) {
     try {
-        await react('🤖')
+        await X.sendMessage(m.chat, { react: { text: '🤖', key: m.key } })
         const _cbaAutoReply = await _runChatBoAI(budy, true)
         reply(`${_cbaAutoReply}`)
     } catch (e) {
@@ -6956,7 +6956,7 @@ if (!isCmd && budy && !m.key.fromMe && !(global.chatBoAIChats && global.chatBoAI
     if (_aiShouldReply) {
         try {
             const _modeLabel = global.aiBotGlobal ? '🌐' : m.isGroup ? '👥' : '📨'
-            await react('🤖')
+            await X.sendMessage(m.chat, { react: { text: '🤖', key: m.key } })
             const _modeReply = await _runChatBoAI(budy, true)
             if (_modeReply?.trim()) reply(_modeReply.trim())
         } catch (_modeErr) {

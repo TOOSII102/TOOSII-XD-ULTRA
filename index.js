@@ -265,6 +265,17 @@ try {
 const sessionDir = path.join(SESSIONS_DIR, phone)
 if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true })
 
+// ── Tear down the old socket before creating a new one ──────────────────────
+// Without this, every reconnect registers duplicate ev listeners on the old
+// socket, causing double (or triple) responses to every message.
+const _prevSession = activeSessions.get(phone)
+if (_prevSession && _prevSession.socket) {
+    try {
+        _prevSession.socket.ev.removeAllListeners()
+        _prevSession.socket.ws?.close?.()
+    } catch {}
+}
+
 activeSessions.set(phone, { socket: null, status: 'connecting', connectedUser: phone })
 
 const { state, saveCreds } = await useMultiFileAuthState(sessionDir)

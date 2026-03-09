@@ -649,7 +649,7 @@ for (const plugin of plugins) {
 // tag owner reaction
 if (m.isGroup) {
     if (body.includes(`@${owner}`)) {
-        reaction(m.chat, "❌")
+        await X.sendMessage(m.chat, { react: { text: "❌", key: m.key } })
     }
  }
 // tes bot no prefix

@@ -3966,6 +3966,72 @@ case 'bibleverse': {
 break;
 
 
+case 'quran':
+case 'ayah':
+case 'quranverse': {
+    await X.sendMessage(m.chat, { react: { text: '📿', key: m.key } })
+    if (!text) {
+        return reply(`╔══════════════════════════╗\n║  📿 *QURAN SEARCH*\n╚══════════════════════════╝\n\n  Search any ayah or topic.\n\n  *By reference (Surah:Ayah):*\n  ├ ${prefix}quran 2:255    (Ayatul Kursi)\n  ├ ${prefix}quran 1:1      (Al-Fatiha)\n  └ ${prefix}quran 112:1    (Al-Ikhlas)\n\n  *By topic/keyword:*\n  ├ ${prefix}quran patience\n  ├ ${prefix}quran mercy\n  └ ${prefix}quran paradise`)
+    }
+    try {
+        const isRef = /^\d+:\d+$/.test(text.trim())
+        let arabicText = '', englishText = '', reference = '', surahName = ''
+
+        if (isRef) {
+            const [surah, ayah] = text.trim().split(':')
+            // Fetch Arabic text
+            const _qAr = await fetch(`https://api.alquran.cloud/v1/ayah/${surah}:${ayah}/ar.alafasy`)
+            const _qArData = await _qAr.json()
+            // Fetch English translation
+            const _qEn = await fetch(`https://api.alquran.cloud/v1/ayah/${surah}:${ayah}/en.asad`)
+            const _qEnData = await _qEn.json()
+
+            if (_qArData.code !== 200) return reply(`❌ *Ayah not found:* _${text}_\n\n_Check format, e.g._ *2:255* _(Surah:Ayah)_`)
+
+            arabicText = _qArData.data?.text || ''
+            englishText = _qEnData.data?.text || ''
+            surahName = _qArData.data?.surah?.englishName || ''
+            const surahNameAr = _qArData.data?.surah?.name || ''
+            reference = `${surahName} (${surahNameAr}) — ${surah}:${ayah}`
+        } else {
+            // Keyword search via AI
+            const _aiRes = await fetch('https://text.pollinations.ai/openai', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model: 'openai', stream: false, max_tokens: 400,
+                    messages: [
+                        { role: 'system', content: 'You are a Quran scholar. When given a topic or keyword, respond with ONLY four lines: Line 1: the Arabic ayah text. Line 2: the English translation. Line 3: the reference (e.g. Al-Baqarah 2:155). Line 4: translator (e.g. Muhammad Asad). No extra text, no explanation.' },
+                        { role: 'user', content: `Give me a Quran ayah about: ${text}` }
+                    ]
+                })
+            })
+            const _aiData = await _aiRes.json()
+            const _aiLines = (_aiData.choices?.[0]?.message?.content || '').trim().split('\n').filter(Boolean)
+            arabicText = _aiLines[0] || ''
+            englishText = _aiLines[1] || ''
+            reference = _aiLines[2] || `Topic: ${text}`
+            surahName = _aiLines[3] || 'Muhammad Asad'
+        }
+
+        if (!englishText && !arabicText) return reply(`❌ Could not find an ayah for: _${text}_`)
+
+        let msg = `╔══════════════════════════╗\n║  📿 *QURAN AYAH*\n╚══════════════════════════╝\n\n`
+        if (arabicText) msg += `  *${arabicText}*\n\n`
+        if (englishText) msg += `  _❝ ${englishText} ❞_\n\n`
+        msg += `  ├ 📌 *${reference}*\n`
+        msg += `  └ 📚 *Translator* › ${isRef ? 'Muhammad Asad' : surahName}\n\n`
+        msg += `_⚡ TOOSII-XD ULTRA_`
+
+        reply(msg)
+
+    } catch(e) {
+        reply(`❌ *Quran search failed.*\n_${e.message || 'Please try again.'}_`)
+    }
+}
+break;
+
+
 case 'llama-ai':{
   if (!text) return reply(`Example: ${prefix+command} Hello, how are you?`)
   try {

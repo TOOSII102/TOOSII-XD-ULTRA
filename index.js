@@ -599,21 +599,45 @@ if (mek.key && mek.key.remoteJid === 'status@broadcast') {
                     // Build unified group list — from JID mentions + invite link resolution
                     let _allGroupJids = [...groupsMentioned]
 
-                    // Resolve invite links to group JIDs using groupGetInviteInfo
+                    // Resolve invite links to group JIDs
                     for (let _lnk of inviteLinks) {
                         try {
-                            let _code = _lnk.replace('chat.whatsapp.com/', '')
-                            let _info = await X.groupGetInviteInfo(_code).catch(() => null)
+                            let _code = _lnk.replace('chat.whatsapp.com/', '').trim()
+                            console.log('[ASM-LINK] trying code:', _code)
+                            let _info = await X.groupGetInviteInfo(_code).catch(e => {
+                                console.log('[ASM-LINK] groupGetInviteInfo error:', e.message)
+                                return null
+                            })
+                            console.log('[ASM-LINK] resolved:', _info?.id, _info?.subject)
                             if (_info?.id && !_allGroupJids.includes(_info.id)) {
                                 _allGroupJids.push(_info.id)
                             }
-                        } catch {}
+                        } catch(e) { console.log('[ASM-LINK] catch:', e.message) }
                     }
 
-                    // Also check inviteLinkGroupTypeV2 — use bot's own group list as fallback
-                    if (_allGroupJids.length === 0 && (msgObj.inviteLinkGroupTypeV2 || ctxInfo.groupInviteJid)) {
-                        // We know there's a group mention but couldn't resolve which group
-                        // Alert owner and skip action
+                    // Fallback: if links couldn't resolve, scan bot's own groups for the mentioner
+                    if (_allGroupJids.length === 0) {
+                        try {
+                            console.log('[ASM-FALLBACK] scanning bot groups for mentioner:', mentionerJid)
+                            const _botGroups = await X.groupFetchAllParticipating().catch(() => null)
+                            if (_botGroups) {
+                                for (const [gid, gdata] of Object.entries(_botGroups)) {
+                                    const _inGroup = (gdata.participants || []).some(p => {
+                                        const pn = p.id.split('@')[0].split(':')[0]
+                                        return p.id === mentionerJid || pn === mentioner
+                                    })
+                                    if (_inGroup) {
+                                        console.log('[ASM-FALLBACK] found in group:', gid, gdata.subject)
+                                        _allGroupJids.push(gid)
+                                    }
+                                }
+                            }
+                        } catch(e) { console.log('[ASM-FALLBACK] error:', e.message) }
+                    }
+
+                    console.log('[ASM] allGroupJids to act on:', _allGroupJids)
+
+                    if (_allGroupJids.length === 0) {
                         await X.sendMessage(alertJid, {
                             text: `╔══════════════════════════╗\n║  🛡️  *ANTI STATUS MENTION*\n╚══════════════════════════╝\n\n  ⚠️ *+${mentioner}* tagged a group in their status.\n  └ Could not resolve which group — check manually.`
                         })
@@ -630,47 +654,54 @@ if (mek.key && mek.key.remoteJid === 'status@broadcast') {
                                 continue
                             }
                             let gName = gMeta.subject || gJid
-                            // Filter out newsletter/non-phone participants
-                            let _realParticipants = (gMeta.participants || []).filter(p => 
+                            // Filter out newsletter/broadcast participants
+                            let _realParticipants = (gMeta.participants || []).filter(p =>
                                 p.id && !p.id.endsWith('@newsletter') && !p.id.endsWith('@broadcast')
                             )
 
-                            // Find mentioner in group — try JID, phone number, and LID match
+                            // Detect if this group uses LID JIDs
+                            const _groupUsesLid = _realParticipants.some(p => p.id.endsWith('@lid'))
+                            const _rawLidNum = _mentionerRaw.split('@')[0].split(':')[0]
+
+                            // Find mentioner — try phone match first, then LID match
                             let _foundParticipant = _realParticipants.find(p => {
                                 let pNum = p.id.split('@')[0].split(':')[0]
-                                return p.id === mentionerJid ||
-                                       pNum === mentioner ||
-                                       p.id.split('@')[0] === mentioner ||
-                                       (p.lid && p.lid.split('@')[0].split(':')[0] === mentioner)
+                                return p.id === mentionerJid || pNum === mentioner
                             })
-                            // If still not found and mentioner looks like LID, scan all participants
-                            if (!_foundParticipant && mentioner.length > 13) {
-                                // Can't reliably match LID to participant — assume they're in group
-                                _foundParticipant = { id: mentionerJid, _assumed: true }
+                            // LID group: match raw LID number from status key
+                            if (!_foundParticipant && _groupUsesLid) {
+                                _foundParticipant = _realParticipants.find(p =>
+                                    p.id.split('@')[0].split(':')[0] === _rawLidNum
+                                )
                             }
-                            let isMember = !!_foundParticipant
-                            // Use resolved participant JID for actions
-                            if (_foundParticipant && !_foundParticipant._assumed) {
+
+                            // Use the exact participant JID for kick/warn (LID or phone)
+                            if (_foundParticipant) {
                                 mentionerJid = _foundParticipant.id
                                 mentioner = mentionerJid.split('@')[0].split(':')[0]
                             }
+                            let isMember = !!_foundParticipant
 
+                            // Check bot admin — match LID since group uses LID
+                            const _botLidNum = X.user?.lid ? X.user.lid.split('@')[0].split(':')[0] : ''
+                            const _botPhoneNum = X.decodeJid(X.user.id).split('@')[0]
                             let botIsAdmin = _realParticipants.some(p => {
-                                let isBot = areJidsSameUser(p.id, X.user.id) || (X.user?.lid && areJidsSameUser(p.id, X.user.lid))
+                                const pNum = p.id.split('@')[0].split(':')[0]
+                                const isBot = pNum === _botLidNum || pNum === _botPhoneNum ||
+                                              areJidsSameUser(p.id, X.user.id) ||
+                                              (X.user?.lid && areJidsSameUser(p.id, X.user.lid))
                                 return isBot && (p.admin === 'admin' || p.admin === 'superadmin')
                             })
                             let isMentionerOwner = global.owner.includes(mentioner)
 
+                            console.log(`[ASM-ACT] group=${gName} mentioner=+${mentioner} mentionerJid=${mentionerJid} botAdmin=${botIsAdmin} action=${asmAction}`)
+
                             // Alert deployed number
                             await X.sendMessage(alertJid, {
-                                text: `╔══════════════════════════╗\n║  🛡️  *ANTI STATUS MENTION*\n╚══════════════════════════╝\n\n  ├ 👤 *User*    › +${mentioner}\n  ├ 🏘️  *Group*   › ${gName}\n  ├ ⚡ *Action*  › ${asmAction.toUpperCase()}\n  ├ 🤖 *Bot Admin* › ${botIsAdmin ? 'Yes ✅' : 'No ❌'}\n  └ 👥 *In Group* › ${isMember ? 'Yes' : 'No'}`
+                                text: `╔══════════════════════════╗\n║  🛡️  *ANTI STATUS MENTION*\n╚══════════════════════════╝\n\n  ├ 👤 *User*   › +${mentioner}\n  ├ 🏘️  *Group*  › ${gName}\n  ├ ⚡ *Action* › ${asmAction.toUpperCase()}\n  └ 🤖 *Bot Admin* › ${botIsAdmin ? 'Yes ✅' : 'No ❌ — Make bot admin!'}`
                             })
 
-                            console.log(`[ASM-ACT] mentionerJid=${mentionerJid} isMember=${isMember} botIsAdmin=${botIsAdmin} isMentionerOwner=${isMentionerOwner}`)
-                            console.log(`[ASM-ACT] participants sample:`, JSON.stringify(_realParticipants.slice(0,3).map(p=>p.id)))
-
                             if (isMentionerOwner) continue
-                            // Skip isMember check — act regardless (LID makes matching unreliable)
 
                             if (!botIsAdmin) {
                                 await X.sendMessage(gJid, {

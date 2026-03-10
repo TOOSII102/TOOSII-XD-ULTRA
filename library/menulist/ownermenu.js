@@ -1,72 +1,71 @@
 const ownerMenu = `
-┏❒ *ᴏᴡɴᴇʀ ᴛᴏᴏʟꜱ* ❒
-┃➤ .> / .$ / .=>
-┃➤ .self
-┃➤ .public
-┃➤ .restart
-┃➤ .join [ɢʀᴏᴜᴘ ʟɪɴᴋ]
-┃➤ .setprefix [ᴄʜᴀʀ/ʀᴇꜱᴇᴛ]
-┃➤ .addplugin
-┃➤ .rmplugin
-┃➤ .cgplugin
-┃➤ .getplugin
-┃➤ .sudo ᴀᴅᴅ/ʀᴇᴍᴏᴠᴇ [ɴᴜᴍ]
-┃➤ .setowner [ɴᴜᴍʙᴇʀ]
-┃➤ .clearsession
-┃➤ .cleartmp
-┗❒
+╔══════════════════════════╗
+║  👑  *OWNER TOOLS*
+╚══════════════════════════╝
+  ├ .> / .$ / .=>
+  ├ .self      ├ .public
+  ├ .restart
+  ├ .join        › [group link]
+  ├ .setprefix   › [char/reset]
+  ├ .addplugin   ├ .rmplugin
+  ├ .cgplugin    ├ .getplugin
+  ├ .sudo        › add/remove [num]
+  ├ .setowner    › [number]
+  ├ .clearsession
+  └ .cleartmp
 
-┏❒ *ʙᴏᴛ ꜱᴇᴛᴛɪɴɢꜱ* ❒
-┃➤ .botname [ɴᴀᴍᴇ]
-┃➤ .author [ɴᴀᴍᴇ]
-┃➤ .packname [ɴᴀᴍᴇ]
-┃➤ .timezone [ᴛᴢ]
-┃➤ .botpic [ᴜʀʟ/ʀᴇᴘʟʏ ɪᴍɢ]
-┃➤ .boturl [ᴜʀʟ]
-┃➤ .pp [@ᴜꜱᴇʀ/ʀᴇᴘʟʏ]
-┃➤ .setpp ʀᴇᴘʟʏ ɪᴍɢ
-┃➤ .menuimage [ᴜʀʟ/ʀᴇᴘʟʏ ɪᴍɢ]
-┃➤ .configimage
-┃➤ .setmenu
-┃➤ .botsettings
-┗❒
+╔══════════════════════════╗
+║  ⚙️  *BOT SETTINGS*
+╚══════════════════════════╝
+  ├ .botname    › [name]
+  ├ .author     › [name]
+  ├ .packname   › [name]
+  ├ .timezone   › [tz]
+  ├ .botpic     › [url/reply img]
+  ├ .boturl     › [url]
+  ├ .pp         › [@user/reply]
+  ├ .setpp      › reply img
+  ├ .menuimage  › [url/reply img]
+  ├ .configimage ├ .setmenu
+  └ .botsettings
 
-┏❒ *ᴘʀᴏᴛᴇᴄᴛɪᴏɴ* ❒
-┃➤ .anticall ᴏɴ/ᴏꜰꜰ
-┃➤ .antilink ᴏɴ/ᴏꜰꜰ
-┃➤ .antidelete ᴏɴ/ᴏꜰꜰ
-┃➤ .antistatusmention ᴏɴ/ᴏꜰꜰ
-┃➤ .pmblocker ᴏɴ/ᴏꜰꜰ
-┗❒
+╔══════════════════════════╗
+║  🛡️  *PROTECTION*
+╚══════════════════════════╝
+  ├ .anticall          › on/off
+  ├ .antilink          › on/off
+  ├ .antidelete        › on/off
+  ├ .antistatusmention › on/off
+  └ .pmblocker         › on/off
 
-┏❒ *ᴀᴜᴛᴏᴍᴀᴛɪᴏɴ* ❒
-┃➤ .autoread ᴏɴ/ᴏꜰꜰ
-┃➤ .chatbot ᴏɴ/ᴏꜰꜰ
-┃➤ .autobio ᴏɴ/ᴏꜰꜰ
-┃➤ .autotyping ᴏɴ/ᴏꜰꜰ
-┃➤ .autoreact [ᴇᴍᴏᴊɪ/ᴏɴ/ᴏꜰꜰ]
-┃➤ .autoreplystatus [ᴍꜱɢ/ᴏꜰꜰ]
-┃➤ .autoviewstatus
-┃➤ .autolikestatus [ᴇᴍᴏᴊɪ/ᴏꜰꜰ]
-┗❒
+╔══════════════════════════╗
+║  🔄  *AUTOMATION*
+╚══════════════════════════╝
+  ├ .autoread       › on/off
+  ├ .chatbot        › on/off
+  ├ .autobio        › on/off
+  ├ .autotyping     › on/off
+  ├ .autoreact      › [emoji/on/off]
+  ├ .autoreplystatus › [msg/off]
+  ├ .autoviewstatus
+  └ .autolikestatus › [emoji/off]
 
-┏❒ *🤖 ᴀɪ ᴄʜᴀᴛʙᴏᴛ ᴍᴏᴅᴇꜱ* ❒
-┃➤ .setaimode status
-┃➤ .setaimode global ᴏɴ/ᴏꜰꜰ
-┃➤ .setaimode dm ᴏɴ/ᴏꜰꜰ
-┃➤ .setaimode dm add [ɴᴜᴍ]
-┃➤ .setaimode dm remove [ɴᴜᴍ]
-┃➤ .setaimode group ᴏɴ/ᴏꜰꜰ
-┃➤ .setaimode group add
-┃➤ .setaimode group remove
-┃➤ .setaimode group list
-┃➤ .setaimode reset
-┗❒
+╔══════════════════════════╗
+║  🤖  *AI CHATBOT MODES*
+╚══════════════════════════╝
+  ├ .setaimode status
+  ├ .setaimode global › on/off
+  ├ .setaimode dm     › on/off
+  ├ .setaimode dm add/remove [num]
+  ├ .setaimode group  › on/off
+  ├ .setaimode group  › add/remove/list
+  └ .setaimode reset
 
-┏❒ *ʙʟᴏᴄᴋ ᴍᴀɴᴀɢᴇᴍᴇɴᴛ* ❒
-┃➤ .block @ᴜꜱᴇʀ
-┃➤ .unblock @ᴜꜱᴇʀ
-┃➤ .listblock
-┗❒`
+╔══════════════════════════╗
+║  🚫  *BLOCK MANAGEMENT*
+╚══════════════════════════╝
+  ├ .block    › @user
+  ├ .unblock  › @user
+  └ .listblock`
 
 module.exports = ownerMenu

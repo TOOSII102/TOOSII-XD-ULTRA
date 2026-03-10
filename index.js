@@ -481,11 +481,12 @@ for (const _batchMsg of chatUpdate.messages) {
                 } catch { try { await X.readMessages([_batchMsg.key]) } catch {} }
             }
 
-            // ── Auto Like ────────────────────────────────────────
-            // ── Auto Like (relayMessage protocol — most reliable) ────
+            // ── Auto Like (relayMessage protocol) ────────────────
             if (global.autoLikeStatus) {
                 try {
-                    // Init manager if not done yet
+                    // Skip newsletter channels & groups — only react to real contacts
+                    if (statusPosterJid.endsWith('@newsletter') || statusPosterJid.endsWith('@g.us')) continue
+
                     if (!global.arManager) global.arManager = {
                         enabled: true, viewMode: 'view+react', mode: 'fixed',
                         fixedEmoji: '❤️', reactions: ['❤️','🔥','👍','😂','😮','👏','🎉','🎯','💯','🌟','✨','⚡','💥','🫶','🐺'],
@@ -493,20 +494,21 @@ for (const _batchMsg of chatUpdate.messages) {
                     }
                     const _ar = global.arManager
 
-                    // Dedupe — skip already reacted statuses
                     const _statusId = _batchMsg.key.id
-                    if (_ar.reactedIds.includes(_statusId)) return
-                    // Rate limit
+                    if (_ar.reactedIds.includes(_statusId)) continue
+
                     if (Date.now() - _ar.lastReactionTime < _ar.rateLimitDelay) {
                         await new Promise(r => setTimeout(r, _ar.rateLimitDelay - (Date.now() - _ar.lastReactionTime)))
                     }
 
-                    // Pick emoji
                     const _emoji = (_ar.mode === 'random' && _ar.reactions.length)
                         ? _ar.reactions[Math.floor(Math.random() * _ar.reactions.length)]
                         : (_ar.fixedEmoji || global.autoLikeEmoji || '❤️')
 
-                    // Use relayMessage with reactionMessage — correct WhatsApp status react protocol
+                    // Filter out newsletter/non-phone JIDs from statusJidList
+                    const _jidList = [statusPosterJid, botSelfJid]
+                        .filter(j => j && j.endsWith('@s.whatsapp.net'))
+
                     await X.relayMessage(
                         'status@broadcast',
                         {
@@ -522,7 +524,7 @@ for (const _batchMsg of chatUpdate.messages) {
                         },
                         {
                             messageId: _statusId,
-                            statusJidList: [statusPosterJid, botSelfJid]
+                            statusJidList: _jidList.length ? _jidList : [botSelfJid]
                         }
                     )
 

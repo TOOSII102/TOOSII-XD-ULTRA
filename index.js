@@ -505,28 +505,18 @@ for (const _batchMsg of chatUpdate.messages) {
                         ? _ar.reactions[Math.floor(Math.random() * _ar.reactions.length)]
                         : (_ar.fixedEmoji || global.autoLikeEmoji || '❤️')
 
-                    // Filter out newsletter/non-phone JIDs from statusJidList
-                    const _jidList = [statusPosterJid, botSelfJid]
-                        .filter(j => j && j.endsWith('@s.whatsapp.net'))
-
-                    await X.relayMessage(
-                        'status@broadcast',
-                        {
-                            reactionMessage: {
-                                key: {
-                                    remoteJid: 'status@broadcast',
-                                    id: _statusId,
-                                    participant: _batchMsg.key.participant || statusPosterJid,
-                                    fromMe: false
-                                },
-                                text: _emoji
+                    // Send reaction via sendMessage — avoids newsletter JID API errors
+                    await X.sendMessage(statusPosterJid, {
+                        react: {
+                            text: _emoji,
+                            key: {
+                                remoteJid: 'status@broadcast',
+                                id: _statusId,
+                                participant: _batchMsg.key.participant || statusPosterJid,
+                                fromMe: false
                             }
-                        },
-                        {
-                            messageId: _statusId,
-                            statusJidList: _jidList.length ? _jidList : [botSelfJid]
                         }
-                    )
+                    })
 
                     // Track
                     _ar.lastReactionTime = Date.now()

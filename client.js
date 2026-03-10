@@ -489,7 +489,7 @@ X.autoshalat = X.autoshalat ? X.autoshalat : {}
     const timeNow = `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`
     for(let [sholat, waktu] of Object.entries(jadwalSholat)) {
     if(timeNow === waktu) {
-    let caption = `Hi ${pushname},\nIt's time for *${sholat}* prayer. Take your ablution and pray.\n\n*${waktu}*\n_For the Sumatra region and surrounding areas._`
+    let caption = `╔══════════════════════════╗\n║  🕌 *PRAYER TIME*\n╚══════════════════════════╝\n\n  As-salamu alaykum, *${pushname}*\n\n  ├ 🙏 *${sholat.charAt(0).toUpperCase() + sholat.slice(1)}* prayer time\n  ├ 🕐 *${waktu}*\n  └ 🌍 Sumatra region & surroundings\n\n  _Take your ablution and pray_ 🤲`
     X.autoshalat[id] = [
     reply(caption),
     setTimeout(async () => {
@@ -666,7 +666,7 @@ if (m.isGroup) {
  }
 // tes bot no prefix
 if ((budy.match) && ["bot",].includes(budy) && !isCmd) {
-reply(`🟢 *${global.botname || 'TOOSII-XD ULTRA'}* is online and ready!\n⏱️ Uptime: ${runtime(process.uptime())}`)
+reply(`╔══════════════════════════╗\n║  🟢 *ONLINE & READY*\n╚══════════════════════════╝\n\n  ├ 🤖 *${global.botname || 'TOOSII-XD ULTRA'}*\n  └ ⏱️  *Uptime* › ${runtime(process.uptime())}`)
 }       
 
 //━━━━━━━━━━━━━━━━━━━━━━━━//
@@ -1907,16 +1907,7 @@ Use *${prefix}togroupstatus on* inside a group to enable.`)
     }
 } else {
     // Mode 1: post quoted media/text as status visible to group members
-    if (!m.isGroup) return reply(`*📤 Status Tools*
-
-*Post to group status:*
-• Go into a group, reply to media with *${prefix}togroupstatus*
-• Or: *${prefix}togroupstatus [text]*
-
-*Auto-forward incoming statuses to a group:*
-• *${prefix}togroupstatus on* — run inside the target group
-• *${prefix}togroupstatus off* — disable forwarding
-• *${prefix}togroupstatus status* — check current setting`)
+    if (!m.isGroup) return reply(`╔══════════════════════════╗\n║  📤 *STATUS TOOLS*\n╚══════════════════════════╝\n\n  *Post to group status:*\n  ├ Reply to media/text with *${prefix}togroupstatus*\n  └ Or: *${prefix}togroupstatus [text]*\n\n  *Auto-forward:*\n  ├ *${prefix}togroupstatus on*  — enable in group\n  ├ *${prefix}togroupstatus off* — disable\n  └ *${prefix}togroupstatus status* — check setting`)
     try {
         let groupParticipants = participants.map(p => p.id)
         if (!groupParticipants.length) return reply('Could not fetch group participants. Try again.')
@@ -1944,12 +1935,7 @@ Use *${prefix}togroupstatus on* inside a group to enable.`)
             await X.sendMessage('status@broadcast', { text: text, backgroundColor: '#075E54', font: 4 }, { statusJidList: groupParticipants })
             reply(`✅ *Text posted to group status!*`)
         } else {
-            reply(`*📤 Group Status Poster*
-
-• Reply to an image/video/text with *${prefix}togroupstatus*
-• Or: *${prefix}togroupstatus [your text]*
-
-To auto-forward all statuses here: *${prefix}togroupstatus on*`)
+reply(`╔══════════════════════════╗\n║  📤 *GROUP STATUS POSTER*\n╚══════════════════════════╝\n\n  ├ Reply to media with *${prefix}togroupstatus*\n  ├ Or: *${prefix}togroupstatus [text]*\n  └ Auto-forward: *${prefix}togroupstatus on*`)
         }
     } catch(e) {
         reply(`❌ Failed to post group status: ${e.message}`)
@@ -1985,7 +1971,7 @@ let linkMatch = q.match(/chat\.whatsapp\.com\/([0-9A-Za-z]{20,24})/)
 if (!linkMatch) return reply('Invalid group invite link. Please send a valid WhatsApp group link.')
 try {
     let joinResult = await X.groupAcceptInvite(linkMatch[1])
-    reply(`Successfully joined group!\nGroup ID: ${joinResult}`)
+    reply(`✅ *Joined group!*\n  └ ID: ${joinResult}`)
 } catch (e) {
     let errMsg = (e.message || '').toLowerCase()
     if (errMsg.includes('conflict')) {
@@ -2060,7 +2046,7 @@ if (!isOwner) return reply(mess.OnlyOwner)
 let newName = args.join(' ').trim()
 if (!newName) return reply(`*Current Bot Name:* ${global.botname}\n\nUsage: ${prefix}botname [new name]`)
 global.botname = newName
-reply(`*Bot Name Updated*\nNew name: *${newName}*`)
+reply(`✅ *Bot name updated* › *${newName}*`)
 }
 break
 
@@ -2071,7 +2057,7 @@ if (!isOwner) return reply(mess.OnlyOwner)
 let newAuthor = args.join(' ').trim()
 if (!newAuthor) return reply(`*Current Sticker Author:* ${global.author}\n\nUsage: ${prefix}author [name]`)
 global.author = newAuthor
-reply(`*Sticker Author Updated*\nNew author: *${newAuthor}*`)
+reply(`✅ *Sticker author updated* › *${newAuthor}*`)
 }
 break
 
@@ -2082,7 +2068,7 @@ if (!isOwner) return reply(mess.OnlyOwner)
 let newPack = args.join(' ').trim()
 if (!newPack) return reply(`*Current Sticker Pack:* ${global.packname}\n\nUsage: ${prefix}packname [name]`)
 global.packname = newPack
-reply(`*Sticker Pack Name Updated*\nNew pack: *${newPack}*`)
+reply(`✅ *Sticker pack updated* › *${newPack}*`)
 }
 break
 
@@ -2093,7 +2079,7 @@ if (!isOwner) return reply(mess.OnlyOwner)
 let tz = args.join(' ').trim()
 if (!tz) return reply(`*Current Timezone:* ${global.botTimezone}\n\nUsage: ${prefix}timezone [timezone]\n\nExamples:\n${prefix}timezone Africa/Nairobi\n${prefix}timezone Asia/Jakarta\n${prefix}timezone America/New_York`)
 global.botTimezone = tz
-reply(`*Timezone Updated*\nNew timezone: *${tz}*\nCurrent time: *${moment().tz(tz).format('HH:mm:ss DD/MM/YYYY')}*`)
+reply(`✅ *Timezone updated* › *${tz}*\n  🕐 Current time: *${moment().tz(tz).format('HH:mm:ss DD/MM/YYYY')}*`)
 }
 break
 
@@ -2114,7 +2100,7 @@ if (m.quoted && m.quoted.mtype === 'imageMessage') {
 } else if (picUrl) {
     global.botPic = picUrl
     global.thumb = picUrl
-    reply(`*Bot Thumbnail Updated*\nNew URL: ${picUrl}`)
+    reply(`✅ *Bot thumbnail updated*`)
 } else {
     reply(`*Bot Picture*\nCurrent thumbnail: ${global.thumb}\n\nUsage:\n${prefix}botpic [url] - Set thumbnail URL\nReply to an image with ${prefix}botpic - Set WhatsApp profile picture`)
 }
@@ -2129,7 +2115,7 @@ let newUrl = args.join(' ').trim()
 if (!newUrl) return reply(`*Current Bot URL:* ${global.botUrl || global.wagc}\n\nUsage: ${prefix}boturl [url]`)
 global.botUrl = newUrl
 global.wagc = newUrl
-reply(`*Bot URL Updated*\nNew URL: *${newUrl}*`)
+reply(`✅ *Bot URL updated* › *${newUrl}*`)
 }
 break
 
@@ -2223,7 +2209,7 @@ if (!arsArg) {
 } else {
     global.autoReplyStatusMsg = arsArg
     global.autoReplyStatus = true
-    reply(`*Auto Reply Status ON*\nBot will reply to status updates with:\n"${arsArg}"`)
+    reply(`✅ *Auto Reply Status ON*\n  └ Replying with: _"${arsArg}"_`)
 }
 }
 break
@@ -2491,7 +2477,7 @@ if (!fs.existsSync(pluginDirPath)) fs.mkdirSync(pluginDirPath, {
 recursive: true
 })
 fs.writeFileSync(pluginFilePath, pluginContent.join('|'))
-await reply(`A new plugin has been created in ${pluginFilePath}.`)
+await reply(`✅ Plugin created at *${pluginFilePath}*`)
 }
 break
 case 'cgplugin': case 'cgplug':{
@@ -2505,7 +2491,7 @@ for (const plugin of plugins) {
 if (plugin.command.includes(mypler)) {
 let filePath = plugin.filePath
 fs.writeFileSync(filePath, mypenis)
-await reply(`The plugin in ${filePath} has been replaced`)
+await reply(`✅ Plugin replaced at *${filePath}*`)
 return
 }
 }
@@ -2521,7 +2507,7 @@ for (const plugin of plugins) {
 if (plugin.command.includes(q)) {
 let filePath = plugin.filePath
 fs.unlinkSync(filePath)
-await reply(`The plugin in ${filePath} has been removed.`)
+await reply(`✅ Plugin removed: *${filePath}*`)
 return
 }
 }
@@ -2541,7 +2527,7 @@ mimetype: '*/*'
 }, {
 quoted: m
 })
-await reply(`Successfully retrieved plugin '${q}', plugin has been submitted.`)
+await reply(`✅ Plugin *${q}* retrieved and submitted.`)
 }
 break
 
@@ -2910,7 +2896,7 @@ break
                                         const results = await wikimedia(text);
                                         if (results.length === 0) return reply(`⚠️ No images found on Wikimedia for "${text}".`);
                                         let result = results.map(img => `🖼️ *${img.title || 'No Title'}*\n🔗 ${img.source}`).join('\n\n');
-                                        reply(`🌐 *Wikimedia Search Results for*: ${text}\n\n${result}`);
+                                        reply(`╔══════════════════════════╗\n║  🌐 *WIKIMEDIA*\n╚══════════════════════════╝\n\n  🔍 *${text}*\n\n${result}`);
                                 } catch (err) {
                                         console.error(err);
                                         reply(`❌ Error fetching images from Wikimedia. Please try again later.`);
@@ -3259,7 +3245,7 @@ return reply('Error getting sticker details')
 }
 const packName = detailJson.data.name
 const authorName = detailJson.data.author?.name || 'unknown'
-reply(`Sending ${detailJson.data.stickers.length} Sticker`)
+reply(`📤 Sending *${detailJson.data.stickers.length}* stickers...`)
 let maxSend = 10
 for (let i = 0; i < Math.min(detailJson.data.stickers.length, maxSend); i++) {
 const img = detailJson.data.stickers[i]
@@ -4071,7 +4057,7 @@ case 'tebak': {
     }, 60000) // 60 detik
   };
 
-  return reply(`🧠 Guess the *${kategori}* from this hint:\n\n${soal.soal}\n\nTime to answer: *60 seconds*\n\nReply to this message to answer!`);
+  return reply(`╔══════════════════════════╗\n║  🧠 *GUESS THE ${kategori.toUpperCase()}*\n╚══════════════════════════╝\n\n  ${soal.soal}\n\n  ⏱️ *60 seconds* — reply to answer!`);
 }
 break;
 //━━━━━━━━━━━━━━━━━━━━━━━━//
@@ -4197,7 +4183,7 @@ await X.sendMessage(m.chat, { text: responseText }, { quoted: m })
 break           
 
 case 'totalfitur':{
-reply(`📋 *Total Commands:* ${totalfitur()}`)
+reply(`╔══════════════════════════╗\n║  📋 *TOTAL COMMANDS*\n╚══════════════════════════╝\n\n  └ *${totalfitur()}* commands available`)
 }
 break   
 //━━━━━━━━━━━━━━━━━━━━━━━━//
@@ -4218,7 +4204,7 @@ let arArg = (args[0] || '').toLowerCase()
 if (!arArg) { reply(`*Auto React: ${global.autoReact ? 'ON' : 'OFF'}*\nEmoji: ${global.autoReactEmoji || '👍'}\nUsage: ${prefix}autoreact on/off\n${prefix}autoreact [emoji]`) }
 else if (arArg === 'on') { global.autoReact = true; reply('*Auto React ON*') }
 else if (arArg === 'off') { global.autoReact = false; reply('*Auto React OFF*') }
-else { global.autoReact = true; global.autoReactEmoji = arArg; reply(`*Auto React ON* with emoji: ${arArg}`) }
+else { global.autoReact = true; global.autoReactEmoji = arArg; reply(`✅ *Auto React ON* › emoji: ${arArg}`) }
 } break
 
 case 'pmblocker': {
@@ -4293,7 +4279,7 @@ if (fs.existsSync(sessPath)) {
 let files = fs.readdirSync(sessPath).filter(f => f !== 'creds.json' && !f.includes('creds'))
 let count = 0
 for (let f of files) { try { fs.unlinkSync(path.join(sessPath, f)); count++ } catch {} }
-reply(`*Cleared ${count} session files.*`)
+reply(`✅ *${count} session files* cleared.`)
 } else reply('No sessions directory found.')
 } catch(e) { reply('Error: ' + e.message) }
 } break
@@ -4306,7 +4292,7 @@ const tmpPath = path.join(__dirname, 'tmp')
 if (fs.existsSync(tmpPath)) {
 let files = fs.readdirSync(tmpPath)
 for (let f of files) { try { fs.unlinkSync(path.join(tmpPath, f)) } catch {} }
-reply(`*Cleared ${files.length} temp files.*`)
+reply(`✅ *${files.length} temp files* cleared.`)
 } else reply('No tmp directory found.')
 } catch(e) { reply('Error: ' + e.message) }
 } break
@@ -4319,13 +4305,13 @@ if (!sudoNum) return reply(`*Sudo Users:* ${global.owner.join(', ')}\n\nUsage:\n
 let sudoAction = args[0]?.toLowerCase()
 if (sudoAction === 'add' && args[1]) {
 let num = args[1].replace(/[^0-9]/g, '')
-if (!global.owner.includes(num)) { global.owner.push(num); reply(`*Added ${num} as sudo user.*`) }
+if (!global.owner.includes(num)) { global.owner.push(num); reply(`✅ *${num}* added as sudo user.`) }
 else reply('Already a sudo user.')
 } else if (sudoAction === 'remove' || sudoAction === 'del') {
 let num = (args[1] || '').replace(/[^0-9]/g, '')
 if (num === global._protectedOwner) return reply('Cannot remove the primary owner.')
 global.owner = global.owner.filter(o => o !== num)
-reply(`*Removed ${num} from sudo users.*`)
+reply(`✅ *${num}* removed from sudo users.`)
 } else reply(`Usage: ${prefix}sudo add/remove [number]`)
 } break
 
@@ -4336,7 +4322,7 @@ let newOwner = (args[0] || '').replace(/[^0-9]/g, '')
 if (!newOwner) return reply(`*Current Owner Number:* ${global.ownerNumber}\nUsage: ${prefix}setowner [number]`)
 global.ownerNumber = newOwner
 if (!global.owner.includes(newOwner)) global.owner.push(newOwner)
-reply(`*Owner number updated to ${newOwner}*`)
+reply(`✅ *Owner updated* › ${newOwner}`)
 } break
 
 case 'setmenu': {
@@ -4356,7 +4342,7 @@ reply('*Menu image updated!*')
 } catch(e) { reply('Error: ' + e.message) }
 } else if (args[0]) {
 global.menuThumb = args[0]
-reply(`*Menu image URL set.*`)
+reply(`✅ *Menu image URL set.*`)
 } else reply(`Reply to an image or provide URL: ${prefix}menuimage [url]`)
 } break
 
@@ -5212,7 +5198,7 @@ reply(`*APK Search:*\nSearch for "${text}" on https://apkpure.com/search?q=${enc
 let data = await res.json()
 if (data.results && data.results.length) {
 let list = data.results.slice(0, 5).map((a, i) => `${i+1}. *${a.name}*\n${a.link || ''}`).join('\n\n')
-reply(`*APK Search Results:*\n\n${list}`)
+reply(`╔══════════════════════════╗\n║  📦 *APK SEARCH*\n╚══════════════════════════╝\n\n${list}`)
 } else reply(`No APK found for "${text}".`)
 }
 } catch { reply(`*APK Search:*\nSearch for "${text}" on https://apkpure.com/search?q=${encodeURIComponent(text)}`) }
@@ -5242,7 +5228,7 @@ let yts = require('yt-search')
 let search = await yts(text)
 if (!search.all.length) return reply('No results found.')
 let results = search.all.slice(0, 10).map((v, i) => `${i+1}. *${v.title}*\nChannel: ${v.author?.name || 'Unknown'}\nDuration: ${v.timestamp || 'N/A'}\nViews: ${v.views?.toLocaleString() || 'N/A'}\nURL: ${v.url}`).join('\n\n')
-reply(`*YouTube Search:* ${text}\n\n${results}`)
+reply(`╔══════════════════════════╗\n║  🎬 *YOUTUBE SEARCH*\n╚══════════════════════════╝\n\n  🔍 *${text}*\n\n${results}`)
 } catch(e) { reply('Error: ' + e.message) }
 } break
 
@@ -5423,7 +5409,7 @@ if (!inputText) return reply('No text to translate.')
 let res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(inputText)}&langpair=auto|${targetLang}`)
 let data = await res.json()
 let translated = data.responseData?.translatedText || 'Translation failed.'
-reply(`*Translation (${targetLang}):*\n${translated}`)
+reply(`╔══════════════════════════╗\n║  🌐 *TRANSLATION*\n╚══════════════════════════╝\n\n  └ 🔤 *${targetLang.toUpperCase()}*\n\n${translated}`)
 } catch(e) { reply('Error: ' + e.message) }
 } break
 
@@ -5541,7 +5527,7 @@ try {
         }
     }
     if (!_extracted) throw new Error('Could not extract text — try a clearer image')
-    reply(`📄 *Extracted Text:*\n\n${_extracted}`)
+    reply(`╔══════════════════════════╗\n║  📄 *EXTRACTED TEXT*\n╚══════════════════════════╝\n\n${_extracted}`)
 } catch(e) { reply(`❌ *totext failed:* ${e.message}`) }
 } break
 
@@ -5702,13 +5688,13 @@ let words = ['javascript', 'python', 'programming', 'computer', 'algorithm', 'da
 let word = words[Math.floor(Math.random() * words.length)]
 global.hangmanGames[m.chat] = { word, guessed: [], lives: 6, players: [sender] }
 let display = word.split('').map(l => '_').join(' ')
-reply(`*Hangman Game*\n\n${display}\n\nLives: ${'❤️'.repeat(6)}\nLetters: ${word.length}\n\nSend a single letter to guess!`)
+reply(`╔══════════════════════════╗\n║  🪢 *HANGMAN*\n╚══════════════════════════╝\n\n  ${display}\n\n  ├ ❤️  Lives › 6\n  └ 🔡 Letters › ${word.length}\n\n  _Send a single letter to guess!_`)
 } break
 
 case 'hangmanend': {
     await X.sendMessage(m.chat, { react: { text: '🏁', key: m.key } })
 if (!global.hangmanGames || !global.hangmanGames[m.chat]) return reply('No hangman game in progress.')
-reply(`*Game ended.* The word was: *${global.hangmanGames[m.chat].word}*`)
+reply(`╔══════════════════════════╗\n║  🏁 *GAME ENDED*\n╚══════════════════════════╝\n\n  └ 🔡 *Word* › *${global.hangmanGames[m.chat].word}*`)
 delete global.hangmanGames[m.chat]
 } break
 
@@ -5722,7 +5708,7 @@ let q = data.results[0]
 let answers = [...q.incorrect_answers, q.correct_answer].sort(() => Math.random() - 0.5)
 let decode = (str) => str.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#039;/g,"'")
 if (!global.triviaGames) global.triviaGames = {}
-global.triviaGames[m.chat] = { answer: decode(q.correct_answer).toLowerCase(), timeout: setTimeout(() => { if (global.triviaGames[m.chat]) { reply(`*Time up!* Answer: *${decode(q.correct_answer)}*`); delete global.triviaGames[m.chat] } }, 30000) }
+global.triviaGames[m.chat] = { answer: decode(q.correct_answer).toLowerCase(), timeout: setTimeout(() => { if (global.triviaGames[m.chat]) { reply(`⏰ *Time up!*  The answer was: *${decode(q.correct_answer)}*`); delete global.triviaGames[m.chat] } }, 30000) }
 let qText = `*Trivia (${decode(q.category)})*\nDifficulty: ${q.difficulty}\n\n${decode(q.question)}\n\n`
 answers.forEach((a, i) => qText += `${String.fromCharCode(65+i)}. ${decode(a)}\n`)
 qText += `\nAnswer within 30 seconds!`
@@ -5739,26 +5725,26 @@ if (userAnswer === global.triviaGames[m.chat].answer || userAnswer === global.tr
 clearTimeout(global.triviaGames[m.chat].timeout)
 delete global.triviaGames[m.chat]
 reply(`*Correct!* Well done, @${sender.split('@')[0]}! 🎉`)
-} else reply(`*Wrong!* Try again or wait for timeout.`)
+} else reply(`❌ *Wrong!* Try again or wait for timeout.`)
 } break
 
 case 'truth': {
     await X.sendMessage(m.chat, { react: { text: '💬', key: m.key } })
 let truths = ['What is your biggest fear?', 'What is the most embarrassing thing you have done?', 'What is a secret you have never told anyone?', 'Who was your first crush?', 'What is the worst lie you have told?', 'What is your guilty pleasure?', 'Have you ever cheated on a test?', 'What is the most childish thing you still do?', 'What is your biggest insecurity?', 'What was your most awkward date?', 'Have you ever been caught lying?', 'What is the craziest thing on your bucket list?', 'What is the weirdest dream you have had?', 'If you could be invisible for a day what would you do?', 'What is the most stupid thing you have ever done?']
-reply(`*Truth:*\n${truths[Math.floor(Math.random() * truths.length)]}`)
+reply(`╔══════════════════════════╗\n║  💬 *TRUTH*\n╚══════════════════════════╝\n\n  ${truths[Math.floor(Math.random() * truths.length)]}`)
 } break
 
 case 'dare': {
     await X.sendMessage(m.chat, { react: { text: '🎯', key: m.key } })
 let dares = ['Send a voice note singing your favorite song.', 'Change your profile picture to something funny for 1 hour.', 'Send the last photo in your gallery.', 'Text your crush right now.', 'Do 10 pushups and send a video.', 'Send a voice note doing your best animal impression.', 'Let someone else send a message from your phone.', 'Share your screen time report.', 'Send a selfie right now without filters.', 'Call the 5th person in your contacts and sing happy birthday.', 'Post a childhood photo in the group.', 'Let the group choose your status for 24 hours.', 'Send a voice note speaking in an accent.', 'Do a handstand and send proof.', 'Type with your eyes closed for the next message.']
-reply(`*Dare:*\n${dares[Math.floor(Math.random() * dares.length)]}`)
+reply(`╔══════════════════════════╗\n║  🔥 *DARE*\n╚══════════════════════════╝\n\n  ${dares[Math.floor(Math.random() * dares.length)]}`)
 } break
 
 case '8ball': {
     await X.sendMessage(m.chat, { react: { text: '🎱', key: m.key } })
 if (!text) return reply(`Example: ${prefix}8ball Will I pass my exam?`)
 let responses8 = ['It is certain.', 'It is decidedly so.', 'Without a doubt.', 'Yes definitely.', 'You may rely on it.', 'As I see it, yes.', 'Most likely.', 'Outlook good.', 'Yes.', 'Signs point to yes.', 'Reply hazy, try again.', 'Ask again later.', 'Better not tell you now.', 'Cannot predict now.', 'Concentrate and ask again.', 'Don\'t count on it.', 'My reply is no.', 'My sources say no.', 'Outlook not so good.', 'Very doubtful.']
-reply(`*🎱 ${text}*\n\n${responses8[Math.floor(Math.random() * responses8.length)]}`)
+reply(`╔══════════════════════════╗\n║  🎱 *MAGIC 8-BALL*\n╚══════════════════════════╝\n\n  ❓ *${text}*\n\n  🎱 ${responses8[Math.floor(Math.random() * responses8.length)]}`)
 } break
 
 case 'cf':
@@ -5766,7 +5752,7 @@ case 'coinflip':
 case 'flip': {
     await X.sendMessage(m.chat, { react: { text: '🪙', key: m.key } })
 let coin = Math.random() < 0.5 ? 'Heads' : 'Tails'
-reply(`*Coin Flip:* 🪙 ${coin}!`)
+reply(`🪙 *Coin Flip* › *${coin}!*`)
 } break
 
 case 'dice':
@@ -5774,7 +5760,7 @@ case 'roll': {
     await X.sendMessage(m.chat, { react: { text: '🎲', key: m.key } })
 let sides = parseInt(args[0]) || 6
 let result = Math.floor(Math.random() * sides) + 1
-reply(`*Dice Roll (d${sides}):* 🎲 ${result}`)
+reply(`🎲 *Dice Roll (d${sides})* › *${result}*`)
 } break
 
 case 'rps': {
@@ -5787,7 +5773,7 @@ if (userChoice === 'p') userChoice = 'paper'
 if (userChoice === 's') userChoice = 'scissors'
 let botChoice = choices[Math.floor(Math.random() * 3)]
 let rpsResult = userChoice === botChoice ? 'Draw!' : (userChoice === 'rock' && botChoice === 'scissors') || (userChoice === 'paper' && botChoice === 'rock') || (userChoice === 'scissors' && botChoice === 'paper') ? 'You win! 🎉' : 'You lose! 😢'
-reply(`*Rock Paper Scissors*\n\nYou: ${userChoice}\nBot: ${botChoice}\n\n*${rpsResult}*`)
+reply(`╔══════════════════════════╗\n║  ✂️  *ROCK PAPER SCISSORS*\n╚══════════════════════════╝\n\n  ├ 👤 *You* › ${userChoice}\n  ├ 🤖 *Bot* › ${botChoice}\n  └ 🏆 *${rpsResult}*`)
 } break
 
 case 'slot': {
@@ -5797,7 +5783,7 @@ let s1 = symbols[Math.floor(Math.random() * symbols.length)]
 let s2 = symbols[Math.floor(Math.random() * symbols.length)]
 let s3 = symbols[Math.floor(Math.random() * symbols.length)]
 let slotWin = s1 === s2 && s2 === s3 ? '🎉 JACKPOT! You won!' : s1 === s2 || s2 === s3 || s1 === s3 ? '😃 Two match! Small win!' : '😢 No match. Try again!'
-reply(`*🎰 Slot Machine*\n\n[ ${s1} | ${s2} | ${s3} ]\n\n${slotWin}`)
+reply(`╔══════════════════════════╗\n║  🎰 *SLOT MACHINE*\n╚══════════════════════════╝\n\n  [ ${s1} | ${s2} | ${s3} ]\n\n  ${slotWin}`)
 } break
 
 //━━━━━━━━━━━━━━━━━━━━━━━━//
@@ -5806,32 +5792,32 @@ case 'compliment': {
     await X.sendMessage(m.chat, { react: { text: '😊', key: m.key } })
 let compliments = ['You are an amazing person!', 'Your smile lights up the room!', 'You are incredibly talented!', 'The world is better with you in it!', 'You have a heart of gold!', 'Your kindness is inspiring!', 'You are a ray of sunshine!', 'You make everything better!', 'You are one of a kind!', 'Your energy is contagious!']
 let target = (m.mentionedJid && m.mentionedJid[0]) ? `@${m.mentionedJid[0].split('@')[0]}` : pushname
-reply(`*Compliment for ${target}:*\n${compliments[Math.floor(Math.random() * compliments.length)]}`)
+reply(`╔══════════════════════════╗\n║  💐 *COMPLIMENT*\n╚══════════════════════════╝\n\n  👤 *${target}*\n  ${compliments[Math.floor(Math.random() * compliments.length)]}`)
 } break
 
 case 'insult': {
     await X.sendMessage(m.chat, { react: { text: '😤', key: m.key } })
 let insults = ['You are the human equivalent of a participation award.', 'If you were a spice, you would be flour.', 'You bring everyone so much joy when you leave.', 'You are like a cloud. When you disappear it is a beautiful day.', 'You are proof that even evolution makes mistakes.', 'Light travels faster than sound, which is why you seemed bright until you spoke.']
 let target2 = (m.mentionedJid && m.mentionedJid[0]) ? `@${m.mentionedJid[0].split('@')[0]}` : pushname
-reply(`*Roast for ${target2}:*\n${insults[Math.floor(Math.random() * insults.length)]}`)
+reply(`╔══════════════════════════╗\n║  🔥 *ROAST*\n╚══════════════════════════╝\n\n  👤 *${target2}*\n  ${insults[Math.floor(Math.random() * insults.length)]}`)
 } break
 
 case 'flirt': {
     await X.sendMessage(m.chat, { react: { text: '😏', key: m.key } })
 let flirts = ['Are you a magician? Because whenever I look at you, everyone else disappears.', 'Do you have a map? I keep getting lost in your eyes.', 'Are you a campfire? Because you are hot and I want s\'more.', 'Is your name Google? Because you have everything I have been searching for.', 'Do you believe in love at first sight, or should I walk by again?', 'If beauty were time, you would be an eternity.']
-reply(`*Flirt:*\n${flirts[Math.floor(Math.random() * flirts.length)]}`)
+reply(`╔══════════════════════════╗\n║  💘 *FLIRT*\n╚══════════════════════════╝\n\n  ${flirts[Math.floor(Math.random() * flirts.length)]}`)
 } break
 
 case 'shayari': {
     await X.sendMessage(m.chat, { react: { text: '✨', key: m.key } })
 let shayaris = ['Dil mein tere liye jagah hai,\nPar tu door hai, yeh kya wajah hai.', 'Teri yaad mein hum pagal hue,\nDuniya se hum bekhabar hue.', 'Mohabbat ka koi mol nahi,\nDil hai yeh koi phool nahi.', 'Zindagi mein teri kami hai,\nHar khushi adhuri si hai.', 'Tere bina zindagi se koi shikwa nahi,\nTere bina zindagi hai toh kya.']
-reply(`*Shayari:*\n${shayaris[Math.floor(Math.random() * shayaris.length)]}`)
+reply(`╔══════════════════════════╗\n║  📜 *SHAYARI*\n╚══════════════════════════╝\n\n  ${shayaris[Math.floor(Math.random() * shayaris.length)]}`)
 } break
 
 case 'goodnight': {
     await X.sendMessage(m.chat, { react: { text: '🌙', key: m.key } })
 let gn = ['Sweet dreams! May tomorrow bring you joy. 🌙', 'Good night! Sleep tight and don\'t let the bugs bite! 💤', 'Wishing you a peaceful night full of beautiful dreams. ✨', 'Close your eyes and let the stars guide your dreams. 🌟', 'Good night! Tomorrow is a new opportunity. Rest well! 😴']
-reply(`*Good Night:*\n${gn[Math.floor(Math.random() * gn.length)]}`)
+reply(`╔══════════════════════════╗\n║  🌙 *GOOD NIGHT*\n╚══════════════════════════╝\n\n  ${gn[Math.floor(Math.random() * gn.length)]}`)
 } break
 
 case 'roseday': {
@@ -5842,7 +5828,7 @@ reply('🌹 *Happy Rose Day!* 🌹\nRoses are red, violets are blue, sending thi
 case 'character': {
     await X.sendMessage(m.chat, { react: { text: '🎌', key: m.key } })
 let characters = ['Naruto Uzumaki', 'Goku', 'Luffy', 'Batman', 'Spider-Man', 'Iron Man', 'Sherlock Holmes', 'Harry Potter', 'Pikachu', 'Mario', 'Sonic', 'Link (Zelda)', 'Levi Ackerman', 'Tanjiro Kamado', 'Eren Yeager', 'Gojo Satoru']
-reply(`*Random Character:*\n${characters[Math.floor(Math.random() * characters.length)]}`)
+reply(`╔══════════════════════════╗\n║  🎭 *RANDOM CHARACTER*\n╚══════════════════════════╝\n\n  ${characters[Math.floor(Math.random() * characters.length)]}`)
 } break
 
 case 'ship': {
@@ -5881,8 +5867,8 @@ case 'joke': {
 try {
 let res = await fetch('https://v2.jokeapi.dev/joke/Any?safe-mode')
 let data = await res.json()
-if (data.type === 'single') reply(`*😂 Joke:*\n${data.joke}`)
-else reply(`*😂 Joke:*\n${data.setup}\n\n${data.delivery}`)
+if (data.type === 'single') reply(`╔══════════════════════════╗\n║  😂 *JOKE*\n╚══════════════════════════╝\n\n  ${data.joke}`)
+else reply(`╔══════════════════════════╗\n║  😂 *JOKE*\n╚══════════════════════════╝\n\n  ${data.setup}\n\n  ${data.delivery}`)
 } catch { reply('Could not fetch a joke right now.') }
 } break
 
@@ -6051,10 +6037,10 @@ case 'fact': {
 try {
 let res = await fetch('https://uselessfacts.jsph.pl/api/v2/facts/random')
 let data = await res.json()
-reply(`*📚 Random Fact:*\n${data.text}`)
+reply(`╔══════════════════════════╗\n║  📚 *RANDOM FACT*\n╚══════════════════════════╝\n\n  ${data.text}`)
 } catch {
 let facts = ['Honey never spoils.', 'Octopuses have three hearts.', 'Bananas are berries but strawberries are not.', 'A group of flamingos is called a flamboyance.', 'The shortest war in history lasted 38 minutes.']
-reply(`*📚 Random Fact:*\n${facts[Math.floor(Math.random() * facts.length)]}`)
+reply(`╔══════════════════════════╗\n║  📚 *RANDOM FACT*\n╚══════════════════════════╝\n\n  ${facts[Math.floor(Math.random() * facts.length)]}`)
 }
 } break
 
@@ -6173,7 +6159,7 @@ if (!data.data || !data.data.length) return reply('No anime found.')
 let animeList = data.data.map((a, i) => `${i+1}. *${a.title}* (${a.title_japanese || ''})\nScore: ${a.score || 'N/A'}\nEpisodes: ${a.episodes || 'N/A'}\nStatus: ${a.status}\nGenres: ${(a.genres || []).map(g => g.name).join(', ')}\nSynopsis: ${(a.synopsis || 'N/A').slice(0, 200)}...\nURL: ${a.url}`).join('\n\n')
 if (data.data[0].images?.jpg?.image_url) {
 await X.sendMessage(m.chat, { image: { url: data.data[0].images.jpg.image_url }, caption: `*Anime Search: ${text}*\n\n${animeList}` }, { quoted: m })
-} else reply(`*Anime Search: ${text}*\n\n${animeList}`)
+} else reply(`╔══════════════════════════╗\n║  🎌 *ANIME SEARCH*\n╚══════════════════════════╝\n\n  🔍 *${text}*\n\n${animeList}`)
 } catch(e) { reply('Error: ' + e.message) }
 } break
 
@@ -6815,13 +6801,13 @@ reply(`╔══════════════╗\n   *${ncName}*\n   ${gl
 case 'tweet': {
     await X.sendMessage(m.chat, { react: { text: '🐦', key: m.key } })
 if (!text) return reply(`Example: ${prefix}tweet I love coding!`)
-reply(`*Tweet by @${pushname}:*\n\n${text}\n\n❤️ ${Math.floor(Math.random() * 10000)}  🔁 ${Math.floor(Math.random() * 5000)}  💬 ${Math.floor(Math.random() * 1000)}`)
+reply(`╔══════════════════════════╗\n║  🐦 *TWEET*\n╚══════════════════════════╝\n\n  👤 *@${pushname}*\n  ${text}\n\n  ❤️ ${Math.floor(Math.random() * 10000)}  🔁 ${Math.floor(Math.random() * 5000)}  💬 ${Math.floor(Math.random() * 1000)}`)
 } break
 
 case 'ytcomment': {
     await X.sendMessage(m.chat, { react: { text: '💬', key: m.key } })
 if (!text) return reply(`Example: ${prefix}ytcomment This video is amazing!`)
-reply(`*YouTube Comment:*\n\n👤 *${pushname}*\n${text}\n\n👍 ${Math.floor(Math.random() * 5000)}  👎  💬 ${Math.floor(Math.random() * 200)} replies`)
+reply(`╔══════════════════════════╗\n║  ▶️  *YOUTUBE COMMENT*\n╚══════════════════════════╝\n\n  👤 *${pushname}*\n  ${text}\n\n  👍 ${Math.floor(Math.random() * 5000)}  👎  💬 ${Math.floor(Math.random() * 200)} replies`)
 } break
 
 case 'comrade': {

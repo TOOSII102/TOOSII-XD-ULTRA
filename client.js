@@ -4938,6 +4938,28 @@ if (usersDb[unbanUser]) { usersDb[unbanUser].banned = false; saveUsers(usersDb) 
 X.sendMessage(from, { text: `✅ *@${unbanUser.split('@')[0]} has been unbanned.*`, mentions: [unbanUser] }, { quoted: m })
 } break
 
+case 'antisocialgames':
+case 'antisgames': {
+    await X.sendMessage(m.chat, { react: { text: '🎭', key: m.key } })
+    if (!m.isGroup) return reply(mess.OnlyGrup)
+    if (!isAdmins && !isOwner) return reply(mess.admin)
+    if (!global.antiSocialGames) global.antiSocialGames = {}
+    const _asgArg = (args[0] || '').toLowerCase()
+    if (!_asgArg || _asgArg === 'status') {
+        const _on = global.antiSocialGames[m.chat] ? '✅ ON' : '❌ OFF'
+        return reply(`╔══════════════════════════╗\n║  🎭 *ANTI SOCIAL GAMES*\n╚══════════════════════════╝\n\n  ├ 📊 *Status* › *${_on}*\n\n  _When ON, blocks:_\n  ├ .vibe  ├ .rizz   ├ .iq\n  ├ .ship  ├ .simp   ├ .wasted\n  ├ .truth ├ .dare   └ .lolice\n\n  _Removed offensive aliases:_\n  ├ .gay   (now .vibe)\n  └ .horny (now .rizz)\n\n  ├ ${prefix}antisocialgames on\n  └ ${prefix}antisocialgames off`)
+    }
+    if (_asgArg === 'on') {
+        global.antiSocialGames[m.chat] = true
+        return reply(`✅ *Anti Social Games ON*\n_Social game commands are now blocked in this group._`)
+    }
+    if (_asgArg === 'off') {
+        global.antiSocialGames[m.chat] = false
+        return reply(`❌ *Anti Social Games OFF*\n_Social game commands are now allowed._`)
+    }
+}
+break
+
 case 'antibadword': {
     await X.sendMessage(m.chat, { react: { text: '🤬', key: m.key } })
 if (!m.isGroup) return reply(mess.OnlyGrup)
@@ -6322,12 +6344,14 @@ reply(`*Correct!* Well done, @${sender.split('@')[0]}! 🎉`)
 
 case 'truth': {
     await X.sendMessage(m.chat, { react: { text: '💬', key: m.key } })
+    if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*`)
 let truths = ['What is your biggest fear?', 'What is the most embarrassing thing you have done?', 'What is a secret you have never told anyone?', 'Who was your first crush?', 'What is the worst lie you have told?', 'What is your guilty pleasure?', 'Have you ever cheated on a test?', 'What is the most childish thing you still do?', 'What is your biggest insecurity?', 'What was your most awkward date?', 'Have you ever been caught lying?', 'What is the craziest thing on your bucket list?', 'What is the weirdest dream you have had?', 'If you could be invisible for a day what would you do?', 'What is the most stupid thing you have ever done?']
 reply(`╔══════════════════════════╗\n║  💬 *TRUTH*\n╚══════════════════════════╝\n\n  ${truths[Math.floor(Math.random() * truths.length)]}`)
 } break
 
 case 'dare': {
     await X.sendMessage(m.chat, { react: { text: '🎯', key: m.key } })
+    if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*`)
 let dares = ['Send a voice note singing your favorite song.', 'Change your profile picture to something funny for 1 hour.', 'Send the last photo in your gallery.', 'Text your crush right now.', 'Do 10 pushups and send a video.', 'Send a voice note doing your best animal impression.', 'Let someone else send a message from your phone.', 'Share your screen time report.', 'Send a selfie right now without filters.', 'Call the 5th person in your contacts and sing happy birthday.', 'Post a childhood photo in the group.', 'Let the group choose your status for 24 hours.', 'Send a voice note speaking in an accent.', 'Do a handstand and send proof.', 'Type with your eyes closed for the next message.']
 reply(`╔══════════════════════════╗\n║  🔥 *DARE*\n╚══════════════════════════╝\n\n  ${dares[Math.floor(Math.random() * dares.length)]}`)
 } break
@@ -6425,6 +6449,7 @@ reply(`╔═══════════════════════�
 
 case 'ship': {
     await X.sendMessage(m.chat, { react: { text: '💑', key: m.key } })
+    if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*`)
 if (!m.isGroup) return reply(mess.OnlyGrup)
 let members = participants.map(p => p.id)
 let p1 = m.mentionedJid && m.mentionedJid[0] ? m.mentionedJid[0] : members[Math.floor(Math.random() * members.length)]
@@ -6436,6 +6461,7 @@ X.sendMessage(from, { text: `*💕 Love Ship 💕*\n\n@${p1.split('@')[0]} ❤�
 
 case 'simp': {
     await X.sendMessage(m.chat, { react: { text: '😍', key: m.key } })
+    if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*`)
 let simpTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : sender
 let simpLevel = Math.floor(Math.random() * 101)
 X.sendMessage(from, { text: `*Simp Meter:*\n@${simpTarget.split('@')[0]}\n\n${'🟩'.repeat(Math.floor(simpLevel/10))}${'⬜'.repeat(10 - Math.floor(simpLevel/10))} ${simpLevel}%\n\n${simpLevel > 80 ? 'MAXIMUM SIMP! 😂' : simpLevel > 50 ? 'Moderate simp 😏' : 'Not a simp 😎'}`, mentions: [simpTarget] }, { quoted: m })
@@ -6443,15 +6469,19 @@ X.sendMessage(from, { text: `*Simp Meter:*\n@${simpTarget.split('@')[0]}\n\n${'�
 
 case 'wasted': {
     await X.sendMessage(m.chat, { react: { text: '💀', key: m.key } })
+    if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*`)
 let wastedTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : sender
 X.sendMessage(from, { text: `*WASTED*\n\n@${wastedTarget.split('@')[0]} is WASTED 💀\n\nR.I.P.`, mentions: [wastedTarget] }, { quoted: m })
 } break
 
-case 'stupid': {
-    await X.sendMessage(m.chat, { react: { text: '🤪', key: m.key } })
-let stupidTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : sender
-let stupidLevel = Math.floor(Math.random() * 101)
-X.sendMessage(from, { text: `*Stupid Meter:*\n@${stupidTarget.split('@')[0]}\n\n${'🧠'.repeat(Math.floor(stupidLevel/10))}${'⬜'.repeat(10 - Math.floor(stupidLevel/10))} ${stupidLevel}%\n\n${stupidLevel > 80 ? 'Extremely stupid 🤡' : stupidLevel > 50 ? 'Below average IQ 😅' : 'Actually smart! 🧐'}`, mentions: [stupidTarget] }, { quoted: m })
+case 'stupid':
+case 'iq': {
+    await X.sendMessage(m.chat, { react: { text: '🧠', key: m.key } })
+    if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*`)
+let iqTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : sender
+let iqScore = Math.floor(Math.random() * 80) + 70
+const iqMsg = iqScore > 130 ? 'Genius level! 🧠💡' : iqScore > 110 ? 'Above average mind 🎓' : iqScore > 90 ? 'Average intelligence 😊' : 'Room to grow! 📚'
+X.sendMessage(from, { text: `╔══════════════════════════╗\n║  🧠 *IQ METER*\n╚══════════════════════════╝\n\n  👤 @${iqTarget.split('@')[0]}\n\n  ${'🧠'.repeat(Math.min(10,Math.floor(iqScore/15)))}${'⬜'.repeat(10 - Math.min(10,Math.floor(iqScore/15)))} *IQ: ${iqScore}*\n\n  _${iqMsg}_`, mentions: [iqTarget] }, { quoted: m })
 } break
 
 case 'joke': {
@@ -7356,11 +7386,13 @@ X.sendMessage(from, { text: `*💕 ${pushname} sends love to @${heartTarget.spli
 } else { reply('*Heart effect applied!* 💕') }
 } break
 
-case 'horny': {
-    await X.sendMessage(m.chat, { react: { text: '🔥', key: m.key } })
-let hornyTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : sender
-let hornyLevel = Math.floor(Math.random() * 101)
-X.sendMessage(from, { text: `*Horny Meter:*\n@${hornyTarget.split('@')[0]}\n\n${'🔥'.repeat(Math.floor(hornyLevel/10))}${'⬜'.repeat(10 - Math.floor(hornyLevel/10))} ${hornyLevel}%`, mentions: [hornyTarget] }, { quoted: m })
+case 'rizz': {
+    await X.sendMessage(m.chat, { react: { text: '😎', key: m.key } })
+    if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*`)
+let rizzTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : sender
+let rizzLevel = Math.floor(Math.random() * 101)
+const rizzMsg = rizzLevel > 80 ? 'Unmatched rizz! 😎🔥' : rizzLevel > 50 ? 'Solid rizz game 💪' : rizzLevel > 30 ? 'Rizz needs work 😅' : 'No rizz detected 💀'
+X.sendMessage(from, { text: `╔══════════════════════════╗\n║  😎 *RIZZ METER*\n╚══════════════════════════╝\n\n  👤 @${rizzTarget.split('@')[0]}\n\n  ${'🔥'.repeat(Math.floor(rizzLevel/10))}${'⬜'.repeat(10 - Math.floor(rizzLevel/10))} *${rizzLevel}%*\n\n  _${rizzMsg}_`, mentions: [rizzTarget] }, { quoted: m })
 } break
 
 case 'circle': {
@@ -7374,14 +7406,19 @@ await X.sendMessage(m.chat, { sticker: buf }, { quoted: m })
 
 case 'lgbt': {
     await X.sendMessage(m.chat, { react: { text: '🌈', key: m.key } })
+    if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*`)
 let lgbtTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : sender
 X.sendMessage(from, { text: `*🏳️‍🌈 @${lgbtTarget.split('@')[0]} supports LGBTQ+! 🏳️‍🌈*\n🌈 Love is Love 🌈`, mentions: [lgbtTarget] }, { quoted: m })
 } break
 
-case 'lolice': {
-    await X.sendMessage(m.chat, { react: { text: '👮', key: m.key } })
-let loliceTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : sender
-X.sendMessage(from, { text: `*🚨 LOLICE ALERT! 🚨*\n@${loliceTarget.split('@')[0]} has been caught by the Lolice! 🚔`, mentions: [loliceTarget] }, { quoted: m })
+case 'lolice':
+case 'police': {
+    await X.sendMessage(m.chat, { react: { text: '🚔', key: m.key } })
+    if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*`)
+let policeTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : sender
+const policeReasons = ['Being too awesome 😂', 'Excessive good vibes ✨', 'Stealing hearts 💘', 'Being suspiciously cool 😎', 'Causing too much fun 🎉']
+const reason = policeReasons[Math.floor(Math.random() * policeReasons.length)]
+X.sendMessage(from, { text: `╔══════════════════════════╗\n║  🚔 *POLICE ALERT!*\n╚══════════════════════════╝\n\n  🚨 @${policeTarget.split('@')[0]} has been arrested!\n\n  ├ 📋 *Crime* › ${reason}\n  └ ⚖️  *Sentence* › Life of fun 🎉`, mentions: [policeTarget] }, { quoted: m })
 } break
 
 case 'namecard': {
@@ -7404,15 +7441,18 @@ reply(`╔═══════════════════════�
 
 case 'comrade': {
     await X.sendMessage(m.chat, { react: { text: '☭', key: m.key } })
+    if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*`)
 let comradeTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : sender
 X.sendMessage(from, { text: `*☭ Our Comrade @${comradeTarget.split('@')[0]}! ☭*\nServing the motherland with honor!`, mentions: [comradeTarget] }, { quoted: m })
 } break
 
-case 'gay': {
-    await X.sendMessage(m.chat, { react: { text: '🌈', key: m.key } })
-let gayTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : sender
-let gayLevel = Math.floor(Math.random() * 101)
-X.sendMessage(from, { text: `*Gay Meter:*\n@${gayTarget.split('@')[0]}\n\n${'🏳️‍🌈'.repeat(Math.floor(gayLevel/10))}${'⬜'.repeat(10 - Math.floor(gayLevel/10))} ${gayLevel}%`, mentions: [gayTarget] }, { quoted: m })
+case 'vibe': {
+    await X.sendMessage(m.chat, { react: { text: '✨', key: m.key } })
+    if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*\n\nUse *${prefix}antisocialgames off* to re-enable.`)
+let vibeTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : sender
+let vibeLevel = Math.floor(Math.random() * 101)
+const vibeMsg = vibeLevel > 80 ? 'Absolutely radiating! 🔥' : vibeLevel > 50 ? 'Good vibes only ✨' : vibeLevel > 30 ? 'Vibes loading... 😌' : 'Needs a coffee first ☕'
+X.sendMessage(from, { text: `╔══════════════════════════╗\n║  ✨ *VIBE CHECK*\n╚══════════════════════════╝\n\n  👤 @${vibeTarget.split('@')[0]}\n\n  ${'✨'.repeat(Math.floor(vibeLevel/10))}${'⬜'.repeat(10 - Math.floor(vibeLevel/10))} *${vibeLevel}%*\n\n  _${vibeMsg}_`, mentions: [vibeTarget] }, { quoted: m })
 } break
 
 case 'glass': {

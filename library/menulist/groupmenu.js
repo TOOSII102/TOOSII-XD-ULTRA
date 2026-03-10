@@ -40,7 +40,8 @@ const groupMenu = `
   ├ .antibadword  › on/off
   ├ .antitag      › on/off
   ├ .antisticker  › on/off
-  └ .antidemote   › on/off
+  ├ .antidemote   › on/off
+  └ .antibot      › on/off/scan/add/list
 
 ╔══════════════════════════╗
 ║  🔧  *GROUP TOOLS*

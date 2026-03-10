@@ -465,13 +465,33 @@ if (
   }
 }
 //━━━━━━━━━━━━━━━━━━━━━━━━//
-// autoshalat — dynamic timezone + prayer times by phone country code
+// Prayer & Devotion Reminders
+// Globals: global.muslimPrayer / global.christianDevotion
+//   values: 'off' | 'dm' | 'group' | 'all'
+if (!global.muslimPrayer)    global.muslimPrayer    = 'off'
+if (!global.christianDevotion) global.christianDevotion = 'off'
+
 X.autoshalat = X.autoshalat ? X.autoshalat : {}
         let who = m.mentionedJid && m.mentionedJid[0] ? m.mentionedJid[0] : m.fromMe ? X.user.id : m.sender
-        let id = m.chat 
+        let id = m.chat
     if(id in X.autoshalat) {
     return false
     }
+
+    // Check if this chat should receive the reminder
+    const _isGroup = m.isGroup
+    const _prayerAllowed = (setting) => {
+        if (!setting || setting === 'off') return false
+        if (setting === 'all') return true
+        if (setting === 'group') return _isGroup
+        if (setting === 'dm') return !_isGroup
+        return false
+    }
+
+    // Skip entirely if both are off for this chat type
+    if (!_prayerAllowed(global.muslimPrayer) && !_prayerAllowed(global.christianDevotion)) {
+        // fall through silently
+    } else {
 
     // Detect timezone & region from sender's country code
     const _senderNum = (m.sender || '').split('@')[0]
@@ -495,92 +515,80 @@ X.autoshalat = X.autoshalat ? X.autoshalat : {}
                 _senderNum.startsWith('234') ? '234' : '254'
 
     const _tzMap = {
-        '254': { tz: 'Africa/Nairobi',     region: 'Kenya' },
+        '254': { tz: 'Africa/Nairobi',       region: 'Kenya' },
         '255': { tz: 'Africa/Dar_es_Salaam', region: 'Tanzania' },
-        '256': { tz: 'Africa/Kampala',     region: 'Uganda' },
-        '257': { tz: 'Africa/Bujumbura',   region: 'Burundi' },
-        '250': { tz: 'Africa/Kigali',      region: 'Rwanda' },
-        '251': { tz: 'Africa/Addis_Ababa', region: 'Ethiopia' },
-        '252': { tz: 'Africa/Mogadishu',   region: 'Somalia' },
-        '253': { tz: 'Africa/Djibouti',    region: 'Djibouti' },
-        '62':  { tz: 'Asia/Jakarta',       region: 'Indonesia' },
-        '60':  { tz: 'Asia/Kuala_Lumpur',  region: 'Malaysia' },
-        '92':  { tz: 'Asia/Karachi',       region: 'Pakistan' },
-        '880': { tz: 'Asia/Dhaka',         region: 'Bangladesh' },
-        '91':  { tz: 'Asia/Kolkata',       region: 'India' },
-        '966': { tz: 'Asia/Riyadh',        region: 'Saudi Arabia' },
-        '971': { tz: 'Asia/Dubai',         region: 'UAE' },
-        '20':  { tz: 'Africa/Cairo',       region: 'Egypt' },
-        '212': { tz: 'Africa/Casablanca',  region: 'Morocco' },
-        '234': { tz: 'Africa/Lagos',       region: 'Nigeria' },
+        '256': { tz: 'Africa/Kampala',       region: 'Uganda' },
+        '257': { tz: 'Africa/Bujumbura',     region: 'Burundi' },
+        '250': { tz: 'Africa/Kigali',        region: 'Rwanda' },
+        '251': { tz: 'Africa/Addis_Ababa',   region: 'Ethiopia' },
+        '252': { tz: 'Africa/Mogadishu',     region: 'Somalia' },
+        '253': { tz: 'Africa/Djibouti',      region: 'Djibouti' },
+        '62':  { tz: 'Asia/Jakarta',         region: 'Indonesia' },
+        '60':  { tz: 'Asia/Kuala_Lumpur',    region: 'Malaysia' },
+        '92':  { tz: 'Asia/Karachi',         region: 'Pakistan' },
+        '880': { tz: 'Asia/Dhaka',           region: 'Bangladesh' },
+        '91':  { tz: 'Asia/Kolkata',         region: 'India' },
+        '966': { tz: 'Asia/Riyadh',          region: 'Saudi Arabia' },
+        '971': { tz: 'Asia/Dubai',           region: 'UAE' },
+        '20':  { tz: 'Africa/Cairo',         region: 'Egypt' },
+        '212': { tz: 'Africa/Casablanca',    region: 'Morocco' },
+        '234': { tz: 'Africa/Lagos',         region: 'Nigeria' },
     }
     const _tzInfo = _tzMap[_cc] || { tz: 'Africa/Nairobi', region: 'Kenya' }
 
-    // Fetch live prayer times from Aladhan API based on timezone
-    let jadwalSholat = {}
-    try {
-        const _prayerRes = await fetch(`https://api.aladhan.com/v1/timingsByCity?city=${encodeURIComponent(_tzInfo.region)}&country=${encodeURIComponent(_tzInfo.region)}&method=3`)
-        const _prayerData = await _prayerRes.json()
-        if (_prayerData.code === 200 && _prayerData.data && _prayerData.data.timings) {
-            const t = _prayerData.data.timings
-            jadwalSholat = {
-                Fajr:    t.Fajr?.slice(0,5),
-                Sunrise: t.Sunrise?.slice(0,5),
-                Dhuhr:   t.Dhuhr?.slice(0,5),
-                Asr:     t.Asr?.slice(0,5),
-                Maghrib: t.Maghrib?.slice(0,5),
-                Isha:    t.Isha?.slice(0,5),
-            }
-        }
-    } catch {}
-
-    // Fallback: Nairobi approximate times
-    if (!Object.keys(jadwalSholat).length) {
-        jadwalSholat = { Fajr: '05:00', Sunrise: '06:15', Dhuhr: '12:20', Asr: '15:30', Maghrib: '18:25', Isha: '19:35' }
-    }
+    // Use pushname if available, otherwise clean number
+    const _displayName = (pushname && pushname !== _senderNum && pushname.length > 1)
+        ? pushname : (m.isGroup ? 'everyone' : 'friend')
 
     const datek = new Date((new Date).toLocaleString("en-US", { timeZone: _tzInfo.tz }))
     const hours = datek.getHours()
     const minutes = datek.getMinutes()
     const timeNow = `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`
 
-    // Use pushname if available, otherwise clean number
-    const _displayName = (pushname && pushname !== _senderNum && pushname.length > 1)
-        ? pushname
-        : '+' + _senderNum
-
-    // Christian devotion times (Morning, Midday, Evening, Night)
-    const _christianTimes = {
-        '06:00': { name: 'Morning Devotion',  icon: '🌅', msg: 'Start your day with God. Take a moment to pray, read the Word, and commit your day to Him.' },
-        '12:00': { name: 'Midday Prayer',     icon: '☀️',  msg: 'Pause in the middle of your day. Give thanks, seek guidance, and renew your strength in Christ.' },
-        '18:00': { name: 'Evening Prayer',    icon: '🌇', msg: 'As the day winds down, give thanks for God\'s grace and protection throughout the day.' },
-        '21:00': { name: 'Night Prayer',      icon: '🌙', msg: 'Before you rest, lay your burdens before God. He watches over you through the night.' },
+    // ── Muslim Prayer Times ───────────────────────────────────────────
+    if (_prayerAllowed(global.muslimPrayer)) {
+        let jadwalSholat = {}
+        try {
+            const _prayerRes = await fetch(`https://api.aladhan.com/v1/timingsByCity?city=${encodeURIComponent(_tzInfo.region)}&country=${encodeURIComponent(_tzInfo.region)}&method=3`)
+            const _prayerData = await _prayerRes.json()
+            if (_prayerData.code === 200 && _prayerData.data && _prayerData.data.timings) {
+                const t = _prayerData.data.timings
+                jadwalSholat = {
+                    Fajr:    t.Fajr?.slice(0,5),
+                    Dhuhr:   t.Dhuhr?.slice(0,5),
+                    Asr:     t.Asr?.slice(0,5),
+                    Maghrib: t.Maghrib?.slice(0,5),
+                    Isha:    t.Isha?.slice(0,5),
+                }
+            }
+        } catch {}
+        if (!Object.keys(jadwalSholat).length) {
+            jadwalSholat = { Fajr: '05:00', Dhuhr: '12:20', Asr: '15:30', Maghrib: '18:25', Isha: '19:35' }
+        }
+        for(let [sholat, waktu] of Object.entries(jadwalSholat)) {
+            if(timeNow === waktu && !(id in X.autoshalat)) {
+                let caption = `╔══════════════════════════╗\n║  🕌 *PRAYER TIME*\n╚══════════════════════════╝\n\n  As-salamu alaykum, *${_displayName}* 🙏\n\n  ├ 🕌 *${sholat}* prayer time\n  ├ 🕐 *${waktu}*\n  └ 🌍 ${_tzInfo.region}\n\n  _Take your ablution and pray_ 🤲`
+                X.autoshalat[id] = [reply(caption), setTimeout(() => { delete X.autoshalat[m.chat] }, 57000)]
+            }
+        }
     }
 
-    // Check Muslim prayer times
-    for(let [sholat, waktu] of Object.entries(jadwalSholat)) {
-    if(timeNow === waktu) {
-    let caption = `╔══════════════════════════╗\n║  🕌 *PRAYER TIME*\n╚══════════════════════════╝\n\n  As-salamu alaykum, *${_displayName}*\n\n  ├ 🙏 *${sholat}* prayer time\n  ├ 🕐 *${waktu}*\n  └ 🌍 ${_tzInfo.region} & surroundings\n\n  _Take your ablution and pray_ 🤲`
-    X.autoshalat[id] = [
-    reply(caption),
-    setTimeout(async () => {
-    delete X.autoshalat[m.chat]
-    }, 57000)
-    ]
-    }
+    // ── Christian Devotion Times ──────────────────────────────────────
+    if (_prayerAllowed(global.christianDevotion)) {
+        const _christianTimes = {
+            '06:00': { name: 'Morning Devotion', icon: '🌅', msg: 'Start your day with God. Pray, read the Word, and commit your day to Him.' },
+            '12:00': { name: 'Midday Prayer',    icon: '☀️',  msg: 'Pause midday. Give thanks, seek guidance, and renew your strength in Christ.' },
+            '18:00': { name: 'Evening Prayer',   icon: '🌇', msg: 'As the day winds down, give thanks for His grace and protection.' },
+            '21:00': { name: 'Night Prayer',     icon: '🌙', msg: 'Before you rest, lay your burdens before God. He watches over you.' },
+        }
+        if (_christianTimes[timeNow] && !(id in X.autoshalat)) {
+            const _dev = _christianTimes[timeNow]
+            let _devCaption = `╔══════════════════════════╗\n║  ✝️  *DEVOTION TIME*\n╚══════════════════════════╝\n\n  God bless you, *${_displayName}* 🙏\n\n  ├ ${_dev.icon} *${_dev.name}*\n  ├ 🕐 *${timeNow}*\n  └ 🌍 ${_tzInfo.region}\n\n  _${_dev.msg}_\n\n  _📖 "Call to me and I will answer you" — Jer 33:3_`
+            X.autoshalat[id] = [reply(_devCaption), setTimeout(() => { delete X.autoshalat[m.chat] }, 57000)]
+        }
     }
 
-    // Check Christian devotion times
-    if (_christianTimes[timeNow] && !(id in X.autoshalat)) {
-    const _dev = _christianTimes[timeNow]
-    let _devCaption = `╔══════════════════════════╗\n║  ✝️  *DEVOTION TIME*\n╚══════════════════════════╝\n\n  God bless you, *${_displayName}* 🙏\n\n  ├ ${_dev.icon} *${_dev.name}*\n  ├ 🕐 *${timeNow}*\n  └ 🌍 ${_tzInfo.region}\n\n  _${_dev.msg}_\n\n  _📖 "Call to me and I will answer you" — Jer 33:3_`
-    X.autoshalat[id] = [
-    reply(_devCaption),
-    setTimeout(async () => {
-    delete X.autoshalat[m.chat]
-    }, 57000)
-    ]
-    }
+    } // end prayer allowed check
 //━━━━━━━━━━━━━━━━━━━━━━━━//
 // Similarity
 function getCaseNames() {
@@ -3889,6 +3897,42 @@ case 'velynai':{
       return reply(data?.choices?.[0]?.message?.content || 'No response.')
     } catch { return reply("Sorry, an error occurred while contacting the AI.") }
   }
+}
+break
+
+case 'muslimprayer':
+case 'islamprayer':
+case 'prayermuslim': {
+    await X.sendMessage(m.chat, { react: { text: '🕌', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    const _arg = (text || '').toLowerCase().trim()
+    const _valid = ['on', 'off', 'dm', 'group', 'all', 'status']
+    if (_arg === 'status' || !_arg) {
+        const _cur = global.muslimPrayer || 'off'
+        return reply(`╔══════════════════════════╗\n║  🕌 *MUSLIM PRAYER REMINDER*\n╚══════════════════════════╝\n\n  ├ 📊 *Status* › *${_cur.toUpperCase()}*\n\n  ├ ${prefix}muslimprayer on    — DM + groups\n  ├ ${prefix}muslimprayer dm    — DM only\n  ├ ${prefix}muslimprayer group — groups only\n  └ ${prefix}muslimprayer off   — disable`)
+    }
+    if (!_valid.includes(_arg)) return reply(`❌ Invalid. Use: on · off · dm · group · all`)
+    global.muslimPrayer = _arg === 'on' ? 'all' : _arg
+    const _labels = { all: '✅ ON (DM + Groups)', dm: '✅ ON (DM only)', group: '✅ ON (Groups only)', off: '❌ OFF' }
+    reply(`🕌 *Muslim Prayer Reminder* › ${_labels[global.muslimPrayer]}`)
+}
+break
+
+case 'christianprayer':
+case 'devotion':
+case 'prayerchristian': {
+    await X.sendMessage(m.chat, { react: { text: '✝️', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    const _arg2 = (text || '').toLowerCase().trim()
+    const _valid2 = ['on', 'off', 'dm', 'group', 'all', 'status']
+    if (_arg2 === 'status' || !_arg2) {
+        const _cur2 = global.christianDevotion || 'off'
+        return reply(`╔══════════════════════════╗\n║  ✝️  *CHRISTIAN DEVOTION*\n╚══════════════════════════╝\n\n  ├ 📊 *Status* › *${_cur2.toUpperCase()}*\n\n  ├ ${prefix}christianprayer on    — DM + groups\n  ├ ${prefix}christianprayer dm    — DM only\n  ├ ${prefix}christianprayer group — groups only\n  └ ${prefix}christianprayer off   — disable`)
+    }
+    if (!_valid2.includes(_arg2)) return reply(`❌ Invalid. Use: on · off · dm · group · all`)
+    global.christianDevotion = _arg2 === 'on' ? 'all' : _arg2
+    const _labels2 = { all: '✅ ON (DM + Groups)', dm: '✅ ON (DM only)', group: '✅ ON (Groups only)', off: '❌ OFF' }
+    reply(`✝️ *Christian Devotion* › ${_labels2[global.christianDevotion]}`)
 }
 break
 

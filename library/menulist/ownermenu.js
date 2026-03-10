@@ -48,7 +48,9 @@ const ownerMenu = `
   ├ .autoreact      › [emoji/on/off]
   ├ .autoreplystatus › [msg/off]
   ├ .autoviewstatus
-  └ .autolikestatus › [emoji/off]
+  ├ .autolikestatus   › [emoji/off]
+  ├ .muslimprayer     › [on/off/dm/group]
+  └ .christianprayer  › [on/off/dm/group]
 
 ╔══════════════════════════╗
 ║  🤖  *AI CHATBOT MODES*

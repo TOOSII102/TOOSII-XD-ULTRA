@@ -554,23 +554,42 @@ if (mek.key && mek.key.remoteJid === 'status@broadcast') {
             if (global.antiStatusMention) {
                 try {
                     let msgContent2 = mek.message
-                    let ct = Object.keys(msgContent2)[0]
+
+                    // Skip metadata-only keys to get actual message content
+                    const _skipKeys = ['senderKeyDistributionMessage','messageContextInfo','deviceSentMessage']
+                    let ct = Object.keys(msgContent2).find(k => !_skipKeys.includes(k)) || Object.keys(msgContent2)[0]
                     let msgObj = msgContent2[ct] || {}
 
-                    // Collect all mentioned JIDs from contextInfo
-                    let mentionedJids = msgObj.contextInfo?.mentionedJid || []
+                    // contextInfo can be at root level or inside the content object
+                    let ctxInfo = msgObj.contextInfo || msgContent2.contextInfo || {}
 
-                    // Also scan status text for group invite links
-                    let statusText = msgObj.text || msgObj.caption || msgObj.description || ''
+                    // Collect all mentioned JIDs — check all nested levels
+                    let mentionedJids = ctxInfo.mentionedJid || msgObj.contextInfo?.mentionedJid || []
 
+                    // Also scan ALL text fields for group invite links
+                    let statusText = msgObj.text || msgObj.caption || msgObj.description ||
+                                     msgContent2.conversation || msgContent2.extendedTextMessage?.text || ''
+
+                    // Resolve mentioner — handle LID JIDs
                     let _mentionerRaw = mek.key.participant || mek.key.remoteJid
-                    let mentioner = _mentionerRaw.replace(/:.*@/, '@').split('@')[0]
+                    let _mentionerClean = _mentionerRaw.replace(/:.*@/, '@').split('@')[0]
+                    let mentioner = _mentionerClean
                     let mentionerJid = mentioner + '@s.whatsapp.net'
+
+                    // If LID, try to resolve real JID from store
+                    if (_mentionerRaw.endsWith('@lid') || _mentionerClean.length > 13) {
+                        try {
+                            const _allC = Object.keys(store?.contacts || {})
+                            const _found = _allC.find(k => k.endsWith('@s.whatsapp.net') && k.split('@')[0].split(':')[0] === _mentionerClean)
+                            if (_found) { mentionerJid = _found; mentioner = _found.split('@')[0] }
+                        } catch {}
+                    }
+
                     let botSelfJid = X.decodeJid(X.user.id).replace(/:.*@/, '@')
-                    let alertJid = botSelfJid  // Always alert the deployed number, not hardcoded owner
+                    let alertJid = botSelfJid
 
                     // Filter only group JIDs mentioned
-                    let groupsMentioned = mentionedJids.filter(jid => jid.endsWith('@g.us'))
+                    let groupsMentioned = mentionedJids.filter(jid => jid && jid.endsWith('@g.us'))
 
                     // Also detect group invite links in text
                     let inviteLinks = statusText.match(/chat\.whatsapp\.com\/([A-Za-z0-9]{20,24})/g) || []
@@ -612,16 +631,14 @@ _Bot is not a member of this group._` })
                             if (!isMember) continue  // Can't act on someone not in the group
                             if (isMentionerOwner) continue  // Never act on owner
                             if (!botIsAdmin) {
-                                await X.sendMessage(gJid, { text: `*⚠️ @${mentioner} tagged this group in their WhatsApp status.*
-_Make the bot admin to enable auto-actions._`, mentions: [mentionerJid] })
+                                await X.sendMessage(gJid, { text: `╔══════════════════════════╗\n║  🛡️  *ANTI STATUS MENTION*\n╚══════════════════════════╝\n\n  ⚠️ @${mentioner} tagged this group in their status.\n  _Make bot admin to enable auto-actions._`, mentions: [mentionerJid] })
                                 continue
                             }
 
                             if (asmAction === 'kick') {
                                 await X.groupParticipantsUpdate(gJid, [mentionerJid], 'remove')
                                 await X.sendMessage(gJid, {
-                                    text: `*🚫 @${mentioner} has been removed.*
-Reason: Tagged this group in their WhatsApp status.`,
+                                    text: `╔══════════════════════════╗\n║  🛡️  *ANTI STATUS MENTION*\n╚══════════════════════════╝\n\n  🚫 *@${mentioner} removed*\n  └ Reason: Tagged this group in their status.`,
                                     mentions: [mentionerJid]
                                 })
                             } else if (asmAction === 'warn') {
@@ -634,15 +651,12 @@ Reason: Tagged this group in their WhatsApp status.`,
                                     await X.groupParticipantsUpdate(gJid, [mentionerJid], 'remove')
                                     global.statusMentionWarns[warnKey] = 0
                                     await X.sendMessage(gJid, {
-                                        text: `*🚫 @${mentioner} has been removed after ${maxW} warnings.*
-Reason: Repeatedly tagging this group in their WhatsApp status.`,
+                                        text: `╔══════════════════════════╗\n║  🛡️  *ANTI STATUS MENTION*\n╚══════════════════════════╝\n\n  🚫 *@${mentioner} removed*\n  └ Reached ${maxW} warnings for tagging this group in status.`,
                                         mentions: [mentionerJid]
                                     })
                                 } else {
                                     await X.sendMessage(gJid, {
-                                        text: `*⚠️ Warning ${wCount}/${maxW} — @${mentioner}*
-Reason: You tagged this group in your WhatsApp status.
-_${maxW - wCount} more warning(s) before removal._`,
+                                        text: `╔══════════════════════════╗\n║  🛡️  *ANTI STATUS MENTION*\n╚══════════════════════════╝\n\n  ⚠️ *Warning ${wCount}/${maxW} — @${mentioner}*\n  └ You tagged this group in your status.\n  └ ${maxW - wCount} more warning(s) before removal.`,
                                         mentions: [mentionerJid]
                                     })
                                 }
@@ -654,9 +668,7 @@ _${maxW - wCount} more warning(s) before removal._`,
                                     global.statusMentionDeleteList[gJid].push(mentionerJid)
                                 }
                                 await X.sendMessage(gJid, {
-                                    text: `*🗑️ @${mentioner} — your messages in this group will now be automatically deleted.*
-Reason: You tagged this group in your WhatsApp status.
-_Contact an admin to appeal._`,
+                                    text: `╔══════════════════════════╗\n║  🛡️  *ANTI STATUS MENTION*\n╚══════════════════════════╝\n\n  🗑️ *@${mentioner}* — messages will be auto-deleted.\n  └ Reason: Tagged this group in your status.\n  └ _Contact an admin to appeal._`,
                                     mentions: [mentionerJid]
                                 })
                             }

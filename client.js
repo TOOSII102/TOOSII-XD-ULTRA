@@ -1926,25 +1926,111 @@ break
 
 case 'autolikestatus':
 case 'autolike':
-case 'als': {
+case 'als':
+case 'sr':
+case 'reactstatus':
+case 'statusreact': {
     await X.sendMessage(m.chat, { react: { text: '❤️', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let emojiArg = (args.join(' ') || '').trim()
-if (!emojiArg) {
-    let statusMsg = global.autoLikeStatus ? '✅ ON' : '❌ OFF'
-    let currentEmoji = global.autoLikeEmoji || 'Not set'
-    let viewStatus = global.autoViewStatus ? '✅ ON' : '❌ OFF'
-    reply(`*❤️ Auto Like Status: ${statusMsg}*\n*👀 Auto View: ${viewStatus}*\nCurrent emoji: ${currentEmoji}\n\n*Usage:*\n• ${prefix}autolikestatus [emoji] - Set emoji & turn ON\n• ${prefix}autolikestatus off - Turn OFF\n\n*Examples:*\n• ${prefix}autolikestatus ❤️\n• ${prefix}autolikestatus 🔥\n• ${prefix}autolikestatus 😂\n• ${prefix}autolikestatus 👍\n• ${prefix}autolikestatus off`)
-} else if (emojiArg.toLowerCase() === 'off' || emojiArg.toLowerCase() === 'disable') {
-    global.autoLikeStatus = false
-    global.autoLikeEmoji = ''
-    reply('*❤️ Auto Like Status: ❌ OFF*\n\nBot will no longer auto-react to statuses.')
-} else {
-    global.autoLikeEmoji = emojiArg
-    global.autoLikeStatus = true
-    global.autoViewStatus = true
-    reply(`*❤️ Auto Like Status: ✅ ON*\n\nReacting to all statuses with: ${emojiArg}\n👀 Auto View also enabled (required for reactions).\n_Protocol: direct react to poster JID (Meta 2024+)_`)
-}
+    if (!isOwner) return reply(mess.OnlyOwner)
+
+    // Init global react manager state
+    if (!global.arManager) global.arManager = {
+        enabled: false,
+        viewMode: 'view+react',   // 'view+react' | 'react-only'
+        mode: 'fixed',            // 'fixed' | 'random'
+        fixedEmoji: '❤️',
+        reactions: ['❤️','🔥','👍','😂','😮','👏','🎉','🎯','💯','🌟','✨','⚡','💥','🫶','🐺'],
+        totalReacted: 0,
+        reactedIds: [],           // dedupe by status id
+        lastReactionTime: 0,
+        rateLimitDelay: 2000,
+    }
+    const _ar = global.arManager
+    const _arAction = (args[0] || '').toLowerCase().trim()
+    const _arVal = (args[1] || '').trim()
+
+    // Helper: status line
+    const _arStatus = () => {
+        const _vm = _ar.viewMode === 'view+react' ? '👁️ + react' : 'react only'
+        const _em = _ar.mode === 'fixed' ? _ar.fixedEmoji : '🎲 random'
+        return `╔══════════════════════════╗\n║  ❤️  *AUTO REACT STATUS*\n╚══════════════════════════╝\n\n  ├ 📊 *Status*    › ${_ar.enabled ? '✅ ON' : '❌ OFF'}\n  ├ 👁️  *View Mode* › ${_vm}\n  ├ 🎭 *Emoji*     › ${_em}\n  ├ 📈 *Reacted*   › ${_ar.totalReacted} statuses\n  └ 🎨 *Pool*      › ${_ar.reactions.join(' ')}\n\n  *Commands:*\n  ├ ${prefix}als on / off\n  ├ ${prefix}als view+react / react-only\n  ├ ${prefix}als fixed / random\n  ├ ${prefix}als emoji [emoji]\n  ├ ${prefix}als add [emoji] / remove [emoji]\n  ├ ${prefix}als reset\n  └ ${prefix}als stats`
+    }
+
+    if (!_arAction || _arAction === 'status') return reply(_arStatus())
+
+    if (_arAction === 'on' || _arAction === 'enable') {
+        _ar.enabled = true
+        global.autoLikeStatus = true
+        global.autoViewStatus = _ar.viewMode === 'view+react'
+        return reply(`✅ *Auto React ON*\n└ Mode: ${_ar.viewMode} · ${_ar.mode === 'fixed' ? _ar.fixedEmoji : 'random'}`)
+    }
+
+    if (_arAction === 'off' || _arAction === 'disable') {
+        _ar.enabled = false
+        global.autoLikeStatus = false
+        return reply(`❌ *Auto React OFF*`)
+    }
+
+    if (_arAction === 'view+react' || _arAction === 'viewreact') {
+        _ar.viewMode = 'view+react'
+        global.autoViewStatus = true
+        return reply(`👁️ *View + React mode* — bot marks status as viewed then reacts.`)
+    }
+
+    if (_arAction === 'react-only' || _arAction === 'reactonly') {
+        _ar.viewMode = 'react-only'
+        return reply(`🎭 *React-only mode* — reacts without marking as viewed.`)
+    }
+
+    if (_arAction === 'fixed') {
+        _ar.mode = 'fixed'
+        return reply(`📌 *Fixed mode* — always reacts with ${_ar.fixedEmoji}`)
+    }
+
+    if (_arAction === 'random') {
+        _ar.mode = 'random'
+        return reply(`🎲 *Random mode* — picks random emoji from pool:\n${_ar.reactions.join(' ')}`)
+    }
+
+    if (_arAction === 'emoji') {
+        if (!_arVal) return reply(`❌ Usage: *${prefix}als emoji ❤️*`)
+        _ar.fixedEmoji = _arVal
+        _ar.mode = 'fixed'
+        global.autoLikeEmoji = _arVal
+        return reply(`✅ Emoji set to *${_arVal}* (fixed mode)`)
+    }
+
+    if (_arAction === 'add') {
+        if (!_arVal) return reply(`❌ Usage: *${prefix}als add 🔥*`)
+        if (_ar.reactions.includes(_arVal)) return reply(`⚠️ *${_arVal}* already in pool.`)
+        _ar.reactions.push(_arVal)
+        return reply(`✅ *${_arVal}* added.\n\n${_ar.reactions.join(' ')}`)
+    }
+
+    if (_arAction === 'remove') {
+        if (!_arVal) return reply(`❌ Usage: *${prefix}als remove 🔥*`)
+        const _ri = _ar.reactions.indexOf(_arVal)
+        if (_ri === -1) return reply(`❌ *${_arVal}* not in pool.`)
+        _ar.reactions.splice(_ri, 1)
+        return reply(`✅ *${_arVal}* removed.\n\n${_ar.reactions.join(' ')}`)
+    }
+
+    if (_arAction === 'reset') {
+        _ar.reactions = ['❤️','🔥','👍','😂','😮','👏','🎉','🎯','💯','🌟','✨','⚡','💥','🫶','🐺']
+        _ar.totalReacted = 0
+        _ar.reactedIds = []
+        return reply(`🔄 *Reset* — emoji pool restored, stats cleared.`)
+    }
+
+    if (_arAction === 'stats') {
+        return reply(`╔══════════════════════════╗\n║  📊 *REACT STATS*\n╚══════════════════════════╝\n\n  ├ 📈 *Total reacted* › ${_ar.totalReacted}\n  ├ 🗂️  *Tracked IDs*   › ${_ar.reactedIds.length}\n  ├ 🎭 *Mode*          › ${_ar.mode}\n  ├ 👁️  *View Mode*     › ${_ar.viewMode}\n  └ 🎨 *Emoji pool*    › ${_ar.reactions.join(' ')}`)
+    }
+
+    if (_arAction === 'list' || _arAction === 'emojis') {
+        return reply(`🎨 *Emoji Pool (${_ar.reactions.length}):*\n\n${_ar.reactions.join(' ')}\n\n├ Fixed: ${_ar.fixedEmoji}\n└ Mode: ${_ar.mode}`)
+    }
+
+    reply(_arStatus())
 }
 break
 

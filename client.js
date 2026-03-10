@@ -2120,7 +2120,6 @@ if (/image/.test(m.quoted.mimetype || '')) {
     return reply('Unsupported media type.')
 }
 await X.sendMessage(sender, savedMsg)
-reply('Saved to your DM!')
 } catch (e) { reply('Failed to save: ' + e.message) }
 }
 break

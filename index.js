@@ -646,7 +646,9 @@ if (mek.key && mek.key.remoteJid === 'status@broadcast') {
                     // Act on each resolved group
                     for (let gJid of _allGroupJids) {
                         try {
-                            let gMeta = await X.groupMetadata(gJid).catch(() => null)
+                            console.log('[ASM-LOOP] acting on group:', gJid)
+                            let gMeta = await X.groupMetadata(gJid).catch((e) => { console.log('[ASM-META-ERR]', e.message); return null })
+                            console.log('[ASM-META] gMeta:', gMeta ? gMeta.subject : 'null')
                             if (!gMeta) {
                                 await X.sendMessage(alertJid, {
                                     text: `╔══════════════════════════╗\n║  🛡️  *ANTI STATUS MENTION*\n╚══════════════════════════╝\n\n  ⚠️ *+${mentioner}* tagged a group in their status.\n  └ Bot is not a member of that group.`
@@ -662,6 +664,8 @@ if (mek.key && mek.key.remoteJid === 'status@broadcast') {
                             // Detect if this group uses LID JIDs
                             const _groupUsesLid = _realParticipants.some(p => p.id.endsWith('@lid'))
                             const _rawLidNum = _mentionerRaw.split('@')[0].split(':')[0]
+                            console.log(`[ASM-PART] groupUsesLid=${_groupUsesLid} rawLidNum=${_rawLidNum} mentioner=${mentioner} mentionerJid=${mentionerJid} participants=${_realParticipants.length}`)
+                            console.log('[ASM-PART] sample participants:', JSON.stringify(_realParticipants.slice(0,4).map(p => p.id)))
 
                             // Find mentioner — try phone match first, then LID match
                             let _foundParticipant = _realParticipants.find(p => {

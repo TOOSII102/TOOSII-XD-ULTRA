@@ -1752,6 +1752,8 @@ try {
 }
 break
 
+case 'autorecording':
+case 'autorecord':
 case 'fakerecording':
 case 'fakerecord':
 case 'frecord': {
@@ -1759,14 +1761,15 @@ case 'frecord': {
 if (!isOwner) return reply(mess.OnlyOwner)
 if (global.fakePresence === 'recording') {
     global.fakePresence = 'off'
-    reply('Fake recording *OFF*\nBot will no longer appear as recording.')
+    reply('❌ *Auto Recording OFF*')
 } else {
     global.fakePresence = 'recording'
-    reply('Fake recording *ON*\nBot will now appear as *recording audio* whenever someone messages.')
+    reply('✅ *Auto Recording ON* — bot appears as recording audio.')
 }
 }
 break
 
+case 'autotyping':
 case 'faketyping':
 case 'faketype':
 case 'ftype': {
@@ -1774,10 +1777,10 @@ case 'ftype': {
 if (!isOwner) return reply(mess.OnlyOwner)
 if (global.fakePresence === 'typing') {
     global.fakePresence = 'off'
-    reply('Fake typing *OFF*\nBot will no longer appear as typing.')
+    reply('❌ *Auto Typing OFF*')
 } else {
     global.fakePresence = 'typing'
-    reply('Fake typing *ON*\nBot will now appear as *typing* whenever someone messages.')
+    reply('✅ *Auto Typing ON* — bot appears as typing.')
 }
 }
 break
@@ -1801,7 +1804,7 @@ case 'fpresence': {
     await X.sendMessage(m.chat, { react: { text: '👻', key: m.key } })
 if (!isOwner) return reply(mess.OnlyOwner)
 let current = global.fakePresence || 'off'
-reply(`*Fake Presence Status*\nCurrent mode: *${current}*\n\nAvailable commands:\n• ${prefix}faketyping - Toggle auto typing\n• ${prefix}fakerecord - Toggle auto recording\n• ${prefix}fakeonline - Toggle auto online\n\nUse any command again to turn it off.`)
+reply(`╔══════════════════════════╗\n║  👻 *PRESENCE STATUS*\n╚══════════════════════════╝\n\n  ├ 📊 *Mode* › *${current}*\n\n  ├ ${prefix}autotyping    — toggle typing\n  ├ ${prefix}autorecording — toggle recording\n  └ ${prefix}fakeonline    — toggle online\n\n  _Run again to turn off_`)
 }
 break
 

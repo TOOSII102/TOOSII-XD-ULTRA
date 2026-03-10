@@ -127,12 +127,56 @@ async function handleSessionLogin(sessionId) {
     }
     try {
         console.log(`[ ${_bn} ] Processing Session ID...`)
+
+        // Strip any known prefix (e.g. "TOOSII~", "Gifted~", etc.) before decoding
+        let rawId = sessionId
+        const prefixMatch = rawId.match(/^[A-Za-z0-9_\-]+~/)
+        if (prefixMatch) {
+            rawId = rawId.slice(prefixMatch[0].length)
+            console.log(`[ ${_bn} ] Stripped prefix: ${prefixMatch[0]}`)
+        }
+
         let credsData
-        try {
-            credsData = JSON.parse(Buffer.from(sessionId, 'base64').toString('utf-8'))
-        } catch {
+        const zlib = require('zlib')
+        const decodedBuf = (() => { try { return Buffer.from(rawId, 'base64') } catch { return null } })()
+
+        if (decodedBuf) {
+            // Try gzip decompression first (Gifted-style session)
+            let parsed = false
             try {
-                credsData = JSON.parse(sessionId)
+                const decompressed = zlib.gunzipSync(decodedBuf).toString('utf-8')
+                credsData = JSON.parse(decompressed)
+                parsed = true
+                console.log(`[ ${_bn} ] Decoded as gzip-compressed session`)
+            } catch {}
+
+            // Try plain base64 JSON (TOOSII-style session)
+            if (!parsed) {
+                try {
+                    credsData = JSON.parse(decodedBuf.toString('utf-8'))
+                    parsed = true
+                    console.log(`[ ${_bn} ] Decoded as plain base64 session`)
+                } catch {}
+            }
+
+            // Try raw JSON string (no encoding)
+            if (!parsed) {
+                try {
+                    credsData = JSON.parse(rawId)
+                    parsed = true
+                    console.log(`[ ${_bn} ] Decoded as raw JSON session`)
+                } catch {}
+            }
+
+            if (!parsed) {
+                console.log(`[ ${_bn} ] Invalid Session ID format. Must be base64 encoded or JSON.`)
+                return
+            }
+        } else {
+            // Buffer.from failed — try raw JSON
+            try {
+                credsData = JSON.parse(rawId)
+                console.log(`[ ${_bn} ] Decoded as raw JSON session`)
             } catch {
                 console.log(`[ ${_bn} ] Invalid Session ID format. Must be base64 encoded or JSON.`)
                 return

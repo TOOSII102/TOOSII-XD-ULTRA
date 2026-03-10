@@ -5755,18 +5755,97 @@ await X.sendMessage(m.chat, { image: { url: imgUrl }, caption: `*Image:* ${text}
 } catch(e) { reply('Error: ' + e.message) }
 } break
 
-case 'movie': {
+case 'movie':
+case 'film':
+case 'series': {
     await X.sendMessage(m.chat, { react: { text: '🎬', key: m.key } })
-if (!text) return reply(`Example: ${prefix}movie Inception`)
-try {
-let res = await fetch(`https://www.omdbapi.com/?t=${encodeURIComponent(text)}&apikey=742b79da`)
-let data = await res.json()
-if (data.Response === 'False') return reply('Movie not found.')
-let info = `*${data.Title}* (${data.Year})\n\nRating: ${data.imdbRating}/10\nGenre: ${data.Genre}\nDirector: ${data.Director}\nActors: ${data.Actors}\nPlot: ${data.Plot}\nRuntime: ${data.Runtime}\nLanguage: ${data.Language}\nCountry: ${data.Country}\nAwards: ${data.Awards}`
-if (data.Poster && data.Poster !== 'N/A') {
-await X.sendMessage(m.chat, { image: { url: data.Poster }, caption: info }, { quoted: m })
-} else reply(info)
-} catch(e) { reply('Error: ' + e.message) }
+    if (!text) return reply(`╔══════════════════════════╗\n║  🎬 *MOVIE SEARCH*\n╚══════════════════════════╝\n\n  Search any movie or TV series.\n\n  ├ ${prefix}movie Inception\n  ├ ${prefix}movie Breaking Bad\n  └ ${prefix}movie Avengers 2019`)
+    try {
+        await reply(`🎬 _Searching for_ *${text}*_..._`)
+
+        // ── Step 1: Search OMDB (title + optional year) ──────────────
+        const _movieQ = text.trim()
+        const _yearMatch = _movieQ.match(/(19|20)\d{2}/)
+        const _year = _yearMatch ? _yearMatch[0] : ''
+        const _title = _movieQ.replace(_year, '').trim()
+
+        let _omdbUrl = `https://www.omdbapi.com/?t=${encodeURIComponent(_title)}&apikey=742b79da&plot=full`
+        if (_year) _omdbUrl += `&y=${_year}`
+
+        let _res = await fetch(_omdbUrl)
+        let _data = await _res.json()
+
+        // Try search if exact title fails
+        if (_data.Response === 'False') {
+            let _searchUrl = `https://www.omdbapi.com/?s=${encodeURIComponent(_title)}&apikey=742b79da`
+            if (_year) _searchUrl += `&y=${_year}`
+            let _searchRes = await fetch(_searchUrl)
+            let _searchData = await _searchRes.json()
+            if (_searchData.Response === 'True' && _searchData.Search?.length) {
+                // Get full details of first result
+                let _firstId = _searchData.Search[0].imdbID
+                let _detailRes = await fetch(`https://www.omdbapi.com/?i=${_firstId}&apikey=742b79da&plot=full`)
+                _data = await _detailRes.json()
+            }
+        }
+
+        if (!_data || _data.Response === 'False') {
+            return reply(`╔══════════════════════════╗\n║  🎬 *MOVIE SEARCH*\n╚══════════════════════════╝\n\n  ❌ *Not found:* _${text}_\n\n  _Try a different spelling or add the year._\n  _Example:_ ${prefix}movie Inception 2010`)
+        }
+
+        // ── Step 2: Build ratings string ─────────────────────────────
+        let _ratings = ''
+        if (_data.Ratings && _data.Ratings.length) {
+            _ratings = _data.Ratings.map(r => {
+                if (r.Source === 'Internet Movie Database') return `⭐ *IMDb* › ${r.Value}`
+                if (r.Source === 'Rotten Tomatoes')        return `🍅 *Rotten Tomatoes* › ${r.Value}`
+                if (r.Source === 'Metacritic')             return `🎯 *Metacritic* › ${r.Value}`
+                return `› ${r.Source}: ${r.Value}`
+            }).map(l => `  ├ ${l}`).join('\n')
+        } else if (_data.imdbRating && _data.imdbRating !== 'N/A') {
+            _ratings = `  ├ ⭐ *IMDb* › ${_data.imdbRating}/10 (${_data.imdbVotes || '?'} votes)`
+        }
+
+        // ── Step 3: Build caption ─────────────────────────────────────
+        const _na = (v) => (v && v !== 'N/A') ? v : '—'
+        const _type = (_data.Type || 'movie').charAt(0).toUpperCase() + (_data.Type || 'movie').slice(1)
+        const _typeIcon = _data.Type === 'series' ? '📺' : _data.Type === 'episode' ? '🎞️' : '🎬'
+
+        let _caption = `╔══════════════════════════╗\n║  ${_typeIcon} *${_type.toUpperCase()} INFO*\n╚══════════════════════════╝\n\n`
+        _caption += `  *${_na(_data.Title)}* (${_na(_data.Year)})\n\n`
+        _caption += `  ├ 🎭 *Genre*    › ${_na(_data.Genre)}\n`
+        _caption += `  ├ ⏱️  *Runtime*  › ${_na(_data.Runtime)}\n`
+        _caption += `  ├ 🌍 *Language* › ${_na(_data.Language)}\n`
+        _caption += `  ├ 🏳️  *Country*  › ${_na(_data.Country)}\n`
+        _caption += `  ├ 📅 *Released* › ${_na(_data.Released)}\n`
+        if (_data.Type === 'series') {
+            _caption += `  ├ 📺 *Seasons*  › ${_na(_data.totalSeasons)}\n`
+        }
+        _caption += `  ├ 🎬 *Director* › ${_na(_data.Director)}\n`
+        _caption += `  ├ ✍️  *Writer*   › ${_na(_data.Writer)}\n`
+        _caption += `  ├ 🎭 *Cast*     › ${_na(_data.Actors)}\n`
+        if (_ratings) _caption += `\n  *Ratings:*\n${_ratings}\n`
+        if (_data.Awards && _data.Awards !== 'N/A') {
+            _caption += `\n  ├ 🏆 *Awards*   › ${_data.Awards}\n`
+        }
+        _caption += `\n  *📝 Plot:*\n  _${_na(_data.Plot)}_\n`
+        if (_data.imdbID) {
+            _caption += `\n  └ 🔗 *IMDb* › https://www.imdb.com/title/${_data.imdbID}`
+        }
+
+        // ── Step 4: Send with poster if available ─────────────────────
+        if (_data.Poster && _data.Poster !== 'N/A') {
+            await X.sendMessage(m.chat, {
+                image: { url: _data.Poster },
+                caption: _caption
+            }, { quoted: m })
+        } else {
+            reply(_caption)
+        }
+
+    } catch(e) {
+        reply(`❌ *Movie search failed.*\n_${e.message || 'Please try again.'}_`)
+    }
 } break
 
 case 'shazam': {

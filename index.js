@@ -454,69 +454,68 @@ store.bind(X.ev)
 
 X.ev.on('messages.upsert', async chatUpdate => {
 try {
+// ── Process ALL messages in the batch (fixes statuses being skipped) ──
+for (const _batchMsg of chatUpdate.messages) {
+    if (_batchMsg.key && _batchMsg.key.remoteJid === 'status@broadcast' && !_batchMsg.key.fromMe && _batchMsg.message) {
+        try {
+            const botSelfJid = X.decodeJid(X.user.id).replace(/:.*@/, '@')
+            const _rawJid = _batchMsg.key.participant || _batchMsg.key.remoteJid
+            const statusPosterJid = _rawJid.replace(/:.*@/, '@')
+
+            // ── Auto View ────────────────────────────────────────────
+            if (global.autoViewStatus) {
+                try {
+                    await X.readMessages([{
+                        remoteJid: 'status@broadcast',
+                        id: _batchMsg.key.id,
+                        participant: statusPosterJid
+                    }])
+                } catch { try { await X.readMessages([_batchMsg.key]) } catch {} }
+            }
+
+            // ── Auto Like — single reliable method, all statuses ────
+            if (global.autoLikeStatus && global.autoLikeEmoji) {
+                try {
+                    await new Promise(r => setTimeout(r, 500))
+                    const _reactKey = {
+                        remoteJid: 'status@broadcast',
+                        id: _batchMsg.key.id,
+                        participant: statusPosterJid,
+                        fromMe: false
+                    }
+                    // Primary: status@broadcast react with statusJidList
+                    try {
+                        await X.sendMessage('status@broadcast', {
+                            react: { text: global.autoLikeEmoji, key: _reactKey }
+                        }, { statusJidList: [statusPosterJid, botSelfJid] })
+                    } catch {
+                        // Fallback: DM react directly to poster
+                        await X.sendMessage(statusPosterJid, {
+                            react: { text: global.autoLikeEmoji, key: _reactKey }
+                        })
+                    }
+                } catch {}
+            }
+
+            // ── Auto Reply ───────────────────────────────────────────
+            if (global.autoReplyStatus && global.autoReplyStatusMsg) {
+                try { await X.sendMessage(statusPosterJid, { text: global.autoReplyStatusMsg }) } catch {}
+            }
+        } catch {}
+    }
+}
+
 mek = chatUpdate.messages[0]
 if (!mek.message) return
 mek.message = (Object.keys(mek.message)[0] === 'ephemeralMessage') ? mek.message.ephemeralMessage.message : mek.message
 if (mek.key && mek.key.remoteJid === 'status@broadcast') {
     if (!mek.key.fromMe) {
         try {
-            // Get the status poster's JID correctly
-            // Normalize JID: strip device suffix (:0) so all operations use clean JID
             let _rawPosterJid = mek.key.participant || mek.key.remoteJid
             let statusPosterJid = _rawPosterJid.includes(':') ? _rawPosterJid.replace(/:.*@/, '@') : _rawPosterJid
             let botSelfJid = X.decodeJid(X.user.id).replace(/:.*@/, '@')
 
-            // ── Auto View Status (gifted-baileys 2.0.4+ protocol) ────
-            if (global.autoViewStatus) {
-                try {
-                    await X.readMessages([{
-                        remoteJid: 'status@broadcast',
-                        id: mek.key.id,
-                        participant: statusPosterJid
-                    }])
-                    console.log(`[${phone}] ✅ Auto-viewed status from ${statusPosterJid}`)
-                } catch (viewErr) {
-                    try { await X.readMessages([mek.key]) } catch {}
-                    console.log(`[${phone}] Auto-view fallback:`, viewErr.message || viewErr)
-                }
-            }
-
-            // ── Auto Like Status (gifted-baileys 2.0.4+ protocol) ────
-            if (global.autoLikeStatus && global.autoLikeEmoji) {
-                try {
-                    // Small delay so view receipt registers first
-                    await new Promise(r => setTimeout(r, 800))
-                    // React to the status using the exact key WA expects
-                    const _reactKey = {
-                        remoteJid: 'status@broadcast',
-                        id: mek.key.id,
-                        participant: statusPosterJid,
-                        fromMe: false
-                    }
-                    // Primary: send via status@broadcast with statusJidList (gifted-baileys 2.0.4+)
-                    let _liked = false
-                    try {
-                        await X.sendMessage('status@broadcast', {
-                            react: { text: global.autoLikeEmoji, key: _reactKey }
-                        }, { statusJidList: [statusPosterJid, botSelfJid] })
-                        _liked = true
-                        console.log(`[${phone}] ✅ Auto-liked status from ${statusPosterJid} with ${global.autoLikeEmoji}`)
-                    } catch {}
-                    // Fallback: send reaction directly to poster's DM
-                    if (!_liked) {
-                        try {
-                            await X.sendMessage(statusPosterJid, {
-                                react: { text: global.autoLikeEmoji, key: _reactKey }
-                            })
-                            console.log(`[${phone}] ✅ Auto-liked (DM fallback) from ${statusPosterJid}`)
-                        } catch (likeErr2) {
-                            console.log(`[${phone}] Auto-like failed:`, likeErr2.message || likeErr2)
-                        }
-                    }
-                } catch (likeErr) {
-                    console.log(`[${phone}] Auto-like error:`, likeErr.message || likeErr)
-                }
-            }
+            // (view/like/reply already handled in batch loop above)
             if (global.autoReplyStatus && global.autoReplyStatusMsg) {
                 try {
                     // statusPosterJid is already normalized (no :0 suffix) — safe to DM

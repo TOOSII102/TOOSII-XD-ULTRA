@@ -6976,15 +6976,18 @@ repoInfo += `│ 📅 Created: *${new Date(data.created_at).toLocaleDateString()
 repoInfo += `│ 🔄 Updated: *${new Date(data.updated_at).toLocaleDateString()}*\n`
 repoInfo += `│\n`
 repoInfo += `│ 🔗 ${data.html_url}\n`
+repoInfo += `│ 🔑 *Session:* ${global.sessionUrl}\n`
 repoInfo += `│\n`
 repoInfo += `╰━━━━━━━━━━━━━━━━━╯\n\n`
 repoInfo += `━━━━━━━━━━━━━━━━━━━━━━━━\n`
 repoInfo += `🌟 *Support the Developer!*\n`
 repoInfo += `━━━━━━━━━━━━━━━━━━━━━━━━\n\n`
 repoInfo += `⭐ *Star* the repo — it motivates us to keep improving the bot!\n`
-repoInfo += `🍴 *Fork* it — get your own copy and deploy your bot!\n\n`
+repoInfo += `🍴 *Fork* it — get your own copy and deploy your bot!\n`
+repoInfo += `🔑 *Get Session ID* — pair your bot instantly!\n\n`
 repoInfo += `👉 *Star:* ${data.html_url}\n`
-repoInfo += `👉 *Fork:* ${data.html_url}/fork\n\n`
+repoInfo += `👉 *Fork:* ${data.html_url}/fork\n`
+repoInfo += `👉 *Session:* ${global.sessionUrl}\n\n`
 repoInfo += `_Every star & fork counts. Thank you! 🙏_`
 reply(repoInfo)
 } catch(e) { reply('❌ Error fetching repo: ' + e.message) }

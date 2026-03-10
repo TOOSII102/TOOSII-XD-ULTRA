@@ -764,20 +764,18 @@ switch(command) {
 // help command
 case 'help': {
     await X.sendMessage(m.chat, { react: { text: '📋', key: m.key } })
-const helpText = `┏━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃  *ᴛᴏᴏꜱɪɪ-xᴅ ᴜʟᴛʀᴀ*
-┃  _Qᴜɪᴄᴋ ʜᴇʟᴘ ɢᴜɪᴅᴇ_
-┗━━━━━━━━━━━━━━━━━━━━━━━━┛
+const helpText = `╔══════════════════════════╗
+║  📋 *QUICK HELP GUIDE*
+╚══════════════════════════╝
 
-┏❒ *ɢᴇᴛᴛɪɴɢ ꜱᴛᴀʀᴛᴇᴅ* ❒
-┃➤ .menu — ᴠɪᴇᴡ ᴀʟʟ ᴄᴏᴍᴍᴀɴᴅꜱ
-┃➤ .menu ai — ᴀɪ ᴛᴏᴏʟꜱ
-┃➤ .menu tools — ᴜᴛɪʟɪᴛɪᴇꜱ
-┃➤ .menu owner — ʙᴏᴛ ꜱᴇᴛᴛɪɴɢꜱ
-┃➤ .menu group — ɢʀᴏᴜᴘ ᴍɢᴍᴛ
-┃➤ .menu downloader — ᴅᴏᴡɴʟᴏᴀᴅꜱ
-┃➤ .menu search — ꜱᴇᴀʀᴄʜ
-┃➤ .menu sticker — ꜱᴛɪᴄᴋᴇʀꜱ
+  ├ .menu            › all commands
+  ├ .menu ai         › AI tools
+  ├ .menu tools      › utilities
+  ├ .menu owner      › bot settings
+  ├ .menu group      › group mgmt
+  ├ .menu downloader › downloads
+  ├ .menu search     › search
+  └ .menu sticker    › stickers
 ┃➤ .menu games — ɢᴀᴍᴇꜱ
 ┗❒
 
@@ -1371,15 +1369,15 @@ Tips:
     // Split into chunks if lyrics are too long (WA message limit ~65KB)
     const _MAX_CHUNK = 3500
     const _lyrHeader =
-`┏━━━━━━━━━━━━━━━━━━━━━━━┓
-┃  🎵 *SONG LYRICS*
-┗━━━━━━━━━━━━━━━━━━━━━━━┛
+`╔══════════════════════════╗
+║  🎵 *SONG LYRICS*
+╚══════════════════════════╝
 
-🎤 *Title:*  ${_lyrResult.title}
-👤 *Artist:* ${_lyrResult.artist}${_lyrResult.album ? `\n💿 *Album:*  ${_lyrResult.album}` : ''}
-📡 *Source:* ${_lyrSource}
+  ├ 🎤 *Title*  › ${_lyrResult.title}
+  ├ 👤 *Artist* › ${_lyrResult.artist}${_lyrResult.album ? `\n  ├ 💿 *Album*  › ${_lyrResult.album}` : ''}
+  └ 📡 *Source* › ${_lyrSource}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━
+┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
 
 `
 
@@ -1446,30 +1444,30 @@ break
 
 case 'sc': {
     await X.sendMessage(m.chat, { react: { text: '📜', key: m.key } })
-reply(`╭━━━〔 🤖 *${global.botname}* 〕━━━╮\n│\n│ 📞 wa.me/254748340864\n│ 📲 t.me/toosiitech\n│\n╰━━━━━━━━━━━━━━━━━╯`)
+reply(`╔══════════════════════════╗\n║  🤖 *${global.botname}*\n╚══════════════════════════╝\n\n  ├ 📞 *WhatsApp* › wa.me/254748340864\n  ├ ✈️  *Telegram* › t.me/toosiitech\n  └ 🔑 *Session*  › ${global.sessionUrl}\n\n_⚡ Powered by ${global.ownername || 'Toosii Tech'}_`)
 }
 break
 
 case 'infobot':
 case 'botinfo': {
     await X.sendMessage(m.chat, { react: { text: '🤖', key: m.key } })
-  const botInfo = `╭━━━〔 🤖 *BOT INFO* 〕━━━╮
-│
-│ 📛 Name: *${botname}*
-│ 👑 Owner: *${ownername}*
-│ 🏷️ Version: *${botver}*
-│ 📋 Commands: *${totalfitur()}*
-│ ⏱️ Uptime: *${runtime(process.uptime())}*
-│ 🔒 Mode: *${X.public ? 'Public' : 'Private'}*
-│ 🔤 Prefix: *${global.botPrefix || 'Multi-prefix'}*
-│
-│ 📞 Contact: ${global.ownerNumber}
-│ 📲 Telegram: @toosiitech
-│ 🔑 Session: ${global.sessionUrl}
-│
-╰━━━━━━━━━━━━━━━━━╯
+  const botInfo = `╔══════════════════════════╗
+║  🤖 *BOT INFO*
+╚══════════════════════════╝
 
-_⚡ Powered by ${global.ownername || 'Toosii Tech'}_`
+  ├ 📛 *Name*     › ${botname}
+  ├ 👑 *Owner*    › ${ownername}
+  ├ 🏷️  *Version*  › v${botver}
+  ├ 📋 *Commands* › ${totalfitur()}
+  ├ ⏱️  *Uptime*   › ${runtime(process.uptime())}
+  ├ 🔒 *Mode*     › ${X.public ? 'Public' : 'Private'}
+  ├ 🔤 *Prefix*   › ${global.botPrefix || 'Multi-prefix'}
+
+  ├ 📞 *Contact*  › ${global.ownerNumber}
+  ├ ✈️  *Telegram* › @toosiitech
+  └ 🔑 *Session*  › ${global.sessionUrl}
+
+_⚡ Powered by ${global.ownername || 'Toosii Tech'}_\``
   reply(botInfo)
 }
 break
@@ -1849,26 +1847,23 @@ let replyState = global.autoReplyStatus ? `✅ ON ("${global.autoReplyStatusMsg}
 let fwdState = global.statusToGroup ? '✅ ON' : '❌ OFF'
 let fwdGroup = global.statusToGroup ? global.statusToGroup : 'Not set'
 let asmState = global.antiStatusMention ? `✅ ON (${(global.antiStatusMentionAction||'warn').toUpperCase()})` : '❌ OFF'
-reply(`╭━━━━━━━━━━━━━━━━━━╮
-┃  📊 *STATUS TOOLS CONFIG*
-╰━━━━━━━━━━━━━━━━━━╯
+reply(`╔══════════════════════════╗
+║  📊 *STATUS TOOLS CONFIG*
+╚══════════════════════════╝
 
-👀 *Auto View:* ${viewState}
-❤️ *Auto Like:* ${likeState}
-💬 *Auto Reply:* ${replyState}
-📤 *Forward to Group:* ${fwdState}
-🏘️ *Target Group:* ${fwdGroup}
-🛡️ *Anti-Mention:* ${asmState}
+  ├ 👀 *Auto View*    › ${viewState}
+  ├ ❤️  *Auto Like*    › ${likeState}
+  ├ 💬 *Auto Reply*   › ${replyState}
+  ├ 📤 *Forward*      › ${fwdState}
+  └ 🛡️  *Anti-Mention* › ${asmState}
 
-╭━━━━━━━━━━━━━━━━━━╮
-┃  ⚙️ *COMMANDS*
-╰━━━━━━━━━━━━━━━━━━╯
-• *${prefix}autoviewstatus* — toggle auto view
-• *${prefix}autolikestatus* [emoji/off] — auto react
-• *${prefix}autoreplystatus* [msg/off] — auto reply
-• *${prefix}togroupstatus on* — forward statuses here
-• *${prefix}togroupstatus off* — disable forwarding
-• *${prefix}antistatusmention* [on/warn/kick/del] — protect groups`)
+┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+  ⚙️  *Commands*
+  ├ ${prefix}autoviewstatus
+  ├ ${prefix}autolikestatus [emoji/off]
+  ├ ${prefix}autoreplystatus [msg/off]
+  ├ ${prefix}togroupstatus on/off
+  └ ${prefix}antistatusmention [on/warn/kick/del]`)
 }
 break
 
@@ -2009,7 +2004,7 @@ break
 case 'prefix': {
     await X.sendMessage(m.chat, { react: { text: '⚙️', key: m.key } })
 let currentPfx = global.botPrefix || '.'
-reply(`ᴘʀᴇꜰɪx : *${currentPfx}*`)
+reply(`╔══════════════════════════╗\n║  ⚙️  *PREFIX*\n╚══════════════════════════╝\n\n  └ 🔤 *Current prefix* › *${currentPfx}*\n\n_Use ${currentPfx}setprefix [char] to change_`)
 }
 break
 
@@ -2310,44 +2305,40 @@ case 'botconfig': {
 if (!isOwner) return reply(mess.OnlyOwner)
 const on = '✅ ON'
 const off = '❌ OFF'
-let settingsText = `╭━━━〔 ⚙️ *BOT SETTINGS* 〕━━━╮
-│
-│ 📛 Name: *${global.botname}*
-│ 🏷️ Version: *${global.botver}*
-│ 🔤 Prefix: *${global.botPrefix || 'Multi-prefix'}*
-│ 🌍 Timezone: *${global.botTimezone}*
-│ 🔒 Mode: *${X.public ? 'Public' : 'Private'}*
-│ 🔗 URL: ${global.botUrl || global.wagc}
-│
-╰━━━━━━━━━━━━━━━━━╯
+let settingsText = `╔══════════════════════════╗
+║  ⚙️  *BOT SETTINGS*
+╚══════════════════════════╝
 
-╭━━━〔 🎨 *STICKER* 〕━━━╮
-│ 📦 Pack: *${global.packname}*
-│ ✍️ Author: *${global.author}*
-╰━━━━━━━━━━━━━━━━━╯
+  ├ 📛 *Name*     › ${global.botname}
+  ├ 🏷️  *Version*  › v${global.botver}
+  ├ 🔤 *Prefix*   › ${global.botPrefix || 'Multi-prefix'}
+  ├ 🌍 *Timezone* › ${global.botTimezone}
+  ├ 🔒 *Mode*     › ${X.public ? 'Public' : 'Private'}
+  └ 🔗 *URL*      › ${global.botUrl || global.wagc}
 
-╭━━━〔 🤖 *AUTO FEATURES* 〕━━━╮
-│ 👁️ Auto Read: ${global.autoRead ? on : off}
-│ 📝 Auto Bio: ${global.autoBio ? on : off}
-│ 💬 ChatBot: ${global.chatBot ? on : off}
-│ 👀 Auto View Status: ${global.autoViewStatus ? on : off}
-│ ❤️ Auto Like Status: ${global.autoLikeStatus ? on : off} ${global.autoLikeEmoji ? '(' + global.autoLikeEmoji + ')' : ''}
-│ 💌 Auto Reply Status: ${global.autoReplyStatus ? on : off}
-│ 📤 Forward Status: ${global.statusToGroup ? on + ' → ' + global.statusToGroup.split('@')[0] : off}
-│ 👻 Fake Presence: *${global.fakePresence}*
-╰━━━━━━━━━━━━━━━━━╯
+  ├ 📦 *Pack*   › ${global.packname}
+  └ ✍️  *Author* › ${global.author}
 
-╭━━━〔 🛡️ *PROTECTION* 〕━━━╮
-│ 📵 Anti-Call: ${global.antiCall ? on : off}
-│ 🔗 Anti-Link: ${global.antiLink ? on : off}
-│ 🗑️ Anti-Delete: ${global.antiDelete ? on : off}
-│ 📢 Anti Status Mention: ${global.antiStatusMention ? on : off}
-╰━━━━━━━━━━━━━━━━━╯
+┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+  🤖 *Auto Features*
+  ├ 👁️  Auto Read    › ${global.autoRead ? on : off}
+  ├ 📝 Auto Bio     › ${global.autoBio ? on : off}
+  ├ 💬 ChatBot      › ${global.chatBot ? on : off}
+  ├ 👀 View Status  › ${global.autoViewStatus ? on : off}
+  ├ ❤️  Like Status  › ${global.autoLikeStatus ? on : off} ${global.autoLikeEmoji ? '(' + global.autoLikeEmoji + ')' : ''}
+  ├ 💌 Reply Status › ${global.autoReplyStatus ? on : off}
+  ├ 📤 Fwd Status   › ${global.statusToGroup ? on + ' → ' + global.statusToGroup.split('@')[0] : off}
+  └ 👻 Presence     › ${global.fakePresence}
 
-╭━━━〔 👥 *GROUP* 〕━━━╮
-│ 👋 Welcome: ${global.welcome ? on : off}
-│ 📣 Admin Events: ${global.adminevent ? on : off}
-╰━━━━━━━━━━━━━━━━━╯
+  🛡️  *Protection*
+  ├ 📵 Anti-Call          › ${global.antiCall ? on : off}
+  ├ 🔗 Anti-Link          › ${global.antiLink ? on : off}
+  ├ 🗑️  Anti-Delete        › ${global.antiDelete ? on : off}
+  └ 📢 Anti Status Mention › ${global.antiStatusMention ? on : off}
+
+  👥 *Group*
+  ├ 👋 Welcome     › ${global.welcome ? on : off}
+  └ 📣 Admin Events › ${global.adminevent ? on : off}
 
 _⚡ Powered by ${global.ownername || 'Toosii Tech'}_`
 reply(settingsText)
@@ -2565,13 +2556,13 @@ break
                let welArg = (args[0] || '').toLowerCase()
                if (!welArg) {
                   let welState = global.welcome ? '✅ ON' : '❌ OFF'
-                  reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  👋 *WELCOME / GOODBYE*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n*Status:* ${welState}\n\nWhen enabled, the bot sends a professional welcome message when a member joins and a goodbye message when one leaves.\n\n*Usage:*\n• ${prefix}welcome on  — Enable\n• ${prefix}welcome off — Disable`)
+                  reply(`╔══════════════════════════╗\n║  👋 *WELCOME / GOODBYE*\n╚══════════════════════════╝\n\n  ├ 📊 *Status* › ${welState}\n  └ Sends greetings when members join/leave\n\n  ├ ${prefix}welcome on  — Enable\n  └ ${prefix}welcome off — Disable`)
                } else if (welArg === 'on' || welArg === 'enable') {
                   global.welcome = true
-                  reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  👋 *WELCOME / GOODBYE*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n✅ *Enabled in ${groupName || 'this group'}*\n\nThe bot will now greet new members and announce when members leave.`)
+                  reply(`╔══════════════════════════╗\n║  👋 *WELCOME / GOODBYE*\n╚══════════════════════════╝\n\n  ✅ *Enabled in ${groupName || 'this group'}*\n  _Bot will greet joins & announce leaves._`)
                } else if (welArg === 'off' || welArg === 'disable') {
                   global.welcome = false
-                  reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  👋 *WELCOME / GOODBYE*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n❌ *Disabled in ${groupName || 'this group'}*\n\nWelcome and goodbye messages have been turned off.`)
+                  reply(`╔══════════════════════════╗\n║  👋 *WELCOME / GOODBYE*\n╚══════════════════════════╝\n\n  ❌ *Disabled in ${groupName || 'this group'}*\n  _Welcome and goodbye messages turned off._`)
                }
             }
             break
@@ -2583,13 +2574,13 @@ break
                let evArg = (args[0] || '').toLowerCase()
                if (!evArg) {
                   let evState = global.adminevent ? '✅ ON' : '❌ OFF'
-                  reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  🌟 *ADMIN EVENTS*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n*Status:* ${evState}\n\nWhen enabled, the bot announces admin promotions and demotions in the group.\n\n*Usage:*\n• ${prefix}events on  — Enable\n• ${prefix}events off — Disable`)
+                  reply(`╔══════════════════════════╗\n║  🌟 *ADMIN EVENTS*\n╚══════════════════════════╝\n\n  ├ 📊 *Status* › ${evState}\n  └ Announces admin promotions & demotions\n\n  ├ ${prefix}events on  — Enable\n  └ ${prefix}events off — Disable`)
                } else if (evArg === 'on' || evArg === 'enable') {
                   global.adminevent = true
-                  reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  🌟 *ADMIN EVENTS*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n✅ *Enabled in ${groupName || 'this group'}*\n\nAdmin promotions and demotions will be announced in this group.`)
+                  reply(`╔══════════════════════════╗\n║  🌟 *ADMIN EVENTS*\n╚══════════════════════════╝\n\n  ✅ *Enabled in ${groupName || 'this group'}*\n  _Admin changes will be announced._`)
                } else if (evArg === 'off' || evArg === 'disable') {
                   global.adminevent = false
-                  reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  🌟 *ADMIN EVENTS*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n❌ *Disabled in ${groupName || 'this group'}*\n\nAdmin event notifications have been turned off.`)
+                  reply(`╔══════════════════════════╗\n║  🌟 *ADMIN EVENTS*\n╚══════════════════════════╝\n\n  ❌ *Disabled in ${groupName || 'this group'}*\n  _Admin event notifications turned off._`)
                }
             }
             break
@@ -2771,7 +2762,7 @@ break
                                 let groupWarns = wlDb[m.chat] || {};
                                 let warnEntries = Object.entries(groupWarns).filter(([, w]) => w.length > 0);
                                 if (warnEntries.length === 0) return reply('ℹ️ No warnings in this group.');
-                                let warnListText = `╭━━━〔 ⚠️ *GROUP WARNINGS* 〕━━━╮\n│\n`;
+                                let warnListText = `╔══════════════════════════╗\n║  ⚠️  *GROUP WARNINGS*\n╚══════════════════════════╝\n\n`;
                                 let warnMentions = [];
                                 for (let [jid, warns] of warnEntries) {
                                     let num = jid.split('@')[0];
@@ -2839,7 +2830,7 @@ break
                                 if (!isBotAdmins) return reply(mess.botAdmin);
                                 try {
                                     await X.groupRevokeInvite(m.chat)
-                                    reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  🚫 *LINK REVOKED*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n✅ The group invite link has been *successfully revoked.*\n\n_Anyone with the old link can no longer join._\n_Use ${prefix}link or ${prefix}resetlink to get a new one._`)
+                                    reply(`╔══════════════════════════╗\n║  🚫 *LINK REVOKED*\n╚══════════════════════════╝\n\n  ✅ Invite link successfully revoked.\n  _Use ${prefix}link to generate a new one._`)
                                 } catch(err) {
                                     let errMsg = (err?.message || '').toLowerCase()
                                     if (errMsg.includes('not-authorized') || errMsg.includes('403')) reply(mess.botAdmin)
@@ -2869,7 +2860,7 @@ break
                                                 reply(`✅ *Approved @${target.split('@')[0]}*`)
                                         } else {
                                                 let list = pending.map((p, i) => `│ ${i + 1}. ${p.jid.split('@')[0]}`).join('\n')
-                                                reply(`╭━━━〔 📋 *PENDING REQUESTS* 〕━━━╮\n│\n│ Total: *${pending.length}*\n│\n${list}\n│\n╰━━━━━━━━━━━━━━━━━╯\n\n📌 *Usage:*\n• ${prefix}approve all\n• ${prefix}approve [number]\n• ${prefix}reject all\n• ${prefix}reject [number]`)
+                                                reply(`╔══════════════════════════╗\n║  📋 *PENDING REQUESTS*\n╚══════════════════════════╝\n\n  └ *Total:* ${pending.length}\n\n${list}\n\n  ├ ${prefix}approve all / [number]\n  └ ${prefix}reject all / [number]`)
                                         }
                                 } catch (err) {
                                         let errMsg = (err?.message || '').toLowerCase()
@@ -3765,7 +3756,7 @@ case 'aliceai' :{
 break
 
 case 'magicstudio':{
-if (!text) return reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  ✨ *MAGIC STUDIO AI*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\nGenerate stunning AI images with Magic Studio style.\n\n*Usage:* ${prefix}magicstudio [description]\n\n*Examples:*\n• ${prefix}magicstudio a woman in a red dress standing in Paris\n• ${prefix}magicstudio cyberpunk warrior with glowing sword\n• ${prefix}magicstudio magical forest with fairy lights, fantasy art`)
+if (!text) return reply(`╔══════════════════════════╗\n║  ✨ *MAGIC STUDIO AI*\n╚══════════════════════════╝\n\n  Generate stunning AI images instantly.\n\n  └ *Usage:* ${prefix}magicstudio [description]\n\n  _Examples:_\n  • a woman in a red dress in Paris\n  • cyberpunk warrior with glowing sword\n  • magical forest with fairy lights`)
 try {
 await reply('✨ _Magic Studio is generating your image..._')
 // Use pollinations with artistic model parameters for magic studio style
@@ -3774,7 +3765,7 @@ let seed = Math.floor(Math.random() * 999999)
 let imgUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(enhancedPrompt)}?model=flux&width=1024&height=1024&seed=${seed}&nologo=true&enhance=true`
 let imgBuffer = await getBuffer(imgUrl)
 if (!imgBuffer || imgBuffer.length < 5000) throw new Error('Generation failed')
-let caption = `┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  ✨ *MAGIC STUDIO*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n📝 *Prompt:* ${text}\n🌟 *Style:* Magic Studio\n🎲 *Seed:* ${seed}`
+let caption = `╔══════════════════════════╗\n║  ✨ *MAGIC STUDIO*\n╚══════════════════════════╝\n\n  ├ 📝 *Prompt* › ${text}\n  ├ 🌟 *Style*  › Magic Studio\n  └ 🎲 *Seed*   › ${seed}`
 await X.sendMessage(m.chat, { image: imgBuffer, caption }, { quoted: m })
 } catch(e) {
 try {
@@ -4262,23 +4253,13 @@ if (!target) target = m.sender
 let ppUrl = null
 try { ppUrl = await X.profilePictureUrl(target, 'image') } catch {}
 if (!ppUrl) {
-    return reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓
-┃  🖼️ *PROFILE PICTURE*
-┗━━━━━━━━━━━━━━━━━━━━━━━┛
-
-❌ *No profile picture found for ${label}*
-
-_This user has their privacy set to hide their profile photo, or the number is not on WhatsApp._`)
+    return reply(`╔══════════════════════════╗\n║  🖼️  *PROFILE PICTURE*\n╚══════════════════════════╝\n\n  ❌ *No profile picture for ${label}*\n  _Privacy restrictions or not on WhatsApp._`)
 }
 let ppBuf = await getBuffer(ppUrl)
 if (!ppBuf || ppBuf.length < 100) throw new Error('Failed to download picture')
 await X.sendMessage(m.chat, {
     image: ppBuf,
-    caption: `┏━━━━━━━━━━━━━━━━━━━━━━━┓
-┃  🖼️ *PROFILE PICTURE*
-┗━━━━━━━━━━━━━━━━━━━━━━━┛
-
-👤 *User:* ${label}`
+    caption: `╔══════════════════════════╗\n║  🖼️  *PROFILE PICTURE*\n╚══════════════════════════╝\n\n  └ 👤 *User* › ${label}`
 }, { quoted: m })
 } catch(e) {
 reply(`❌ *Failed to fetch profile picture.*
@@ -4289,24 +4270,12 @@ _${e.message || 'User may have privacy restrictions.'}_`)
 case 'setpp': {
     await X.sendMessage(m.chat, { react: { text: '🖼️', key: m.key } })
 if (!isOwner) return reply(mess.OnlyOwner)
-if (!m.quoted || !/image/.test(m.quoted.mimetype || '')) return reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓
-┃  🖼️ *SET BOT PROFILE PIC*
-┗━━━━━━━━━━━━━━━━━━━━━━━┛
-
-*Usage:* Reply to an image with *${prefix}setpp*
-
-_The image will be set as the bot's profile picture._`)
+if (!m.quoted || !/image/.test(m.quoted.mimetype || '')) return reply(`╔══════════════════════════╗\n║  🖼️  *SET BOT PROFILE PIC*\n╚══════════════════════════╝\n\n  └ Reply to an image with *${prefix}setpp*\n  _Image will be set as the bot profile picture._`)
 try {
 let imgBuf = await m.quoted.download()
 if (!imgBuf || imgBuf.length < 100) throw new Error('Failed to download image')
 await X.updateProfilePicture(X.user.id, imgBuf)
-reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓
-┃  🖼️ *PROFILE PIC UPDATED*
-┗━━━━━━━━━━━━━━━━━━━━━━━┛
-
-✅ *Bot profile picture has been updated successfully.*
-
-_Changes may take a few moments to appear on WhatsApp._`)
+reply(`╔══════════════════════════╗\n║  🖼️  *PROFILE PIC UPDATED*\n╚══════════════════════════╝\n\n  ✅ Bot profile picture updated successfully.\n  _Changes may take a moment to appear._`)
 } catch(e) {
 let errMsg = (e?.message || '').toLowerCase()
 if (errMsg.includes('not-authorized') || errMsg.includes('403')) reply(mess.botAdmin)
@@ -4531,11 +4500,11 @@ case 'setgname': {
 if (!m.isGroup) return reply(mess.OnlyGrup)
 if (!isAdmins && !isOwner) return reply(mess.admin)
 if (!isBotAdmins) return reply(mess.botAdmin)
-if (!text) return reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  ✏️ *SET GROUP NAME*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n*Usage:* ${prefix}setgname [new name]\n\n*Example:*\n${prefix}setgname My Awesome Group`)
+if (!text) return reply(`╔══════════════════════════╗\n║  ✏️  *SET GROUP NAME*\n╚══════════════════════════╝\n\n  └ *Usage:* ${prefix}setgname [new name]\n  _Example: ${prefix}setgname My Awesome Group_`)
 try {
 let oldName = groupName || 'Unknown'
 await X.groupUpdateSubject(m.chat, text)
-reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  ✏️ *GROUP NAME UPDATED*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n┌─────────────────────\n│ 📛 Old : ${oldName}\n│ ✅ New : ${text}\n└─────────────────────\n\n_Group name successfully changed._`)
+reply(`╔══════════════════════════╗\n║  ✏️  *GROUP NAME UPDATED*\n╚══════════════════════════╝\n\n  ├ 📛 *Old* › ${oldName}\n  └ ✅ *New* › ${text}\n\n  _Group name successfully changed._`)
 } catch(err) {
 let errMsg = (err?.message || '').toLowerCase()
 if (errMsg.includes('not-authorized') || errMsg.includes('403')) reply(mess.botAdmin)
@@ -4548,11 +4517,11 @@ case 'setgpp': {
 if (!m.isGroup) return reply(mess.OnlyGrup)
 if (!isAdmins && !isOwner) return reply(mess.admin)
 if (!isBotAdmins) return reply(mess.botAdmin)
-if (!m.quoted || !/image/.test(m.quoted.mimetype || '')) return reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  🖼️ *SET GROUP PHOTO*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n*Usage:* Reply to an image with *${prefix}setgpp*\n\n_The image will be set as the group profile picture._`)
+if (!m.quoted || !/image/.test(m.quoted.mimetype || '')) return reply(`╔══════════════════════════╗\n║  🖼️  *SET GROUP PHOTO*\n╚══════════════════════════╝\n\n  └ Reply to an image with *${prefix}setgpp*\n  _Image will be set as group profile picture._`)
 try {
 let media = await m.quoted.download()
 await X.updateProfilePicture(m.chat, media)
-reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  🖼️ *GROUP PHOTO UPDATED*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n✅ *${groupName || 'Group'} profile picture has been updated successfully.*`)
+reply(`╔══════════════════════════╗\n║  🖼️  *GROUP PHOTO UPDATED*\n╚══════════════════════════╝\n\n  ✅ *${groupName || 'Group'}* profile picture updated.`)
 } catch(err) {
 let errMsg = (err?.message || '').toLowerCase()
 if (errMsg.includes('not-authorized') || errMsg.includes('403')) reply(mess.botAdmin)
@@ -4598,7 +4567,7 @@ if (!isBotAdmins) return reply(mess.botAdmin)
 try {
 await X.groupRevokeInvite(m.chat)
 let newCode = await X.groupInviteCode(m.chat)
-reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  🔄 *GROUP LINK RESET*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n✅ The old invite link has been *revoked* and a new one has been generated.\n\n┌─────────────────────\n│ 🔗 *New Invite Link:*\n│ https://chat.whatsapp.com/${newCode}\n└─────────────────────\n\n_Share this link to invite new members._`)
+reply(`╔══════════════════════════╗\n║  🔄 *GROUP LINK RESET*\n╚══════════════════════════╝\n\n  ✅ Old link revoked, new link generated.\n\n  🔗 https://chat.whatsapp.com/${newCode}\n\n  _Share to invite new members._`)
 } catch(err) {
 let errMsg = (err?.message || '').toLowerCase()
 if (errMsg.includes('not-authorized') || errMsg.includes('403')) reply(mess.botAdmin)
@@ -4614,7 +4583,7 @@ if (!isBotAdmins) return reply(mess.botAdmin)
 try {
 let code = await X.groupInviteCode(m.chat)
 let memberCount = participants.length
-reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  🔗 *GROUP INVITE LINK*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n┌─────────────────────\n│ 🏘️ Group   : ${groupName || 'This Group'}\n│ 👥 Members : ${memberCount}\n└─────────────────────\n\n🔗 *Link:*\nhttps://chat.whatsapp.com/${code}\n\n_Share this link to invite others._\n_Use ${prefix}resetlink to revoke and regenerate._`)
+reply(`╔══════════════════════════╗\n║  🔗 *GROUP INVITE LINK*\n╚══════════════════════════╝\n\n  ├ 🏘️  *Group*   › ${groupName || 'This Group'}\n  └ 👥 *Members* › ${memberCount}\n\n  🔗 https://chat.whatsapp.com/${code}\n\n  _Use ${prefix}resetlink to revoke & regenerate._`)
 } catch(err) {
 let errMsg = (err?.message || '').toLowerCase()
 if (errMsg.includes('not-authorized') || errMsg.includes('403')) reply(mess.botAdmin)
@@ -4629,13 +4598,13 @@ if (!isAdmins && !isOwner) return reply(mess.admin)
 let gbArg = (args[0] || '').toLowerCase()
 if (gbArg === 'on') {
     global.welcome = true
-    reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  👋 *GOODBYE MESSAGES*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n✅ *Enabled in ${groupName || 'this group'}*\n\nThe bot will now send a farewell message when a member leaves or is removed.`)
+    reply(`╔══════════════════════════╗\n║  👋 *GOODBYE MESSAGES*\n╚══════════════════════════╝\n\n  ✅ *Enabled in ${groupName || 'this group'}*\n  _Bot will farewell departing members._`)
 } else if (gbArg === 'off') {
     global.welcome = false
-    reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  👋 *GOODBYE MESSAGES*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n❌ *Disabled in ${groupName || 'this group'}*\n\nGoodbye messages have been turned off.`)
+    reply(`╔══════════════════════════╗\n║  👋 *GOODBYE MESSAGES*\n╚══════════════════════════╝\n\n  ❌ *Disabled in ${groupName || 'this group'}*\n  _Goodbye messages turned off._`)
 } else {
     let gbState = global.welcome ? '✅ ON' : '❌ OFF'
-    reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  👋 *GOODBYE MESSAGES*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n*Status:* ${gbState}\n\nSends a farewell message when a member leaves or is removed.\n\n*Usage:*\n• ${prefix}goodbye on  — Enable\n• ${prefix}goodbye off — Disable\n\n_Note: This shares the same toggle as ${prefix}welcome_`)
+    reply(`╔══════════════════════════╗\n║  👋 *GOODBYE MESSAGES*\n╚══════════════════════════╝\n\n  ├ 📊 *Status* › ${gbState}\n  └ Farewells departing members\n\n  ├ ${prefix}goodbye on  — Enable\n  └ ${prefix}goodbye off — Disable`)
 }
 } break
 
@@ -4727,7 +4696,7 @@ if (!isDeployedNumber) return reply(mess.OnlyOwner)
 // Usage: .pair 254712345678  OR  just .pair (pairs the sender's own number)
 let pairPhone = text ? text.replace(/[^0-9]/g, '') : ''
 if (!pairPhone) {
-    return reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  🔗 *PAIRING CODE*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\nGenerate a WhatsApp pairing code to link a device.\n\n*Usage:*\n${prefix}pair [phone number]\n\n*Example:*\n${prefix}pair 254712345678\n\n_Include country code. Do not use + or spaces._\n\n*Steps after receiving code:*\n➊ Open WhatsApp on your phone\n➋ Go to *Settings > Linked Devices*\n➌ Tap *Link a Device*\n➍ Choose *Link with phone number*\n➎ Enter the pairing code`)
+    return reply(`╔══════════════════════════╗\n║  🔗 *PAIRING CODE*\n╚══════════════════════════╝\n\n  └ *Usage:* ${prefix}pair [phone number]\n  _Example: ${prefix}pair 254712345678_\n  _Include country code, no + or spaces._\n\n  After receiving code:\n  ├ Open WhatsApp → Settings\n  ├ Linked Devices → Link a Device\n  └ Link with phone number → enter code`)
 }
 if (pairPhone.length < 7 || pairPhone.length > 15) {
     return reply(`❌ *Invalid phone number.*\nMust be 7–15 digits including country code.\n\n*Example:* ${prefix}pair 254712345678`)
@@ -4772,7 +4741,7 @@ try {
         if (!code) throw new Error('No code returned')
         code = code.replace(/[^A-Z0-9]/gi, '').toUpperCase()
         let formatted = code.match(/.{1,4}/g)?.join('-') || code
-        await reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  🔗 *PAIRING CODE READY!*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n📱 *Phone:* +${pairPhone}\n\n┌─────────────────────\n│  🔑  *${formatted}*\n└─────────────────────\n\n*How to link:*\n➊ Open WhatsApp\n➋ Settings > Linked Devices\n➌ Link a Device\n➍ Link with phone number\n➎ Enter the code above\n\n⏳ _Code expires in a few minutes._`)
+        await reply(`╔══════════════════════════╗\n║  🔗 *PAIRING CODE READY!*\n╚══════════════════════════╝\n\n  ├ 📱 *Phone* › +${pairPhone}\n  └ 🔑 *Code*  › *${formatted}*\n\n  ├ Open WhatsApp → Settings\n  ├ Linked Devices → Link a Device\n  └ Enter the code above\n\n  ⏳ _Expires in a few minutes._`)
     } finally {
         // Always destroy the temp socket and clean up its tmp dir
         try { tmpSock?.end() } catch(_) {}
@@ -4827,7 +4796,7 @@ break
 case 'vision':
 case 'analyse': {
     await X.sendMessage(m.chat, { react: { text: '🔍', key: m.key } })
-if (!m.quoted || !/image/.test(m.quoted.mimetype || '')) return reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  🔍 *IMAGE ANALYSIS*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n*Usage:* Reply to an image with *${prefix}${command}*\nOptionally add a question:\n• ${prefix}${command} What is in this image?\n• ${prefix}${command} Read all the text in this image`)
+if (!m.quoted || !/image/.test(m.quoted.mimetype || '')) return reply(`╔══════════════════════════╗\n║  🔍 *IMAGE ANALYSIS*\n╚══════════════════════════╝\n\n  └ Reply to an image with *${prefix}${command}*\n  _Optionally add a question after the command._`)
 try {
 let question = text || 'Describe this image in detail. Include objects, people, colors, text, and any notable elements.'
 await reply('🔍 _Analysing image, please wait..._')
@@ -4856,7 +4825,7 @@ let response = await axios.post('https://text.pollinations.ai/openai', apiBody, 
 })
 let desc = response.data?.choices?.[0]?.message?.content
 if (!desc) throw new Error('No response from vision API')
-reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  🔍 *IMAGE ANALYSIS*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n${desc}`)
+reply(`╔══════════════════════════╗\n║  🔍 *IMAGE ANALYSIS*\n╚══════════════════════════╝\n\n${desc}`)
 } catch(e) {
 // Fallback: upload to catbox then use URL-based vision
 try {
@@ -4874,7 +4843,7 @@ let fb = await axios.post('https://text.pollinations.ai/openai', {
 }, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
 let desc2 = fb.data?.choices?.[0]?.message?.content
 if (!desc2) throw new Error('No response')
-reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  🔍 *IMAGE ANALYSIS*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n${desc2}`)
+reply(`╔══════════════════════════╗\n║  🔍 *IMAGE ANALYSIS*\n╚══════════════════════════╝\n\n${desc2}`)
 } catch(e2) {
 reply(`❌ *Vision analysis failed.*\n_${e2.message || 'Unable to analyse image. Try again shortly.'}_`)
 }
@@ -4993,7 +4962,7 @@ break
 
 case 'speechwrite': {
     await X.sendMessage(m.chat, { react: { text: '🎙️', key: m.key } })
-if (!text) return reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  🎤 *SPEECH WRITER*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\nWrite a professional speech on any topic.\n\n*Usage:* ${prefix}speechwrite [topic or description]\n\n*Examples:*\n• ${prefix}speechwrite graduation ceremony about perseverance\n• ${prefix}speechwrite wedding toast for my best friend\n• ${prefix}speechwrite motivational speech for a sports team\n• ${prefix}speechwrite farewell speech for a retiring colleague`)
+if (!text) return reply(`╔══════════════════════════╗\n║  🎤 *SPEECH WRITER*\n╚══════════════════════════╝\n\n  └ *Usage:* ${prefix}speechwrite [topic]\n\n  _Examples:_\n  • graduation ceremony about perseverance\n  • wedding toast for my best friend\n  • motivational speech for a sports team`)
 try {
 await reply('🎤 _Crafting your speech, please wait..._')
 let systemPrompt = 'You are an elite professional speechwriter with 20+ years of experience writing for world leaders, CEOs, and celebrities. Write compelling, eloquent, emotionally resonant speeches that feel authentic and human. Structure every speech with: a powerful opening hook, a clear body with 3 main points, emotional storytelling and vivid examples, a memorable inspiring conclusion, and natural transitions throughout. Keep the tone warm, confident, and conversational. The speech should feel like a real person wrote it.'
@@ -5008,14 +4977,14 @@ let { data } = await axios.post('https://text.pollinations.ai/openai', {
 }, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
 let speech = data?.choices?.[0]?.message?.content
 if (!speech) throw new Error('No response from API')
-reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  🎤 *YOUR SPEECH*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n${speech}\n\n━━━━━━━━━━━━━━━━━━━━━━━\n_Generated by TOOSII-XD ULTRA_`)
+reply(`╔══════════════════════════╗\n║  🎤 *YOUR SPEECH*\n╚══════════════════════════╝\n\n${speech}\n\n_Generated by TOOSII-XD ULTRA_`)
 } catch(e) { reply('❌ *Speech generation failed.*\n_' + (e.message || 'Try again shortly.') + '_') }
 } break
 
 case 'imagine':
 case 'flux': {
     await X.sendMessage(m.chat, { react: { text: '🎨', key: m.key } })
-if (!text) return reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  🎨 *AI IMAGE GENERATOR*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n*Usage:* ${prefix}${command} [description]\n\n*Examples:*\n• ${prefix}${command} a futuristic city at night with neon lights\n• ${prefix}${command} portrait of a lion wearing a crown, digital art\n• ${prefix}${command} beautiful sunset over the ocean, photorealistic\n\n_Use ${prefix}flux for Flux model, ${prefix}imagine for standard._`)
+if (!text) return reply(`╔══════════════════════════╗\n║  🎨 *AI IMAGE GENERATOR*\n╚══════════════════════════╝\n\n  └ *Usage:* ${prefix}${command} [description]\n\n  _Examples:_\n  • a futuristic city at night\n  • lion wearing a crown, digital art\n  • sunset over the ocean, photorealistic`)
 try {
 await reply('🎨 _Generating your image, please wait..._')
 let model = command === 'flux' ? 'flux' : 'turbo'
@@ -5024,7 +4993,7 @@ let imgUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(text)}?m
 // Download the image as buffer for reliable sending
 let imgBuffer = await getBuffer(imgUrl)
 if (!imgBuffer || imgBuffer.length < 5000) throw new Error('Image generation returned empty result')
-let caption = `┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  🎨 *AI GENERATED IMAGE*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n📝 *Prompt:* ${text}\n🤖 *Model:* ${model.toUpperCase()}\n🎲 *Seed:* ${seed}`
+let caption = `╔══════════════════════════╗\n║  🎨 *AI GENERATED IMAGE*\n╚══════════════════════════╝\n\n  ├ 📝 *Prompt* › ${text}\n  ├ 🤖 *Model*  › ${model.toUpperCase()}\n  └ 🎲 *Seed*   › ${seed}`
 await X.sendMessage(m.chat, { image: imgBuffer, caption }, { quoted: m })
 } catch(e) {
 // Fallback: try direct URL send
@@ -5303,7 +5272,7 @@ await X.sendMessage(m.chat, { image: { url: data.Poster }, caption: info }, { qu
 
 case 'shazam': {
     await X.sendMessage(m.chat, { react: { text: '🎵', key: m.key } })
-if (!m.quoted || !/audio|video/.test(m.quoted.mimetype || '')) return reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  🎵 *SHAZAM - SONG FINDER*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\nIdentify any song from an audio or video clip.\n\n*Usage:* Reply to an audio or video message with *${prefix}shazam*\n\n_Works with voice notes, music clips, videos, and audio files._`)
+if (!m.quoted || !/audio|video/.test(m.quoted.mimetype || '')) return reply(`╔══════════════════════════╗\n║  🎵 *SHAZAM — SONG FINDER*\n╚══════════════════════════╝\n\n  └ Reply to an audio/video with *${prefix}shazam*\n  _Works with voice notes, music & video clips._`)
 try {
 await reply('🎵 _Listening and identifying the song, please wait..._')
 // Download the media buffer
@@ -5340,14 +5309,14 @@ if (!auddData?.result) {
     })
     if (fallbackRes.data?.status === 'success' && fallbackRes.data?.result?.length) {
         let topLyric = fallbackRes.data.result[0]
-        return reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  🎵 *SONG FOUND (LYRICS MATCH)*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n🎤 *Title:* ${topLyric.title || 'Unknown'}\n👤 *Artist:* ${topLyric.artist || 'Unknown'}\n\n_Full audio fingerprint match unavailable, but lyrics matched._`)
+        return reply(`╔══════════════════════════╗\n║  🎵 *SONG FOUND*\n╚══════════════════════════╝\n\n  ├ 🎤 *Title*  › ${topLyric.title || 'Unknown'}\n  └ 👤 *Artist* › ${topLyric.artist || 'Unknown'}\n\n  _Lyrics match (fingerprint unavailable)._`)
     }
-    return reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  🎵 *SHAZAM*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n❌ *Song not recognized.*\n\n_Tips for better results:_\n• Use a longer audio clip (10–30 seconds)\n• Make sure the audio is clear with minimal background noise\n• Try a clip with the chorus or main melody`)
+    return reply(`╔══════════════════════════╗\n║  🎵 *SHAZAM*\n╚══════════════════════════╝\n\n  ❌ Song not recognized.\n\n  ├ Use a longer clip (10–30 seconds)\n  ├ Ensure clear audio, minimal noise\n  └ Try the chorus or main melody`)
 }
 let r = auddData.result
 // Build response
 let lines = []
-lines.push(`┏━━━━━━━━━━━━━━━━━━━━━━━┓`)
+lines.push(`╔══════════════════════════╗`)
 lines.push(`┃  🎵 *SONG IDENTIFIED!*`)
 lines.push(`┗━━━━━━━━━━━━━━━━━━━━━━━┛`)
 lines.push(``)
@@ -6074,7 +6043,7 @@ if (data?.content && data?.author) {
 pick = { q: data.content, a: data.author }
 }
 } catch {}
-reply(`┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  💫 *MOTIVATION*\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n❝ ${pick.q} ❞\n\n— *${pick.a}*`)
+reply(`╔══════════════════════════╗\n║  💫 *MOTIVATION*\n╚══════════════════════════╝\n\n  ❝ ${pick.q} ❞\n\n  — *${pick.a}*`)
 } break
 
 case 'fact': {
@@ -6236,7 +6205,7 @@ case 'font':
 case 'fonts': {
     await X.sendMessage(m.chat, { react: { text: '🔤', key: m.key } })
 if (!isOwner) return reply(mess.OnlyOwner)
-reply(`*🔤 Unicode Font Converter*\n_Visible to everyone — no bot needed!_\n\n┏━━━━━━━━━━━━━━━━━━━━━━━┓\n┃ *— Classic —*\n┃➤ ${prefix}bold  ${prefix}italic  ${prefix}bolditalic\n┃➤ ${prefix}mono  ${prefix}serif  ${prefix}serifbold\n┃➤ ${prefix}serifitalic\n┃ *— Decorative —*\n┃➤ ${prefix}scriptfont  ${prefix}scriptbold\n┃➤ ${prefix}fraktur  ${prefix}frakturbold\n┃➤ ${prefix}doublestruck  ${prefix}smallcaps\n┃➤ ${prefix}medieval  ${prefix}gothic  ${prefix}oldeng\n┃➤ ${prefix}cursive  ${prefix}aesthetic\n┃ *— Fun & Stylized —*\n┃➤ ${prefix}bubble  ${prefix}bubblebold\n┃➤ ${prefix}square  ${prefix}squarebold\n┃➤ ${prefix}wide  ${prefix}tiny\n┃➤ ${prefix}dotted  ${prefix}currency\n┃ *— Transform —*\n┃➤ ${prefix}upsidedown  ${prefix}inverted\n┃➤ ${prefix}mirror  ${prefix}strikethrough\n┃➤ ${prefix}underline\n┃➤ ${prefix}allfonts [text]\n┗━━━━━━━━━━━━━━━━━━━━━━━┛\n\n_Tip: ${prefix}allfonts hello — shows all 32 fonts at once!_\n_Persistent mode: ${prefix}setfont [name]_`)
+reply(`╔══════════════════════════╗\n║  🔤 *FONT CONVERTER*\n╚══════════════════════════╝\n\n  *Classic*\n  ${prefix}bold · ${prefix}italic · ${prefix}bolditalic\n  ${prefix}mono · ${prefix}serif · ${prefix}serifbold\n\n  *Decorative*\n  ${prefix}scriptfont · ${prefix}scriptbold\n  ${prefix}fraktur · ${prefix}frakturbold\n  ${prefix}doublestruck · ${prefix}smallcaps\n\n  *Fun & Stylized*\n  ${prefix}bubble · ${prefix}bubblebold\n  ${prefix}square · ${prefix}squarebold\n  ${prefix}wide · ${prefix}upsidedown\n  ${prefix}strikethrough · ${prefix}underline\n\n  └ ${prefix}allfonts [text] — preview all\n  _Tip: ${prefix}setfont [name] for persistent style_`)
 } break
 
 case 'bold': {
@@ -6926,7 +6895,7 @@ let res = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}
 let data = await res.json()
 if (data.message) {
     return reply(
-        `╭━━━〔 ❌ *REPO NOT FOUND* 〕━━━╮\n` +
+        `╔══════════════════════════╗\n║  ❌ *REPO NOT FOUND*\n╚══════════════════════════╝\n\n` +
         `│\n` +
         `│ Could not find: *${repoPath}*\n` +
         `│\n` +
@@ -6942,25 +6911,24 @@ if (data.message) {
     )
 }
 const repoInfo =
-`╭━━━━━━━━━━━━━━━━━━━━━━━━━━╮
-┃     📦 *REPOSITORY INFO*
-╰━━━━━━━━━━━━━━━━━━━━━━━━━━╯
+`╔══════════════════════════╗
+║  📦 *REPOSITORY INFO*
+╚══════════════════════════╝
 
   🏷️  *${data.full_name}*
   📝  _${(data.description || 'No description').slice(0,60)}_
 
-  ⭐  Stars    ›  *${data.stargazers_count}*
-  🍴  Forks    ›  *${data.forks_count}*
-  💻  Language ›  *${data.language || 'N/A'}*
-  🔄  Updated  ›  *${new Date(data.updated_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}*
+  ├ ⭐ *Stars*    › ${data.stargazers_count}
+  ├ 🍴 *Forks*    › ${data.forks_count}
+  ├ 💻 *Language* › ${data.language || 'N/A'}
+  └ 🔄 *Updated*  › ${new Date(data.updated_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}
 
-  🔗  ${data.html_url}
-  🔑  ${global.sessionUrl}
+  🔗 ${data.html_url}
+  🔑 ${global.sessionUrl}
 
 ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
   💛 *Enjoyed the bot?*
-  ⭐ Star & 🍴 Fork to support the developer
-  — every click keeps this project alive!
+  ⭐ Star & 🍴 Fork — every click counts!
 ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄`
 reply(repoInfo)
 } catch(e) { reply('❌ Error fetching repo: ' + e.message) }
@@ -6970,23 +6938,18 @@ case 'sc':
 case 'script':
 case 'source': {
     await X.sendMessage(m.chat, { react: { text: '📜', key: m.key } })
-let scText = `╭━━━〔 📂 *SOURCE CODE* 〕━━━╮
-│
-│ 🤖 *${global.botname}*
-│
-│ 🔗 *GitHub:*
-│ github.com/TOOSII102/TOOSII-XD-ULTRA
-│
-│ ⭐ Star the repo to show support!
-│ 🍴 Fork it to deploy your own bot!
-│
-│ 👉 Fork:
-│ github.com/TOOSII102/TOOSII-XD-ULTRA/fork
-│
-│ 👨‍💻 Developer: *${global.ownername}*
-│ 📞 Contact: ${global.ownerNumber}
-│
-╰━━━━━━━━━━━━━━━━━╯
+let scText = `╔══════════════════════════╗
+║  📂 *SOURCE CODE*
+╚══════════════════════════╝
+
+  🤖 *${global.botname}*
+
+  ├ 🔗 *GitHub*
+  │  github.com/TOOSII102/TOOSII-XD-ULTRA
+  ├ 🍴 *Fork it*
+  │  github.com/TOOSII102/TOOSII-XD-ULTRA/fork
+  ├ 👨‍💻 *Dev*     › ${global.ownername}
+  └ 📞 *Contact* › ${global.ownerNumber}
 
 _© ${global.ownername} — All Rights Reserved_`
 reply(scText)

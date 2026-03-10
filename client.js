@@ -7075,26 +7075,60 @@ await X.sendMessage(m.chat, { image: { url: data.avatar_url }, caption: info }, 
 case 'repo': {
     await X.sendMessage(m.chat, { react: { text: '📦', key: m.key } })
 try {
-let repoPath = text && text.includes('/') ? text : text ? text + '/' + text : 'TOOSII102/TOOSII-XD-ULTRA'
-let res = await fetch(`https://api.github.com/repos/${encodeURIComponent(repoPath)}`)
+// Default to bot repo if no arg given
+let repoPath = 'TOOSII102/TOOSII-XD-ULTRA'
+if (text) {
+    repoPath = text.includes('/') ? text.trim() : `${text.trim()}/${text.trim()}`
+}
+// Don't encode the whole path — only encode each segment
+const [owner, ...repoParts] = repoPath.split('/')
+const repoName = repoParts.join('/')
+let res = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repoName)}`, {
+    headers: { 'User-Agent': 'TOOSII-XD-ULTRA-Bot' }
+})
 let data = await res.json()
-if (data.message) return reply('Repository not found.')
-let repoInfo = `*📦 ${data.full_name}*\n\n`
-repoInfo += `📝 ${data.description || 'No description'}\n`
-repoInfo += `⭐ Stars: ${data.stargazers_count}\n`
-repoInfo += `🍴 Forks: ${data.forks_count}\n`
-repoInfo += `👁️ Watchers: ${data.watchers_count}\n`
-repoInfo += `💻 Language: ${data.language || 'N/A'}\n`
-repoInfo += `📅 Created: ${new Date(data.created_at).toLocaleDateString()}\n`
-repoInfo += `🔗 ${data.html_url}\n\n`
-repoInfo += `━━━━━━━━━━━━━━━━━━━━━\n\n`
-repoInfo += `⭐ *Star* the repo to show your support!\n`
-repoInfo += `🍴 *Fork* it to get your own copy and deploy your bot!\n\n`
-repoInfo += `👉 Fork: ${data.html_url}/fork\n`
-repoInfo += `⭐ Star: ${data.html_url}\n\n`
-repoInfo += `_Your support helps us keep building!_`
+if (data.message) {
+    return reply(
+        `╭━━━〔 ❌ *REPO NOT FOUND* 〕━━━╮\n` +
+        `│\n` +
+        `│ Could not find: *${repoPath}*\n` +
+        `│\n` +
+        `│ 💡 Try: *.repo owner/reponame*\n` +
+        `│\n` +
+        `│ 📦 *Bot Repo:*\n` +
+        `│ github.com/TOOSII102/TOOSII-XD-ULTRA\n` +
+        `│\n` +
+        `│ ⭐ *Star* & 🍴 *Fork* the bot repo!\n` +
+        `│ 👉 ${global.repoUrl}/fork\n` +
+        `│\n` +
+        `╰━━━━━━━━━━━━━━━━━╯`
+    )
+}
+let repoInfo = `╭━━━〔 📦 *GITHUB REPO* 〕━━━╮\n`
+repoInfo += `│\n`
+repoInfo += `│ 📛 *${data.full_name}*\n`
+repoInfo += `│ 📝 ${data.description || 'No description'}\n`
+repoInfo += `│\n`
+repoInfo += `│ ⭐ Stars: *${data.stargazers_count.toLocaleString()}*\n`
+repoInfo += `│ 🍴 Forks: *${data.forks_count.toLocaleString()}*\n`
+repoInfo += `│ 👁️ Watchers: *${data.watchers_count.toLocaleString()}*\n`
+repoInfo += `│ 💻 Language: *${data.language || 'N/A'}*\n`
+repoInfo += `│ 📅 Created: *${new Date(data.created_at).toLocaleDateString()}*\n`
+repoInfo += `│ 🔄 Updated: *${new Date(data.updated_at).toLocaleDateString()}*\n`
+repoInfo += `│\n`
+repoInfo += `│ 🔗 ${data.html_url}\n`
+repoInfo += `│\n`
+repoInfo += `╰━━━━━━━━━━━━━━━━━╯\n\n`
+repoInfo += `━━━━━━━━━━━━━━━━━━━━━━━━\n`
+repoInfo += `🌟 *Support the Developer!*\n`
+repoInfo += `━━━━━━━━━━━━━━━━━━━━━━━━\n\n`
+repoInfo += `⭐ *Star* the repo — it motivates us to keep improving the bot!\n`
+repoInfo += `🍴 *Fork* it — get your own copy and deploy your bot!\n\n`
+repoInfo += `👉 *Star:* ${data.html_url}\n`
+repoInfo += `👉 *Fork:* ${data.html_url}/fork\n\n`
+repoInfo += `_Every star & fork counts. Thank you! 🙏_`
 reply(repoInfo)
-} catch(e) { reply('Error: ' + e.message) }
+} catch(e) { reply('❌ Error fetching repo: ' + e.message) }
 } break
 
 case 'sc':

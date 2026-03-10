@@ -6963,32 +6963,18 @@ if (data.message) {
         `╰━━━━━━━━━━━━━━━━━╯`
     )
 }
-let repoInfo = `╭━━━〔 📦 *GITHUB REPO* 〕━━━╮\n`
-repoInfo += `│\n`
-repoInfo += `│ 📛 *${data.full_name}*\n`
-repoInfo += `│ 📝 ${data.description || 'No description'}\n`
-repoInfo += `│\n`
-repoInfo += `│ ⭐ Stars: *${data.stargazers_count.toLocaleString()}*\n`
-repoInfo += `│ 🍴 Forks: *${data.forks_count.toLocaleString()}*\n`
-repoInfo += `│ 👁️ Watchers: *${data.watchers_count.toLocaleString()}*\n`
-repoInfo += `│ 💻 Language: *${data.language || 'N/A'}*\n`
-repoInfo += `│ 📅 Created: *${new Date(data.created_at).toLocaleDateString()}*\n`
-repoInfo += `│ 🔄 Updated: *${new Date(data.updated_at).toLocaleDateString()}*\n`
-repoInfo += `│\n`
-repoInfo += `│ 🔗 ${data.html_url}\n`
-repoInfo += `│ 🔑 *Session:* ${global.sessionUrl}\n`
-repoInfo += `│\n`
-repoInfo += `╰━━━━━━━━━━━━━━━━━╯\n\n`
-repoInfo += `━━━━━━━━━━━━━━━━━━━━━━━━\n`
-repoInfo += `🌟 *Support the Developer!*\n`
-repoInfo += `━━━━━━━━━━━━━━━━━━━━━━━━\n\n`
-repoInfo += `⭐ *Star* the repo — it motivates us to keep improving the bot!\n`
-repoInfo += `🍴 *Fork* it — get your own copy and deploy your bot!\n`
-repoInfo += `🔑 *Get Session ID* — pair your bot instantly!\n\n`
-repoInfo += `👉 *Star:* ${data.html_url}\n`
-repoInfo += `👉 *Fork:* ${data.html_url}/fork\n`
-repoInfo += `👉 *Session:* ${global.sessionUrl}\n\n`
-repoInfo += `_Every star & fork counts. Thank you! 🙏_`
+const repoInfo =
+`╭━━━〔 📦 *${data.full_name}* 〕━━━╮
+│ 📝 _${data.description || 'No description'}_
+│
+│ ⭐ *${data.stargazers_count}* stars  🍴 *${data.forks_count}* forks  💻 *${data.language || 'N/A'}*
+│ 🔄 Updated *${new Date(data.updated_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}*
+│
+│ 🔗 ${data.html_url}
+│ 🔑 ${global.sessionUrl}
+╰━━━━━━━━━━━━━━━━━━━━━━━━━╯
+⭐ *Star* · 🍴 *Fork* · 🔑 *Get Session*
+_Support the project — thank you! 🙏_`
 reply(repoInfo)
 } catch(e) { reply('❌ Error fetching repo: ' + e.message) }
 } break

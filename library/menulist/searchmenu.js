@@ -1,18 +1,19 @@
 const searchMenu = `
-┏❒ *ꜱᴇᴀʀᴄʜ* ❒
-┃➤ .yts [Qᴜᴇʀʏ]
-┃➤ .ytsearch [Qᴜᴇʀʏ]
-┃➤ .img [Qᴜᴇʀʏ]
-┃➤ .image [Qᴜᴇʀʏ]
-┃➤ .movie [ɴᴀᴍᴇ]
-┃➤ .wikimedia [Qᴜᴇʀʏ]
-┃➤ .mangainfo [Qᴜᴇʀʏ]
-┃➤ .mangadetail [ᴜʀʟ]
-┃➤ .jkt48news
-┃➤ .otakudesu [Qᴜᴇʀʏ]
-┃➤ .kusonimeinfo [Qᴜᴇʀʏ]
-┃➤ .kusonimesearch [Qᴜᴇʀʏ]
-┃➤ .infogempa
-┗❒`
+╔══════════════════════════╗
+║  🔍  *SEARCH*
+╚══════════════════════════╝
+  ├ .yts          › [query]
+  ├ .ytsearch     › [query]
+  ├ .img          › [query]
+  ├ .image        › [query]
+  ├ .movie        › [name]
+  ├ .wikimedia    › [query]
+  ├ .mangainfo    › [query]
+  ├ .mangadetail  › [url]
+  ├ .jkt48news
+  ├ .otakudesu    › [query]
+  ├ .kusonimeinfo › [query]
+  ├ .kusonimesearch › [query]
+  └ .infogempa`
 
 module.exports = searchMenu

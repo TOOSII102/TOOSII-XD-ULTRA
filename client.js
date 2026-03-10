@@ -6964,17 +6964,26 @@ if (data.message) {
     )
 }
 const repoInfo =
-`╭━━━〔 📦 *${data.full_name}* 〕━━━╮
-│ 📝 _${data.description || 'No description'}_
-│
-│ ⭐ *${data.stargazers_count}* stars  🍴 *${data.forks_count}* forks  💻 *${data.language || 'N/A'}*
-│ 🔄 Updated *${new Date(data.updated_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}*
-│
-│ 🔗 ${data.html_url}
-│ 🔑 ${global.sessionUrl}
-╰━━━━━━━━━━━━━━━━━━━━━━━━━╯
-⭐ *Star* · 🍴 *Fork* · 🔑 *Get Session*
-_Support the project — thank you! 🙏_`
+`╭━━━━━━━━━━━━━━━━━━━━━━━━━━╮
+┃     📦 *REPOSITORY INFO*
+╰━━━━━━━━━━━━━━━━━━━━━━━━━━╯
+
+  🏷️  *${data.full_name}*
+  📝  _${(data.description || 'No description').slice(0,60)}_
+
+  ⭐  Stars    ›  *${data.stargazers_count}*
+  🍴  Forks    ›  *${data.forks_count}*
+  💻  Language ›  *${data.language || 'N/A'}*
+  🔄  Updated  ›  *${new Date(data.updated_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}*
+
+  🔗  ${data.html_url}
+  🔑  ${global.sessionUrl}
+
+┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+  💛 *Enjoyed the bot?*
+  ⭐ Star & 🍴 Fork to support the developer
+  — every click keeps this project alive!
+┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄`
 reply(repoInfo)
 } catch(e) { reply('❌ Error fetching repo: ' + e.message) }
 } break

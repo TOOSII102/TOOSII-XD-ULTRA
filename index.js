@@ -122,36 +122,77 @@ const activeSessions = new Map()
 // so they survive restarts without needing manual .als on each time
 const _stateFile = (phone) => path.join(SESSIONS_DIR, phone, 'botstate.json')
 
+// Per-phone settings — each deployed number has its own independent settings
+// Access via: global.ps(phone).autoLikeStatus  or  global.ps(X.user.id)
+if (!global.phoneSettings) global.phoneSettings = {}
+
+function _getPhone(phoneOrJid) {
+    if (!phoneOrJid) return 'default'
+    return String(phoneOrJid).split(':')[0].split('@')[0]
+}
+
+// Get settings for a specific phone — merges defaults with saved state
+function _ps(phoneOrJid) {
+    const _p = _getPhone(phoneOrJid)
+    if (!global.phoneSettings[_p]) {
+        global.phoneSettings[_p] = {
+            autoViewStatus: true,
+            autoLikeStatus: true,
+            autoLikeEmoji: '❤️',
+            arManager: null,
+            antiDelete: false,
+            antiDeleteMode: 'private',
+            antiStatusMention: false,
+            antiStatusMentionAction: 'warn',
+            autoReplyStatus: false,
+            autoReplyStatusMsg: '',
+            muslimPrayer: 'off',
+            christianDevotion: 'off',
+        }
+    }
+    return global.phoneSettings[_p]
+}
+global.ps = _ps  // make accessible from client.js
+
 function _loadPhoneState(phone) {
     try {
-        const _f = _stateFile(phone)
-        if (!fs.existsSync(_f)) return
+        const _p = _getPhone(phone)
+        const _f = _stateFile(_p)
+        if (!fs.existsSync(_f)) {
+            console.log(`[${_p}] No saved state — using defaults (autoLike=ON autoView=ON)`)
+            return
+        }
         const _saved = JSON.parse(fs.readFileSync(_f, 'utf8'))
-        // Restore globals from saved state
-        if (_saved.autoViewStatus !== undefined) global.autoViewStatus = _saved.autoViewStatus
-        if (_saved.autoLikeStatus !== undefined) global.autoLikeStatus = _saved.autoLikeStatus
-        if (_saved.autoLikeEmoji  !== undefined) global.autoLikeEmoji  = _saved.autoLikeEmoji
-        if (_saved.arManager      !== undefined) global.arManager      = _saved.arManager
-        if (_saved.antiDelete     !== undefined) global.antiDelete     = _saved.antiDelete
-        if (_saved.antiDeleteMode !== undefined) global.antiDeleteMode = _saved.antiDeleteMode
-        if (_saved.antiStatusMention   !== undefined) global.antiStatusMention   = _saved.antiStatusMention
-        if (_saved.antiStatusMentionAction !== undefined) global.antiStatusMentionAction = _saved.antiStatusMentionAction
-        if (_saved.autoReplyStatus !== undefined) global.autoReplyStatus = _saved.autoReplyStatus
-        if (_saved.autoReplyStatusMsg !== undefined) global.autoReplyStatusMsg = _saved.autoReplyStatusMsg
-        if (_saved.muslimPrayer   !== undefined) global.muslimPrayer   = _saved.muslimPrayer
-        if (_saved.christianDevotion !== undefined) global.christianDevotion = _saved.christianDevotion
-        console.log(`[${phone}] ✅ Bot state restored: autoView=${global.autoViewStatus} autoLike=${global.autoLikeStatus}`)
+        // Load into per-phone settings object
+        global.phoneSettings[_p] = { ..._ps(_p), ..._saved }
+        // Also sync to globals for backward compatibility
+        const _s = global.phoneSettings[_p]
+        global.autoViewStatus = _s.autoViewStatus
+        global.autoLikeStatus = _s.autoLikeStatus
+        global.autoLikeEmoji  = _s.autoLikeEmoji
+        if (_s.arManager) global.arManager = _s.arManager
+        global.antiDelete     = _s.antiDelete
+        global.antiDeleteMode = _s.antiDeleteMode
+        global.antiStatusMention       = _s.antiStatusMention
+        global.antiStatusMentionAction = _s.antiStatusMentionAction
+        global.autoReplyStatus    = _s.autoReplyStatus
+        global.autoReplyStatusMsg = _s.autoReplyStatusMsg
+        global.muslimPrayer       = _s.muslimPrayer
+        global.christianDevotion  = _s.christianDevotion
+        console.log(`[${_p}] ✅ State restored: autoView=${_s.autoViewStatus} autoLike=${_s.autoLikeStatus} antiDelete=${_s.antiDelete}`)
     } catch(e) {
         console.log(`[${phone}] Could not load bot state:`, e.message)
     }
 }
 
-function _savePhoneState(phone) {
+function _savePhoneState(phoneOrJid) {
     try {
-        const _f = _stateFile(phone)
+        const _p = _getPhone(phoneOrJid)
+        const _f = _stateFile(_p)
         const _dir = path.dirname(_f)
         if (!fs.existsSync(_dir)) fs.mkdirSync(_dir, { recursive: true })
-        const _state = {
+        // Save current globals into this phone's state
+        global.phoneSettings[_p] = {
             autoViewStatus: global.autoViewStatus,
             autoLikeStatus: global.autoLikeStatus,
             autoLikeEmoji:  global.autoLikeEmoji,
@@ -165,8 +206,10 @@ function _savePhoneState(phone) {
             muslimPrayer:       global.muslimPrayer,
             christianDevotion:  global.christianDevotion,
         }
-        fs.writeFileSync(_f, JSON.stringify(_state, null, 2))
-    } catch {}
+        fs.writeFileSync(_f, JSON.stringify(global.phoneSettings[_p], null, 2))
+    } catch(e) {
+        console.log(`[saveState] error:`, e.message)
+    }
 }
 const processedMsgs = new Set()
 const msgRetryCache = new Map()
@@ -519,67 +562,84 @@ for (const _batchMsg of chatUpdate.messages) {
     if (_batchMsg.key && _batchMsg.key.remoteJid === 'status@broadcast' && !_batchMsg.key.fromMe && _batchMsg.message) {
         try {
             const botSelfJid = X.decodeJid(X.user.id).replace(/:.*@/, '@')
-            const _rawJid = _batchMsg.key.participant || _batchMsg.key.remoteJid
-            const statusPosterJid = _rawJid.replace(/:.*@/, '@')
+
+            // Use the EXACT raw participant JID from WhatsApp — never modify it
+            // Modifying it (stripping colon) causes views/likes to be rejected or disappear
+            const _rawParticipant = _batchMsg.key.participant || _batchMsg.key.remoteJid
+            const statusPosterJid = _rawParticipant  // keep original — do NOT strip
+
+            // Skip newsletters and groups
+            const _cleanJid = _rawParticipant.replace(/:.*@/, '@')
+            if (_cleanJid.endsWith('@newsletter') || _cleanJid.endsWith('@g.us')) continue
 
             // ── Auto View ────────────────────────────────────────────
-            if (global.autoViewStatus) {
+            // Use per-phone settings — each deployed number has independent state
+            const _phoneNum = X.user?.id?.split(':')[0]?.split('@')[0] || phone
+            const _pSettings = global.ps ? global.ps(_phoneNum) : {}
+            const _autoView = _pSettings.autoViewStatus !== undefined ? _pSettings.autoViewStatus : global.autoViewStatus
+            const _autoLike = _pSettings.autoLikeStatus !== undefined ? _pSettings.autoLikeStatus : global.autoLikeStatus
+
+            if (_autoView) {
                 try {
+                    // Use the EXACT original key — WhatsApp validates the participant field strictly
                     await X.readMessages([{
                         remoteJid: 'status@broadcast',
                         id: _batchMsg.key.id,
-                        participant: statusPosterJid
+                        participant: _rawParticipant,
+                        fromMe: false
                     }])
-                } catch { try { await X.readMessages([_batchMsg.key]) } catch {} }
+                } catch {
+                    try { await X.readMessages([_batchMsg.key]) } catch {}
+                }
             }
 
-            // ── Auto Like (relayMessage protocol) ────────────────
-            if (global.autoLikeStatus) {
+            // ── Auto Like ────────────────────────────────────────────
+            if (_autoLike) {
                 try {
-                    // Skip newsletter channels & groups — only react to real contacts
-                    if (statusPosterJid.endsWith('@newsletter') || statusPosterJid.endsWith('@g.us')) continue
-
-                    if (!global.arManager) global.arManager = {
+                    // Per-phone arManager
+                    if (!_pSettings.arManager) _pSettings.arManager = {
                         enabled: true, viewMode: 'view+react', mode: 'fixed',
-                        fixedEmoji: '❤️', reactions: ['❤️','🔥','👍','😂','😮','👏','🎉','🎯','💯','🌟','✨','⚡','💥','🫶','🐺'],
-                        totalReacted: 0, reactedIds: [], lastReactionTime: 0, rateLimitDelay: 2000,
+                        fixedEmoji: _pSettings.autoLikeEmoji || '❤️',
+                        reactions: ['❤️','🔥','👍','😂','😮','👏','🎉','🎯','💯','🌟','✨','⚡','💥','🫶','🐺'],
+                        totalReacted: 0, reactedIds: [], lastReactionTime: 0, rateLimitDelay: 1000,
                     }
-                    const _ar = global.arManager
-
+                    global.arManager = _pSettings.arManager
+                    const _ar = _pSettings.arManager
                     const _statusId = _batchMsg.key.id
+
                     if (_ar.reactedIds.includes(_statusId)) continue
 
-                    if (Date.now() - _ar.lastReactionTime < _ar.rateLimitDelay) {
-                        await new Promise(r => setTimeout(r, _ar.rateLimitDelay - (Date.now() - _ar.lastReactionTime)))
-                    }
+                    const _wait = _ar.rateLimitDelay - (Date.now() - (_ar.lastReactionTime || 0))
+                    if (_wait > 0) await new Promise(r => setTimeout(r, _wait + Math.random() * 1000))
 
                     const _emoji = (_ar.mode === 'random' && _ar.reactions.length)
                         ? _ar.reactions[Math.floor(Math.random() * _ar.reactions.length)]
                         : (_ar.fixedEmoji || global.autoLikeEmoji || '❤️')
 
-                    // Send reaction via sendMessage — avoids newsletter JID API errors
-                    await X.sendMessage(statusPosterJid, {
+                    // React using status@broadcast with the EXACT original participant JID
+                    // This is the only format WhatsApp accepts for persistent status reactions
+                    await X.sendMessage('status@broadcast', {
                         react: {
                             text: _emoji,
                             key: {
                                 remoteJid: 'status@broadcast',
                                 id: _statusId,
-                                participant: _batchMsg.key.participant || statusPosterJid,
+                                participant: _rawParticipant,
                                 fromMe: false
                             }
                         }
+                    }, {
+                        statusJidList: [_cleanJid, botSelfJid].filter(j => j.endsWith('@s.whatsapp.net'))
                     })
 
-                    // Track
                     _ar.lastReactionTime = Date.now()
                     _ar.reactedIds.push(_statusId)
                     _ar.totalReacted++
                     if (_ar.reactedIds.length > 500) _ar.reactedIds = _ar.reactedIds.slice(-250)
 
                 } catch(e) {
-                    // If rate limited, back off
                     if (global.arManager && (e.message?.includes('rate') || e.message?.includes('limit'))) {
-                        global.arManager.rateLimitDelay = Math.min((global.arManager.rateLimitDelay || 2000) * 2, 10000)
+                        global.arManager.rateLimitDelay = Math.min((global.arManager.rateLimitDelay || 3000) * 2, 15000)
                     }
                 }
             }

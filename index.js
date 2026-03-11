@@ -969,14 +969,20 @@ if (mek.key && mek.key.remoteJid === 'status@broadcast') {
     }
     return
 }
-if (!X.public && !mek.key.fromMe && chatUpdate.type === 'notify') return
+// Skip history/old messages from others (type='append', not from bot owner)
+// Always process: type='notify' (new messages) OR fromMe messages (self-commands via 'append')
+if (chatUpdate.type !== 'notify' && !mek.key.fromMe) return
+if (!X.public && !mek.key.fromMe) return
 if (mek.key.id.startsWith('BAE5') && mek.key.id.length === 16) return
 let msgId = mek.key.id
-if (processedMsgs.has(msgId)) return
-processedMsgs.add(msgId)
-if (processedMsgs.size > 5000) {
-    let iter = processedMsgs.values()
-    for (let i = 0; i < 2000; i++) { processedMsgs.delete(iter.next().value) }
+// Only deduplicate 'notify' messages — self-messages come as 'append' and must always pass
+if (chatUpdate.type === 'notify') {
+    if (processedMsgs.has(msgId)) return
+    processedMsgs.add(msgId)
+    if (processedMsgs.size > 5000) {
+        let iter = processedMsgs.values()
+        for (let i = 0; i < 2000; i++) { processedMsgs.delete(iter.next().value) }
+    }
 }
 if (global.autoRead && !mek.key.fromMe) {
     try { await X.readMessages([mek.key]) } catch {}

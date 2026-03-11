@@ -100,6 +100,7 @@ const _isNewsletterNoise = (...args) => {
     const msg = args.map(a => typeof a === 'string' ? a : JSON.stringify(a) || '').join(' ')
     return msg.includes('@newsletter') ||
            (msg.includes('[API]') && msg.includes('Invalid JSON')) ||
+           msg.includes('Invalid JSON response') ||
            msg.includes('Closing open session') ||
            msg.includes('prekey bundle') ||
            msg.includes('Connection Closed') ||
@@ -1029,11 +1030,6 @@ if (global.antiLink && mek.message && !mek.key.fromMe) {
         }
     }
 }
-// DEBUG: log every message that reaches this point
-try {
-    const _dbgBody = mek.message?.conversation || mek.message?.extendedTextMessage?.text || mek.message?.imageMessage?.caption || '[media/other]'
-    console.log(`[MSG] from=${mek.key.remoteJid} fromMe=${mek.key.fromMe} type=${chatUpdate.type} body="${_dbgBody.slice(0,60)}"`)
-} catch(_de) {}
 m = smsg(X, mek, store)
 require("./client")(X, m, chatUpdate, store)
 } catch (err) {

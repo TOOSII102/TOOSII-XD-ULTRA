@@ -1781,9 +1781,9 @@ if (m.isGroup) m.participant = X.decodeJid(m.key.participant) || ''
 if (m.message) {
 m.mtype = getContentType(m.message)
 m.msg = (m.mtype == 'viewOnceMessage' ? m.message[m.mtype].message[getContentType(m.message[m.mtype].message)] : m.message[m.mtype])
-m.body = m.message.conversation || m.msg.caption || m.msg.text || (m.mtype == 'listResponseMessage') && m.msg.singleSelectReply.selectedRowId || (m.mtype == 'buttonsResponseMessage') && m.msg.selectedButtonId || (m.mtype == 'viewOnceMessage') && m.msg.caption || m.text
-let quoted = m.quoted = m.msg.contextInfo ? m.msg.contextInfo.quotedMessage : null
-m.mentionedJid = m.msg.contextInfo ? m.msg.contextInfo.mentionedJid : []
+m.body = m.message.conversation || (m.msg && m.msg.caption) || (m.msg && m.msg.text) || ((m.mtype == 'listResponseMessage') && m.msg && m.msg.singleSelectReply && m.msg.singleSelectReply.selectedRowId) || ((m.mtype == 'buttonsResponseMessage') && m.msg && m.msg.selectedButtonId) || ((m.mtype == 'viewOnceMessage') && m.msg && m.msg.caption) || m.text || ''
+let quoted = m.quoted = (m.msg && m.msg.contextInfo) ? m.msg.contextInfo.quotedMessage : null
+m.mentionedJid = (m.msg && m.msg.contextInfo) ? m.msg.contextInfo.mentionedJid : []
 if (m.quoted) {
 let type = getContentType(quoted)
 m.quoted = m.quoted[type]
@@ -1825,8 +1825,8 @@ m.quoted.copyNForward = (jid, forceForward = false, options = {}) => X.copyNForw
 m.quoted.download = () => X.downloadMediaMessage(m.quoted)
 }
 }
-if (m.msg.url) m.download = () => X.downloadMediaMessage(m.msg)
-m.text = m.msg.text || m.msg.caption || m.message.conversation || m.msg.contentText || m.msg.selectedDisplayText || m.msg.title || ''
+if (m.msg && m.msg.url) m.download = () => X.downloadMediaMessage(m.msg)
+m.text = (m.msg && m.msg.text) || (m.msg && m.msg.caption) || m.message.conversation || (m.msg && m.msg.contentText) || (m.msg && m.msg.selectedDisplayText) || (m.msg && m.msg.title) || ''
 m.reply = (text, chatId = m.chat, options = {}) => X.sendMessage(chatId, { text: text, ...options }, { quoted: m, ...options })
 m.copy = () => exports.smsg(X, M.fromObject(M.toObject(m)))
 return m

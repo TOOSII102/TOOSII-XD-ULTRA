@@ -453,6 +453,30 @@ if (!X.authState.creds.registered) {
 
 store.bind(X.ev)
 
+// ── FIX 5: Suppress Bad MAC / libsignal decryption errors ────────────────
+// These errors occur when WhatsApp re-keys a session (normal behaviour).
+// Baileys already retries via msgRetryCounterCache; we just silence the noise.
+X.ev.on('CB:error', () => {})
+if (X.ws && X.ws.on) {
+    X.ws.on('error', (err) => {
+        const msg = (err?.message || String(err)).toLowerCase()
+        if (msg.includes('bad mac') || msg.includes('failed to decrypt') ||
+            msg.includes('no sessions') || msg.includes('invalid prekey') ||
+            msg.includes('invalid message')) return
+        console.error(`[${phone}] WS Error:`, err.message || err)
+    })
+}
+// Swallow unhandled signal errors inside this socket context
+const _origEmit = X.ev.emit.bind(X.ev)
+X.ev.emit = function(event, ...args) {
+    try { return _origEmit(event, ...args) } catch(e) {
+        const em = (e?.message || '').toLowerCase()
+        if (em.includes('bad mac') || em.includes('failed to decrypt') ||
+            em.includes('no sessions') || em.includes('nosuchsession')) return false
+        throw e
+    }
+}
+
 // ── FIX 4: messages.upsert — correct type check ──────────────────────────
 // The original was missing the type === 'notify' guard at the top level,
 // which caused history sync messages to also trigger commands.
@@ -775,8 +799,13 @@ const { connection, lastDisconnect } = update;
 if (connection === "close") {
 let reason = new Boom(lastDisconnect?.error)?.output.statusCode;
 if (reason === DisconnectReason.badSession) {
-console.log(`[${phone}] Session file corrupted`);
-if (activeSessions.has(phone)) activeSessions.get(phone).status = 'disconnected'
+console.log(`[${phone}] Session file corrupted, deleting & reconnecting...`);
+activeSessions.delete(phone)
+try {
+    const sessDir = path.join(SESSIONS_DIR, phone)
+    if (fs.existsSync(sessDir)) fs.rmSync(sessDir, { recursive: true, force: true })
+} catch(e) {}
+setTimeout(() => connectSession(phone), 3000)
   } else if (reason === DisconnectReason.connectionClosed) {
 console.log(`[${phone}] Connection closed, reconnecting...`);
 if (activeSessions.has(phone)) activeSessions.get(phone).status = 'reconnecting'
@@ -797,7 +826,8 @@ try {
 } catch(e) {}
   } else if (reason === DisconnectReason.restartRequired) {
 console.log(`[${phone}] Restart required, reconnecting...`);
-connectSession(phone);
+if (activeSessions.has(phone)) activeSessions.get(phone).status = 'reconnecting'
+setTimeout(() => connectSession(phone), 2000);
   } else if (reason === DisconnectReason.timedOut) {
 console.log(`[${phone}] Connection timed out, reconnecting...`);
 if (activeSessions.has(phone)) activeSessions.get(phone).status = 'reconnecting'

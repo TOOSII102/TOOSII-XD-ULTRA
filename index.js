@@ -1029,6 +1029,11 @@ if (global.antiLink && mek.message && !mek.key.fromMe) {
         }
     }
 }
+// DEBUG: log every message that reaches this point
+try {
+    const _dbgBody = mek.message?.conversation || mek.message?.extendedTextMessage?.text || mek.message?.imageMessage?.caption || '[media/other]'
+    console.log(`[MSG] from=${mek.key.remoteJid} fromMe=${mek.key.fromMe} type=${chatUpdate.type} body="${_dbgBody.slice(0,60)}"`)
+} catch(_de) {}
 m = smsg(X, mek, store)
 require("./client")(X, m, chatUpdate, store)
 } catch (err) {

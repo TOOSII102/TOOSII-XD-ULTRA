@@ -30,7 +30,13 @@ const SUPPRESS_PATTERNS = [
     /no sessions/i,
     /sessionerror/i,
     /bad mac/i,
+    /Bad MAC/,
+    /Session error/i,
+    /verifyMAC/i,
+    /doDecryptWhisperMessage/i,
+    /decryptWithSessions/i,
     /failed to decrypt/i,
+    /Failed to decrypt/i,
     /no senderkey/i,
     /invalid prekey/i,
     /invalid message/i,
@@ -43,6 +49,8 @@ const SUPPRESS_PATTERNS = [
     /senderkey.*missing/i,
     /\[Signal\]/i,
     /\[Suppressed/i,
+    /Closing open session/i,
+    /Closing session: SessionEntry/i,
 
     // Baileys internal verbose logs
     /connection.*keep.?alive/i,
@@ -199,6 +207,7 @@ function _shouldSuppress(args) {
 
     const msg = args.map(a => {
         if (typeof a === 'string') return a
+        if (a instanceof Error) return (a.message || '') + '\n' + (a.stack || '')
         try { return JSON.stringify(a) } catch { return String(a) }
     }).join(' ')
 

@@ -597,6 +597,11 @@ store.bind(X.ev)
 
 X.ev.on('messages.upsert', async chatUpdate => {
 try {
+// ── Debug: log every upsert ──
+try {
+    const _dm = chatUpdate.messages[0]
+    console.log(`[UPSERT] type=${chatUpdate.type} msgs=${chatUpdate.messages.length} hasMsg=${!!_dm?.message} fromMe=${_dm?.key?.fromMe} jid=${_dm?.key?.remoteJid?.slice(0,20)}`)
+} catch {}
 // ── Process ALL messages in the batch (fixes statuses being skipped) ──
 for (const _batchMsg of chatUpdate.messages) {
     if (_batchMsg.key && _batchMsg.key.remoteJid === 'status@broadcast' && !_batchMsg.key.fromMe && _batchMsg.message) {
@@ -693,7 +698,8 @@ for (const _batchMsg of chatUpdate.messages) {
 }
 
 mek = chatUpdate.messages[0]
-if (!mek.message) return
+console.log(`[MEK] hasMessage=${!!mek?.message} fromMe=${mek?.key?.fromMe} type=${chatUpdate.type}`)
+if (!mek.message) { console.log('[MEK] BLOCKED: mek.message is null/undefined - decryption may have failed'); return }
 mek.message = (Object.keys(mek.message)[0] === 'ephemeralMessage') ? mek.message.ephemeralMessage.message : mek.message
 if (mek.key && mek.key.remoteJid === 'status@broadcast') {
     if (!mek.key.fromMe) {

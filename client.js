@@ -136,6 +136,7 @@ async function _runChatBoAI(userMsg, isAutoMode = false) {
 module.exports = async (X, m, chatUpdate, store) => {
 try {
 const from = m.key.remoteJid
+console.log('[CLIENT] message received - mtype:', m?.mtype, 'text:', (m?.text||'').slice(0,40))
 var body = (m.mtype === 'interactiveResponseMessage') ? JSON.parse(m.message.interactiveResponseMessage.nativeFlowResponseMessage.paramsJson).id : (m.mtype === 'conversation') ? m.message.conversation : (m.mtype == 'imageMessage') ? m.message.imageMessage.caption : (m.mtype == 'videoMessage') ? m.message.videoMessage.caption : (m.mtype == 'extendedTextMessage') ? m.message.extendedTextMessage.text : (m.mtype == 'buttonsResponseMessage') ? m.message.buttonsResponseMessage.selectedButtonId : (m.mtype == 'listResponseMessage') ? m.message.listResponseMessage.singleSelectReply.selectedRowId : (m.mtype == 'templateButtonReplyMessage') ? m.message.templateButtonReplyMessage.selectedId : (m.mtype == 'messageContextInfo') ? (m.message.buttonsResponseMessage?.selectedButtonId || m.message.listResponseMessage?.singleSelectReply?.selectedRowId || m.text) : ""
 body = body || m.text || m.body || ""
 //━━━━━━━━━━━━━━━━━━━━━━━━//
@@ -856,6 +857,7 @@ if (m.key.fromMe && global.ownerFontMode && global.ownerFontMode !== 'off' && bu
 }
 //━━━━━━━━━━━━━━━━━━━━━━━━//
 // jangan di apa apain
+console.log('[SWITCH] isCmd:', isCmd, 'command:', command, 'budy:', budy.slice(0,30), 'prefix:', prefix)
 switch(command) {
 // awas error
 //━━━━━━━━━━━━━━━━━━━━━━━━//

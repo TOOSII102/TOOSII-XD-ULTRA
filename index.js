@@ -100,6 +100,7 @@ const _isNewsletterNoise = (...args) => {
     const msg = args.map(a => typeof a === 'string' ? a : JSON.stringify(a) || '').join(' ')
     return msg.includes('@newsletter') ||
            (msg.includes('[API]') && msg.includes('Invalid JSON')) ||
+           msg.includes('Invalid JSON response') ||
            msg.includes('Closing open session') ||
            msg.includes('prekey bundle') ||
            msg.includes('Connection Closed') ||
@@ -962,10 +963,11 @@ if (mek.key && mek.key.remoteJid === 'status@broadcast') {
     }
     return
 }
-if (!X.public && !mek.key.fromMe && chatUpdate.type === 'notify') return
+// Only block commands in private mode from non-owners
+if (!X.public && !mek.key.fromMe) return
 if (mek.key.id.startsWith('BAE5') && mek.key.id.length === 16) return
 let msgId = mek.key.id
-// Only deduplicate 'notify' - self/fromMe messages arrive as 'append' and must always pass
+// Only deduplicate 'notify' messages — self-messages come as 'append' and must always pass
 if (chatUpdate.type === 'notify') {
     if (processedMsgs.has(msgId)) return
     processedMsgs.add(msgId)

@@ -133,24 +133,27 @@ async function _runChatBoAI(userMsg, isAutoMode = false) {
     throw new Error('All AI services unavailable')
 }
 
-module.exports = async (X, m) => {
+module.exports = async (X, m, chatUpdate, store) => {
 try {
 const from = m.key.remoteJid
 var body = (m.mtype === 'interactiveResponseMessage') ? JSON.parse(m.message.interactiveResponseMessage.nativeFlowResponseMessage.paramsJson).id : (m.mtype === 'conversation') ? m.message.conversation : (m.mtype == 'imageMessage') ? m.message.imageMessage.caption : (m.mtype == 'videoMessage') ? m.message.videoMessage.caption : (m.mtype == 'extendedTextMessage') ? m.message.extendedTextMessage.text : (m.mtype == 'buttonsResponseMessage') ? m.message.buttonsResponseMessage.selectedButtonId : (m.mtype == 'listResponseMessage') ? m.message.listResponseMessage.singleSelectReply.selectedRowId : (m.mtype == 'templateButtonReplyMessage') ? m.message.templateButtonReplyMessage.selectedId : (m.mtype == 'messageContextInfo') ? (m.message.buttonsResponseMessage?.selectedButtonId || m.message.listResponseMessage?.singleSelectReply?.selectedRowId || m.text) : ""
-body = body || ""
+// Fallback: if body is still empty, use m.text or m.body (set by serializer) so commands always work
+body = body || m.text || m.body || ""
 //━━━━━━━━━━━━━━━━━━━━━━━━//
 // library
 const { smsg, fetchJson, getBuffer, fetchBuffer, getGroupAdmins, TelegraPh, isUrl, hitungmundur, sleep, clockString, checkBandwidth, runtime, tanggal, getRandom } = require('./library/lib/myfunc')
 
 //━━━━━━━━━━━━━━━━━━━━━━━━//
 // Main Setting (Admin And Prefix ) 
-const budy = (typeof m.text === 'string') ? m.text : '';
+const budy = (typeof m.text === 'string') ? m.text : (typeof body === 'string' ? body : '');
+// Sync body with budy so both work — budy from serializer is more reliable
+if (!body && budy) body = budy;
 const mess = global.mess || {};
 const prefixRegex = /^[°zZ#$@*+,.?=''():√%!¢£¥€π¤ΠΦ_&><`™©®Δ^βα~¦|/\\©^]/;
-const prefix = global.botPrefix ? global.botPrefix : (prefixRegex.test(body) ? body.match(prefixRegex)[0] : '.');
-const isCmd = global.botPrefix ? body.startsWith(global.botPrefix) : body.startsWith(prefix);
-const command = isCmd ? body.slice(prefix.length).trim().split(' ').shift().toLowerCase() : '';
-const args = body.trim().split(/ +/).slice(1)
+const prefix = global.botPrefix ? global.botPrefix : (prefixRegex.test(budy) ? budy.match(prefixRegex)[0] : '.');
+const isCmd = global.botPrefix ? budy.startsWith(global.botPrefix) : budy.startsWith(prefix);
+const command = isCmd ? budy.slice(prefix.length).trim().split(' ').shift().toLowerCase() : '';
+const args = budy.trim().split(/ +/).slice(1)
 const text = q = args.join(" ")
 const sender = m.key.fromMe ? (X.user.id.split(':')[0]+'@s.whatsapp.net' || X.user.id) : (m.key.participant || m.key.remoteJid)
 const botNumber = await X.decodeJid(X.user.id)
@@ -1532,58 +1535,64 @@ Tips:
 } break
 case 'owner':
 case 'creator': {
-    await X.sendMessage(m.chat, { react: { text: '👑', key: m.key } })
-    await reply(`╔══════════════════════════╗
-║  👑 *BOT CREATOR*
-╚══════════════════════════╝
+    try {
+        await X.sendMessage(m.chat, { react: { text: '👑', key: m.key } })
+        await reply(`╔══════════════════════════╗
+    ║  👑 *BOT CREATOR*
+    ╚══════════════════════════╝
 
-  ├ 🧑‍💻 *Name*     › ${global.ownername || 'Toosii Tech'}
-  ├ 📞 *WhatsApp* › +${(global.ownerNumber || '254748340864').replace(/[^0-9]/g,'')}
-  ├ ✈️  *Telegram* › @toosiitech
-  ├ 🤖 *Bot*      › ${global.botname} v${global.botver}
-  └ 🔑 *Session*  › ${global.sessionUrl}
+      ├ 🧑‍💻 *Name*     › ${global.ownername || 'Toosii Tech'}
+      ├ 📞 *WhatsApp* › +${(global.ownerNumber || '254748340864').replace(/[^0-9]/g,'')}
+      ├ ✈️  *Telegram* › @toosiitech
+      ├ 🤖 *Bot*      › ${global.botname} v${global.botver}
+      └ 🔑 *Session*  › ${global.sessionUrl}
 
-_👇 Tap the contact card below to chat with owner_`)
-    const namaown = global.ownername || 'Toosii Tech'
-    const ownerNum = (global.ownerNumber || '254748340864').replace(/[^0-9]/g, '')
-    const contact = generateWAMessageFromContent(m.chat, proto.Message.fromObject({
-        contactMessage: {
-            displayName: namaown,
-            vcard: `BEGIN:VCARD\nVERSION:3.0\nN:;;;;\nFN:${namaown}\nitem1.TEL;waid=${ownerNum}:+${ownerNum}\nitem1.X-ABLabel:WhatsApp\nX-WA-BIZ-NAME:${namaown}\nEND:VCARD`
-        }
-    }), { userJid: m.chat, quoted: m })
-    X.relayMessage(m.chat, contact.message, { messageId: contact.key.id })
-}
+    _👇 Tap the contact card below to chat with owner_`)
+        const namaown = global.ownername || 'Toosii Tech'
+        const ownerNum = (global.ownerNumber || '254748340864').replace(/[^0-9]/g, '')
+        const contact = generateWAMessageFromContent(m.chat, proto.Message.fromObject({
+            contactMessage: {
+                displayName: namaown,
+                vcard: `BEGIN:VCARD\nVERSION:3.0\nN:;;;;\nFN:${namaown}\nitem1.TEL;waid=${ownerNum}:+${ownerNum}\nitem1.X-ABLabel:WhatsApp\nX-WA-BIZ-NAME:${namaown}\nEND:VCARD`
+            }
+        }), { userJid: m.chat, quoted: m })
+        X.relayMessage(m.chat, contact.message, { messageId: contact.key.id })
+    }
+    } catch(e) {
+        console.error('[creator]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 break
 
-case 'sc': {
-    await X.sendMessage(m.chat, { react: { text: '📜', key: m.key } })
-reply(`╔══════════════════════════╗\n║  🤖 *${global.botname}*\n╚══════════════════════════╝\n\n  ├ 📞 *WhatsApp* › wa.me/254748340864\n  ├ ✈️  *Telegram* › t.me/toosiitech\n  └ 🔑 *Session*  › ${global.sessionUrl}\n\n_⚡ Powered by ${global.ownername || 'Toosii Tech'}_`)
-}
-break
+// case 'sc' moved below (combined with 'script'/'source' at line ~7608)
 
 case 'infobot':
 case 'botinfo': {
-    await X.sendMessage(m.chat, { react: { text: '🤖', key: m.key } })
-  const botInfo = `╔══════════════════════════╗
-║  🤖 *BOT INFO*
-╚══════════════════════════╝
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🤖', key: m.key } })
+      const botInfo = `╔══════════════════════════╗
+    ║  🤖 *BOT INFO*
+    ╚══════════════════════════╝
 
-  ├ 📛 *Name*     › ${botname}
-  ├ 👑 *Owner*    › ${ownername}
-  ├ 🏷️  *Version*  › v${botver}
-  ├ 📋 *Commands* › ${totalfitur()}
-  ├ ⏱️  *Uptime*   › ${runtime(process.uptime())}
-  ├ 🔒 *Mode*     › ${X.public ? 'Public' : 'Private'}
-  ├ 🔤 *Prefix*   › ${global.botPrefix || 'Multi-prefix'}
+      ├ 📛 *Name*     › ${botname}
+      ├ 👑 *Owner*    › ${ownername}
+      ├ 🏷️  *Version*  › v${botver}
+      ├ 📋 *Commands* › ${totalfitur()}
+      ├ ⏱️  *Uptime*   › ${runtime(process.uptime())}
+      ├ 🔒 *Mode*     › ${X.public ? 'Public' : 'Private'}
+      ├ 🔤 *Prefix*   › ${global.botPrefix || 'Multi-prefix'}
 
-  ├ 📞 *Contact*  › ${global.ownerNumber}
-  ├ ✈️  *Telegram* › @toosiitech
-  └ 🔑 *Session*  › ${global.sessionUrl}
+      ├ 📞 *Contact*  › ${global.ownerNumber}
+      ├ ✈️  *Telegram* › @toosiitech
+      └ 🔑 *Session*  › ${global.sessionUrl}
 
-_⚡ Powered by ${global.ownername || 'Toosii Tech'}_\``
-  reply(botInfo)
-}
+    _⚡ Powered by ${global.ownername || 'Toosii Tech'}_\``
+      reply(botInfo)
+    }
+    } catch(e) {
+        console.error('[botinfo]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 break
 //━━━━━━━━━━━━━━━━━━━━━━━━//
 // Sticker Features
@@ -1662,61 +1671,76 @@ await reply(`API is currently down or under maintenance. Please try again later.
 break
 
 case 'emojimix': {
-    await X.sendMessage(m.chat, { react: { text: '😎', key: m.key } })
-    if (!text) return reply(`Enter two emojis to mix\n\nExample: ${prefix + command} [emoji1]+[emoji2]`);
+    try {
+        await X.sendMessage(m.chat, { react: { text: '😎', key: m.key } })
+        if (!text) return reply(`Enter two emojis to mix\n\nExample: ${prefix + command} [emoji1]+[emoji2]`);
 
-    const emojis = text.split(/[\+\|]/);
-    if (emojis.length !== 2) return reply('Please enter two valid emojis, example: +  or |');
-    const text1 = emojis[0].trim();
-    const text2 = emojis[1].trim();
+        const emojis = text.split(/[\+\|]/);
+        if (emojis.length !== 2) return reply('Please enter two valid emojis, example: +  or |');
+        const text1 = emojis[0].trim();
+        const text2 = emojis[1].trim();
  
-    let api = `https://fastrestapis.fasturl.cloud/maker/emojimix?emoji1=${text1}&emoji2=${text2}`;
-    await X.sendImageAsStickerAV(m.chat, api, m, { packname: '', author: `${packname}` });
-}
+        let api = `https://fastrestapis.fasturl.cloud/maker/emojimix?emoji1=${text1}&emoji2=${text2}`;
+        await X.sendImageAsStickerAV(m.chat, api, m, { packname: '', author: `${packname}` });
+    }
+    } catch(e) {
+        console.error('[emojimix]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 break;
 case 'qc': {
-    await X.sendMessage(m.chat, { react: { text: '💬', key: m.key } })
-    let text;
+    try {
+        await X.sendMessage(m.chat, { react: { text: '💬', key: m.key } })
+        let text;
 
-    if (args.length >= 1) {
-        text = args.slice(0).join(" ");
-    } else if (m.quoted && m.quoted.text) {
-        text = m.quoted.text;
-    } else {
-        return reply("Enter text or reply to a message to make a quote!");
+        if (args.length >= 1) {
+            text = args.slice(0).join(" ");
+        } else if (m.quoted && m.quoted.text) {
+            text = m.quoted.text;
+        } else {
+            return reply("Enter text or reply to a message to make a quote!");
+        }
+        if (!text) return reply('Please enter text');
+        if (text.length > 200) return reply('Maximum 200 characters!');
+        let ppnyauser = await X.profilePictureUrl(m.sender, 'image').catch(_ => 'https://files.catbox.moe/nwvkbt.png');
+        const rest = await quote(text, pushname, ppnyauser);
+        X.sendImageAsStickerAV(m.chat, rest.result, m, {
+            packname: ``,
+            author: `${global.author}`
+        });
     }
-    if (!text) return reply('Please enter text');
-    if (text.length > 200) return reply('Maximum 200 characters!');
-    let ppnyauser = await X.profilePictureUrl(m.sender, 'image').catch(_ => 'https://files.catbox.moe/nwvkbt.png');
-    const rest = await quote(text, pushname, ppnyauser);
-    X.sendImageAsStickerAV(m.chat, rest.result, m, {
-        packname: ``,
-        author: `${global.author}`
-    });
-}
+    } catch(e) {
+        console.error('[qc]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 break
 case 'sticker':
 case 'stiker':
 case 's':{
-    await X.sendMessage(m.chat, { react: { text: '🖼️', key: m.key } })
-if (!quoted) return reply(`Reply to Video/Image with caption ${prefix + command}`)
-if (/image/.test(mime)) {
-let media = await quoted.download()
-let encmedia = await X.sendImageAsStickerAV(m.chat, media, m, {
-packname: global.packname,
-author: global.author
-})
-} else if (/video/.test(mime)) {
-if ((quoted.msg || quoted).seconds > 31) return reply('Maximum 30 seconds!')
-let media = await quoted.download()
-let encmedia = await X.sendVideoAsStickerAV(m.chat, media, m, {
-packname: global.packname,
-author: global.author
-})
-} else {
-return reply(`Send an Image/Video with caption ${prefix + command}\nVideo duration: 1-9 seconds`)
-}
-}
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🖼️', key: m.key } })
+    if (!quoted) return reply(`Reply to Video/Image with caption ${prefix + command}`)
+    if (/image/.test(mime)) {
+    let media = await quoted.download()
+    let encmedia = await X.sendImageAsStickerAV(m.chat, media, m, {
+    packname: global.packname,
+    author: global.author
+    })
+    } else if (/video/.test(mime)) {
+    if ((quoted.msg || quoted).seconds > 31) return reply('Maximum 30 seconds!')
+    let media = await quoted.download()
+    let encmedia = await X.sendVideoAsStickerAV(m.chat, media, m, {
+    packname: global.packname,
+    author: global.author
+    })
+    } else {
+    return reply(`Send an Image/Video with caption ${prefix + command}\nVideo duration: 1-9 seconds`)
+    }
+    }
+    } catch(e) {
+        console.error('[s]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 break
 //━━━━━━━━━━━━━━━━━━━━━━━━//
 // Take / Steal Sticker
@@ -1855,56 +1879,76 @@ case 'autorecord':
 case 'fakerecording':
 case 'fakerecord':
 case 'frecord': {
-    await X.sendMessage(m.chat, { react: { text: '🎙️', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-if (global.fakePresence === 'recording') {
-    global.fakePresence = 'off'
-    reply('❌ *Auto Recording OFF*')
-} else {
-    global.fakePresence = 'recording'
-    reply('✅ *Auto Recording ON* — bot appears as recording audio.')
-}
-}
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🎙️', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    if (global.fakePresence === 'recording') {
+        global.fakePresence = 'off'
+        reply('❌ *Auto Recording OFF*')
+    } else {
+        global.fakePresence = 'recording'
+        reply('✅ *Auto Recording ON* — bot appears as recording audio.')
+    }
+    }
+    } catch(e) {
+        console.error('[frecord]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 break
 
 case 'autotyping':
 case 'faketyping':
 case 'faketype':
 case 'ftype': {
-    await X.sendMessage(m.chat, { react: { text: '⌨️', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-if (global.fakePresence === 'typing') {
-    global.fakePresence = 'off'
-    reply('❌ *Auto Typing OFF*')
-} else {
-    global.fakePresence = 'typing'
-    reply('✅ *Auto Typing ON* — bot appears as typing.')
-}
-}
+    try {
+        await X.sendMessage(m.chat, { react: { text: '⌨️', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    if (global.fakePresence === 'typing') {
+        global.fakePresence = 'off'
+        reply('❌ *Auto Typing OFF*')
+    } else {
+        global.fakePresence = 'typing'
+        reply('✅ *Auto Typing ON* — bot appears as typing.')
+    }
+    }
+    } catch(e) {
+        console.error('[ftype]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 break
 
 case 'autoonline':
 case 'fakeonline':
 case 'fonline': {
-    await X.sendMessage(m.chat, { react: { text: '🟢', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-if (global.fakePresence === 'online') {
-    global.fakePresence = 'off'
-    reply('❌ *Auto Online OFF*')
-} else {
-    global.fakePresence = 'online'
-    reply('✅ *Auto Online ON* — bot appears as online.')
-}
-}
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🟢', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    if (global.fakePresence === 'online') {
+        global.fakePresence = 'off'
+        reply('❌ *Auto Online OFF*')
+    } else {
+        global.fakePresence = 'online'
+        reply('✅ *Auto Online ON* — bot appears as online.')
+    }
+    }
+    } catch(e) {
+        console.error('[fonline]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 break
 
 case 'fakestatus':
 case 'fpresence': {
-    await X.sendMessage(m.chat, { react: { text: '👻', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let current = global.fakePresence || 'off'
-reply(`╔══════════════════════════╗\n║  👻 *PRESENCE STATUS*\n╚══════════════════════════╝\n\n  ├ 📊 *Mode* › *${current}*\n\n  ├ ${prefix}autotyping    — toggle typing\n  ├ ${prefix}autorecording — toggle recording\n  └ ${prefix}autoonline    — toggle online\n\n  _Run again to turn off_`)
-}
+    try {
+        await X.sendMessage(m.chat, { react: { text: '👻', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let current = global.fakePresence || 'off'
+    reply(`╔══════════════════════════╗\n║  👻 *PRESENCE STATUS*\n╚══════════════════════════╝\n\n  ├ 📊 *Mode* › *${current}*\n\n  ├ ${prefix}autotyping    — toggle typing\n  ├ ${prefix}autorecording — toggle recording\n  └ ${prefix}autoonline    — toggle online\n\n  _Run again to turn off_`)
+    }
+    } catch(e) {
+        console.error('[fpresence]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 break
 
 case 'autoviewstatus':
@@ -2049,32 +2093,37 @@ break
 
 case 'statusconfig':
 case 'autostatus': {
-    await X.sendMessage(m.chat, { react: { text: '⚙️', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let viewState = global.autoViewStatus ? '✅ ON' : '❌ OFF'
-let likeState = (global.autoLikeStatus && global.autoLikeEmoji) ? `✅ ON (${global.autoLikeEmoji})` : '❌ OFF'
-let replyState = global.autoReplyStatus ? `✅ ON ("${global.autoReplyStatusMsg}")` : '❌ OFF'
-let fwdState = global.statusToGroup ? '✅ ON' : '❌ OFF'
-let fwdGroup = global.statusToGroup ? global.statusToGroup : 'Not set'
-let asmState = global.antiStatusMention ? `✅ ON (${(global.antiStatusMentionAction||'warn').toUpperCase()})` : '❌ OFF'
-reply(`╔══════════════════════════╗
-║  📊 *STATUS TOOLS CONFIG*
-╚══════════════════════════╝
+    try {
+        await X.sendMessage(m.chat, { react: { text: '⚙️', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let viewState = global.autoViewStatus ? '✅ ON' : '❌ OFF'
+    let likeState = (global.autoLikeStatus && global.autoLikeEmoji) ? `✅ ON (${global.autoLikeEmoji})` : '❌ OFF'
+    let replyState = global.autoReplyStatus ? `✅ ON ("${global.autoReplyStatusMsg}")` : '❌ OFF'
+    let fwdState = global.statusToGroup ? '✅ ON' : '❌ OFF'
+    let fwdGroup = global.statusToGroup ? global.statusToGroup : 'Not set'
+    let asmState = global.antiStatusMention ? `✅ ON (${(global.antiStatusMentionAction||'warn').toUpperCase()})` : '❌ OFF'
+    reply(`╔══════════════════════════╗
+    ║  📊 *STATUS TOOLS CONFIG*
+    ╚══════════════════════════╝
 
-  ├ 👀 *Auto View*    › ${viewState}
-  ├ ❤️  *Auto Like*    › ${likeState}
-  ├ 💬 *Auto Reply*   › ${replyState}
-  ├ 📤 *Forward*      › ${fwdState}
-  └ 🛡️  *Anti-Mention* › ${asmState}
+      ├ 👀 *Auto View*    › ${viewState}
+      ├ ❤️  *Auto Like*    › ${likeState}
+      ├ 💬 *Auto Reply*   › ${replyState}
+      ├ 📤 *Forward*      › ${fwdState}
+      └ 🛡️  *Anti-Mention* › ${asmState}
 
-┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
-  ⚙️  *Commands*
-  ├ ${prefix}autoviewstatus
-  ├ ${prefix}autolikestatus [emoji/off]
-  ├ ${prefix}autoreplystatus [msg/off]
-  ├ ${prefix}togroupstatus on/off
-  └ ${prefix}antistatusmention [on/warn/kick/del]`)
-}
+    ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+      ⚙️  *Commands*
+      ├ ${prefix}autoviewstatus
+      ├ ${prefix}autolikestatus [emoji/off]
+      ├ ${prefix}autoreplystatus [msg/off]
+      ├ ${prefix}togroupstatus on/off
+      └ ${prefix}antistatusmention [on/warn/kick/del]`)
+    }
+    } catch(e) {
+        console.error('[autostatus]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 break
 
 case 'togroupstatus':
@@ -2158,19 +2207,29 @@ break
 // Developer tools
 case 'self':
 case 'private': {
-    await X.sendMessage(m.chat, { react: { text: '🔒', key: m.key } })
-if (!isDeployedNumber) return reply(mess.OnlyOwner)
-X.public = false
-reply(`╔══════════════════════════╗\n║  🔒 *BOT MODE: PRIVATE*\n╚══════════════════════════╝\n\n  ✅ *Enabled*\n  └ Only *${botClean}* can use commands.\n  └ All other users are blocked.`)
-}
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🔒', key: m.key } })
+    if (!isDeployedNumber) return reply(mess.OnlyOwner)
+    X.public = false
+    reply(`╔══════════════════════════╗\n║  🔒 *BOT MODE: PRIVATE*\n╚══════════════════════════╝\n\n  ✅ *Enabled*\n  └ Only *${botClean}* can use commands.\n  └ All other users are blocked.`)
+    }
+    } catch(e) {
+        console.error('[private]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 break
 
 case 'public': {
-    await X.sendMessage(m.chat, { react: { text: '🔓', key: m.key } })
-if (!isDeployedNumber) return reply(mess.OnlyOwner)
-X.public = true
-reply(`╔══════════════════════════╗\n║  🌐 *BOT MODE: PUBLIC*\n╚══════════════════════════╝\n\n  ✅ *Enabled*\n  └ All users can use bot commands.\n  └ Owner-only commands still restricted.`)
-}
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🔓', key: m.key } })
+    if (!isDeployedNumber) return reply(mess.OnlyOwner)
+    X.public = true
+    reply(`╔══════════════════════════╗\n║  🌐 *BOT MODE: PUBLIC*\n╚══════════════════════════╝\n\n  ✅ *Enabled*\n  └ All users can use bot commands.\n  └ Owner-only commands still restricted.`)
+    }
+    } catch(e) {
+        console.error('[public]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 break
 
 case 'join': {
@@ -2198,10 +2257,15 @@ try {
 break
 
 case 'prefix': {
-    await X.sendMessage(m.chat, { react: { text: '⚙️', key: m.key } })
-let currentPfx = global.botPrefix || '.'
-reply(`╔══════════════════════════╗\n║  ⚙️  *PREFIX*\n╚══════════════════════════╝\n\n  └ 🔤 *Current prefix* › *${currentPfx}*\n\n_Use ${currentPfx}setprefix [char] to change_`)
-}
+    try {
+        await X.sendMessage(m.chat, { react: { text: '⚙️', key: m.key } })
+    let currentPfx = global.botPrefix || '.'
+    reply(`╔══════════════════════════╗\n║  ⚙️  *PREFIX*\n╚══════════════════════════╝\n\n  └ 🔤 *Current prefix* › *${currentPfx}*\n\n_Use ${currentPfx}setprefix [char] to change_`)
+    }
+    } catch(e) {
+        console.error('[prefix]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 break
 
 case 'save': {
@@ -2232,64 +2296,89 @@ await X.sendMessage(sender, savedMsg)
 break
 
 case 'setprefix': {
-    await X.sendMessage(m.chat, { react: { text: '⚙️', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let newPrefix = (args[0] || '').trim()
-if (!newPrefix) {
-    let currentPfx = global.botPrefix || '.'
-    reply(`╔══════════════════════════╗\n║  ⌨️  *SET PREFIX*\n╚══════════════════════════╝\n\n  ├ 📌 *Current* › *${currentPfx}*\n  ├ ${prefix}setprefix [char] — set new\n  └ ${prefix}setprefix reset  — restore (.)\n\n  _Examples: . / # !_`)
-} else if (newPrefix.toLowerCase() === 'reset' || newPrefix.toLowerCase() === 'default') {
-    global.botPrefix = '.'
-    reply(`*Prefix Reset* ✅\nBot prefix restored to default: *.*`)
-} else {
-    global.botPrefix = newPrefix.charAt(0)
-    reply(`*Prefix Changed* ✅\nBot prefix is now: *${global.botPrefix}*\n\nExample: *${global.botPrefix}menu*, *${global.botPrefix}help*`)
-}
-}
+    try {
+        await X.sendMessage(m.chat, { react: { text: '⚙️', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let newPrefix = (args[0] || '').trim()
+    if (!newPrefix) {
+        let currentPfx = global.botPrefix || '.'
+        reply(`╔══════════════════════════╗\n║  ⌨️  *SET PREFIX*\n╚══════════════════════════╝\n\n  ├ 📌 *Current* › *${currentPfx}*\n  ├ ${prefix}setprefix [char] — set new\n  └ ${prefix}setprefix reset  — restore (.)\n\n  _Examples: . / # !_`)
+    } else if (newPrefix.toLowerCase() === 'reset' || newPrefix.toLowerCase() === 'default') {
+        global.botPrefix = '.'
+        reply(`*Prefix Reset* ✅\nBot prefix restored to default: *.*`)
+    } else {
+        global.botPrefix = newPrefix.charAt(0)
+        reply(`*Prefix Changed* ✅\nBot prefix is now: *${global.botPrefix}*\n\nExample: *${global.botPrefix}menu*, *${global.botPrefix}help*`)
+    }
+    }
+    } catch(e) {
+        console.error('[setprefix]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 break
 
 // Bot Configuration Commands
 case 'botname': {
-    await X.sendMessage(m.chat, { react: { text: '✏️', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let newName = args.join(' ').trim()
-if (!newName) return reply(`*Current Bot Name:* ${global.botname}\n\nUsage: ${prefix}botname [new name]`)
-global.botname = newName
-reply(`✅ *Bot name updated* › *${newName}*`)
-}
+    try {
+        await X.sendMessage(m.chat, { react: { text: '✏️', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let newName = args.join(' ').trim()
+    if (!newName) return reply(`*Current Bot Name:* ${global.botname}\n\nUsage: ${prefix}botname [new name]`)
+    global.botname = newName
+    reply(`✅ *Bot name updated* › *${newName}*`)
+    }
+    } catch(e) {
+        console.error('[botname]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 break
 
 case 'setauthor':
 case 'author': {
-    await X.sendMessage(m.chat, { react: { text: '✏️', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let newAuthor = args.join(' ').trim()
-if (!newAuthor) return reply(`*Current Sticker Author:* ${global.author}\n\nUsage: ${prefix}author [name]`)
-global.author = newAuthor
-reply(`✅ *Sticker author updated* › *${newAuthor}*`)
-}
+    try {
+        await X.sendMessage(m.chat, { react: { text: '✏️', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let newAuthor = args.join(' ').trim()
+    if (!newAuthor) return reply(`*Current Sticker Author:* ${global.author}\n\nUsage: ${prefix}author [name]`)
+    global.author = newAuthor
+    reply(`✅ *Sticker author updated* › *${newAuthor}*`)
+    }
+    } catch(e) {
+        console.error('[author]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 break
 
 case 'setpackname':
 case 'packname': {
-    await X.sendMessage(m.chat, { react: { text: '✏️', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let newPack = args.join(' ').trim()
-if (!newPack) return reply(`*Current Sticker Pack:* ${global.packname}\n\nUsage: ${prefix}packname [name]`)
-global.packname = newPack
-reply(`✅ *Sticker pack updated* › *${newPack}*`)
-}
+    try {
+        await X.sendMessage(m.chat, { react: { text: '✏️', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let newPack = args.join(' ').trim()
+    if (!newPack) return reply(`*Current Sticker Pack:* ${global.packname}\n\nUsage: ${prefix}packname [name]`)
+    global.packname = newPack
+    reply(`✅ *Sticker pack updated* › *${newPack}*`)
+    }
+    } catch(e) {
+        console.error('[packname]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 break
 
 case 'timezone':
 case 'settz': {
-    await X.sendMessage(m.chat, { react: { text: '🕐', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let tz = args.join(' ').trim()
-if (!tz) return reply(`*Current Timezone:* ${global.botTimezone}\n\nUsage: ${prefix}timezone [timezone]\n\nExamples:\n${prefix}timezone Africa/Nairobi\n${prefix}timezone Asia/Jakarta\n${prefix}timezone America/New_York`)
-global.botTimezone = tz
-reply(`✅ *Timezone updated* › *${tz}*\n  🕐 Current time: *${moment().tz(tz).format('HH:mm:ss DD/MM/YYYY')}*`)
-}
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🕐', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let tz = args.join(' ').trim()
+    if (!tz) return reply(`*Current Timezone:* ${global.botTimezone}\n\nUsage: ${prefix}timezone [timezone]\n\nExamples:\n${prefix}timezone Africa/Nairobi\n${prefix}timezone Asia/Jakarta\n${prefix}timezone America/New_York`)
+    global.botTimezone = tz
+    reply(`✅ *Timezone updated* › *${tz}*\n  🕐 Current time: *${moment().tz(tz).format('HH:mm:ss DD/MM/YYYY')}*`)
+    }
+    } catch(e) {
+        console.error('[settz]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 break
 
 case 'botpic':
@@ -2318,109 +2407,139 @@ break
 
 case 'boturl':
 case 'setboturl': {
-    await X.sendMessage(m.chat, { react: { text: '🔗', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let newUrl = args.join(' ').trim()
-if (!newUrl) return reply(`*Current Bot URL:* ${global.botUrl || global.wagc}\n\nUsage: ${prefix}boturl [url]`)
-global.botUrl = newUrl
-global.wagc = newUrl
-reply(`✅ *Bot URL updated* › *${newUrl}*`)
-}
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🔗', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let newUrl = args.join(' ').trim()
+    if (!newUrl) return reply(`*Current Bot URL:* ${global.botUrl || global.wagc}\n\nUsage: ${prefix}boturl [url]`)
+    global.botUrl = newUrl
+    global.wagc = newUrl
+    reply(`✅ *Bot URL updated* › *${newUrl}*`)
+    }
+    } catch(e) {
+        console.error('[setboturl]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 break
 
 case 'anticall':
 case 'setanticall': {
-    await X.sendMessage(m.chat, { react: { text: '📵', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let acArg = (args[0] || '').toLowerCase()
-if (!acArg) {
-    let acState = global.antiCall ? 'ON' : 'OFF'
-    reply(`*Anti-Call: ${acState}*\nWhen ON, incoming calls are automatically rejected and caller is warned.\n\nUsage:\n${prefix}anticall on\n${prefix}anticall off`)
-} else if (acArg === 'on' || acArg === 'enable') {
-    global.antiCall = true
-    reply('*Anti-Call ON*\nIncoming calls will be automatically rejected.')
-} else if (acArg === 'off' || acArg === 'disable') {
-    global.antiCall = false
-    reply('*Anti-Call OFF*')
-}
-}
+    try {
+        await X.sendMessage(m.chat, { react: { text: '📵', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let acArg = (args[0] || '').toLowerCase()
+    if (!acArg) {
+        let acState = global.antiCall ? 'ON' : 'OFF'
+        reply(`*Anti-Call: ${acState}*\nWhen ON, incoming calls are automatically rejected and caller is warned.\n\nUsage:\n${prefix}anticall on\n${prefix}anticall off`)
+    } else if (acArg === 'on' || acArg === 'enable') {
+        global.antiCall = true
+        reply('*Anti-Call ON*\nIncoming calls will be automatically rejected.')
+    } else if (acArg === 'off' || acArg === 'disable') {
+        global.antiCall = false
+        reply('*Anti-Call OFF*')
+    }
+    }
+    } catch(e) {
+        console.error('[setanticall]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 break
 
 case 'autoread':
 case 'setautoread': {
-    await X.sendMessage(m.chat, { react: { text: '✅', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let arArg = (args[0] || '').toLowerCase()
-if (!arArg) {
-    let arState = global.autoRead ? 'ON' : 'OFF'
-    reply(`*Auto Read Messages: ${arState}*\nWhen ON, all incoming messages are automatically marked as read.\n\nUsage:\n${prefix}autoread on\n${prefix}autoread off`)
-} else if (arArg === 'on' || arArg === 'enable') {
-    global.autoRead = true
-    reply('*Auto Read ON*\nAll incoming messages will be marked as read.')
-} else if (arArg === 'off' || arArg === 'disable') {
-    global.autoRead = false
-    reply('*Auto Read OFF*')
-}
-}
+    try {
+        await X.sendMessage(m.chat, { react: { text: '✅', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let arArg = (args[0] || '').toLowerCase()
+    if (!arArg) {
+        let arState = global.autoRead ? 'ON' : 'OFF'
+        reply(`*Auto Read Messages: ${arState}*\nWhen ON, all incoming messages are automatically marked as read.\n\nUsage:\n${prefix}autoread on\n${prefix}autoread off`)
+    } else if (arArg === 'on' || arArg === 'enable') {
+        global.autoRead = true
+        reply('*Auto Read ON*\nAll incoming messages will be marked as read.')
+    } else if (arArg === 'off' || arArg === 'disable') {
+        global.autoRead = false
+        reply('*Auto Read OFF*')
+    }
+    }
+    } catch(e) {
+        console.error('[setautoread]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 break
 
 case 'chatbot':
 case 'setchatbot': {
-    await X.sendMessage(m.chat, { react: { text: '🤖', key: m.key } })
-// Owner can toggle globally; group admins/members can toggle per-chat via chatboai
-if (!isOwner) return reply(mess.OnlyOwner)
-let cbArg = (args[0] || '').toLowerCase()
-if (!cbArg) {
-    let cbState = global.chatBot ? '✅ ON' : '❌ OFF'
-    let cbaChats = Object.keys(global.chatBoAIChats || {}).length
-    reply(`*🤖 ChatBot Status*\n\n• Global ChatBot: *${cbState}*\n• ChatBoAI active chats: *${cbaChats}*\n\n*Commands:*\n• ${prefix}chatbot on — global auto-reply (all chats)\n• ${prefix}chatbot off — disable global auto-reply\n• ${prefix}chatboai on — enable AI replies in *this chat only*\n• ${prefix}chatboai off — disable AI replies in this chat\n• ${prefix}chatboai [question] — one-shot AI question`)
-} else if (cbArg === 'on' || cbArg === 'enable') {
-    global.chatBot = true
-    reply('*🤖 ChatBot: ✅ ON*\n_Bot will now auto-reply to all messages in English using AI._\n\n_Use_ ' + prefix + 'chatbot off _to stop._')
-} else if (cbArg === 'off' || cbArg === 'disable') {
-    global.chatBot = false
-    reply('*🤖 ChatBot: ❌ OFF*\n_Global auto-replies disabled._')
-}
-}
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🤖', key: m.key } })
+    // Owner can toggle globally; group admins/members can toggle per-chat via chatboai
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let cbArg = (args[0] || '').toLowerCase()
+    if (!cbArg) {
+        let cbState = global.chatBot ? '✅ ON' : '❌ OFF'
+        let cbaChats = Object.keys(global.chatBoAIChats || {}).length
+        reply(`*🤖 ChatBot Status*\n\n• Global ChatBot: *${cbState}*\n• ChatBoAI active chats: *${cbaChats}*\n\n*Commands:*\n• ${prefix}chatbot on — global auto-reply (all chats)\n• ${prefix}chatbot off — disable global auto-reply\n• ${prefix}chatboai on — enable AI replies in *this chat only*\n• ${prefix}chatboai off — disable AI replies in this chat\n• ${prefix}chatboai [question] — one-shot AI question`)
+    } else if (cbArg === 'on' || cbArg === 'enable') {
+        global.chatBot = true
+        reply('*🤖 ChatBot: ✅ ON*\n_Bot will now auto-reply to all messages in English using AI._\n\n_Use_ ' + prefix + 'chatbot off _to stop._')
+    } else if (cbArg === 'off' || cbArg === 'disable') {
+        global.chatBot = false
+        reply('*🤖 ChatBot: ❌ OFF*\n_Global auto-replies disabled._')
+    }
+    }
+    } catch(e) {
+        console.error('[setchatbot]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 break
 
 case 'autobio':
 case 'setautobio': {
-    await X.sendMessage(m.chat, { react: { text: '📝', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let abArg = (args[0] || '').toLowerCase()
-if (!abArg) {
-    let abState = global.autoBio ? 'ON' : 'OFF'
-    reply(`*Auto Bio Update: ${abState}*\nWhen ON, bot bio is auto-updated with current time every minute.\n\nUsage:\n${prefix}autobio on\n${prefix}autobio off`)
-} else if (abArg === 'on' || abArg === 'enable') {
-    global.autoBio = true
-    reply('*Auto Bio ON*\nBot bio will update with current time periodically.')
-} else if (abArg === 'off' || abArg === 'disable') {
-    global.autoBio = false
-    reply('*Auto Bio OFF*')
-}
-}
+    try {
+        await X.sendMessage(m.chat, { react: { text: '📝', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let abArg = (args[0] || '').toLowerCase()
+    if (!abArg) {
+        let abState = global.autoBio ? 'ON' : 'OFF'
+        reply(`*Auto Bio Update: ${abState}*\nWhen ON, bot bio is auto-updated with current time every minute.\n\nUsage:\n${prefix}autobio on\n${prefix}autobio off`)
+    } else if (abArg === 'on' || abArg === 'enable') {
+        global.autoBio = true
+        reply('*Auto Bio ON*\nBot bio will update with current time periodically.')
+    } else if (abArg === 'off' || abArg === 'disable') {
+        global.autoBio = false
+        reply('*Auto Bio OFF*')
+    }
+    }
+    } catch(e) {
+        console.error('[setautobio]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 break
 
 case 'autoreplystatus':
 case 'autoreply': {
-    await X.sendMessage(m.chat, { react: { text: '💬', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let arsArg = args.join(' ').trim()
-if (!arsArg) {
-    let arsState = global.autoReplyStatus ? 'ON' : 'OFF'
-    let arsMsg = global.autoReplyStatusMsg || 'Not set'
-    reply(`*Auto Reply to Status: ${arsState}*\nReply message: ${arsMsg}\n\nUsage:\n${prefix}autoreplystatus [message] - Set message and enable\n${prefix}autoreplystatus off - Disable`)
-} else if (arsArg.toLowerCase() === 'off' || arsArg.toLowerCase() === 'disable') {
-    global.autoReplyStatus = false
-    global.autoReplyStatusMsg = ''
-    reply('*Auto Reply Status OFF*')
-} else {
-    global.autoReplyStatusMsg = arsArg
-    global.autoReplyStatus = true
-    reply(`✅ *Auto Reply Status ON*\n  └ Replying with: _"${arsArg}"_`)
-}
-}
+    try {
+        await X.sendMessage(m.chat, { react: { text: '💬', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let arsArg = args.join(' ').trim()
+    if (!arsArg) {
+        let arsState = global.autoReplyStatus ? 'ON' : 'OFF'
+        let arsMsg = global.autoReplyStatusMsg || 'Not set'
+        reply(`*Auto Reply to Status: ${arsState}*\nReply message: ${arsMsg}\n\nUsage:\n${prefix}autoreplystatus [message] - Set message and enable\n${prefix}autoreplystatus off - Disable`)
+    } else if (arsArg.toLowerCase() === 'off' || arsArg.toLowerCase() === 'disable') {
+        global.autoReplyStatus = false
+        global.autoReplyStatusMsg = ''
+        reply('*Auto Reply Status OFF*')
+    } else {
+        global.autoReplyStatusMsg = arsArg
+        global.autoReplyStatus = true
+        reply(`✅ *Auto Reply Status ON*\n  └ Replying with: _"${arsArg}"_`)
+    }
+    }
+    } catch(e) {
+        console.error('[autoreply]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 break
 
 case 'antistatusmention':
@@ -2468,21 +2587,26 @@ break
 
 case 'antilink':
 case 'setantilink': {
-    await X.sendMessage(m.chat, { react: { text: '🔗', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-if (!isAdmins && !isOwner) return reply(mess.admin)
-let alArg = (args[0] || '').toLowerCase()
-if (!alArg) {
-    let alState = global.antiLink ? 'ON' : 'OFF'
-    reply(`*Anti-Link: ${alState}*\nWhen ON, messages containing links are deleted and the sender is warned.\n\nUsage:\n${prefix}antilink on\n${prefix}antilink off`)
-} else if (alArg === 'on' || alArg === 'enable') {
-    global.antiLink = true
-    reply(`╔══════════════════════════╗\n║  🔗 *ANTI-LINK: ON*\n╚══════════════════════════╝\n\n  ✅ Links will be deleted.\n  _Bot must be admin._`)
-} else if (alArg === 'off' || alArg === 'disable') {
-    global.antiLink = false
-    reply('*Anti-Link OFF*')
-}
-}
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🔗', key: m.key } })
+    if (!m.isGroup) return reply(mess.OnlyGrup)
+    if (!isAdmins && !isOwner) return reply(mess.admin)
+    let alArg = (args[0] || '').toLowerCase()
+    if (!alArg) {
+        let alState = global.antiLink ? 'ON' : 'OFF'
+        reply(`*Anti-Link: ${alState}*\nWhen ON, messages containing links are deleted and the sender is warned.\n\nUsage:\n${prefix}antilink on\n${prefix}antilink off`)
+    } else if (alArg === 'on' || alArg === 'enable') {
+        global.antiLink = true
+        reply(`╔══════════════════════════╗\n║  🔗 *ANTI-LINK: ON*\n╚══════════════════════════╝\n\n  ✅ Links will be deleted.\n  _Bot must be admin._`)
+    } else if (alArg === 'off' || alArg === 'disable') {
+        global.antiLink = false
+        reply('*Anti-Link OFF*')
+    }
+    }
+    } catch(e) {
+        console.error('[setantilink]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 break
 
 case 'antidelete':
@@ -2674,57 +2798,67 @@ break
 case 'botsettings':
 case 'settings':
 case 'botconfig': {
-    await X.sendMessage(m.chat, { react: { text: '⚙️', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-const on = '✅ ON'
-const off = '❌ OFF'
-let settingsText = `╔══════════════════════════╗
-║  ⚙️  *BOT SETTINGS*
-╚══════════════════════════╝
+    try {
+        await X.sendMessage(m.chat, { react: { text: '⚙️', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    const on = '✅ ON'
+    const off = '❌ OFF'
+    let settingsText = `╔══════════════════════════╗
+    ║  ⚙️  *BOT SETTINGS*
+    ╚══════════════════════════╝
 
-  ├ 📛 *Name*     › ${global.botname}
-  ├ 🏷️  *Version*  › v${global.botver}
-  ├ 🔤 *Prefix*   › ${global.botPrefix || 'Multi-prefix'}
-  ├ 🌍 *Timezone* › ${global.botTimezone}
-  ├ 🔒 *Mode*     › ${X.public ? 'Public' : 'Private'}
-  └ 🔗 *URL*      › ${global.botUrl || global.wagc}
+      ├ 📛 *Name*     › ${global.botname}
+      ├ 🏷️  *Version*  › v${global.botver}
+      ├ 🔤 *Prefix*   › ${global.botPrefix || 'Multi-prefix'}
+      ├ 🌍 *Timezone* › ${global.botTimezone}
+      ├ 🔒 *Mode*     › ${X.public ? 'Public' : 'Private'}
+      └ 🔗 *URL*      › ${global.botUrl || global.wagc}
 
-  ├ 📦 *Pack*   › ${global.packname}
-  └ ✍️  *Author* › ${global.author}
+      ├ 📦 *Pack*   › ${global.packname}
+      └ ✍️  *Author* › ${global.author}
 
-┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
-  🤖 *Auto Features*
-  ├ 👁️  Auto Read    › ${global.autoRead ? on : off}
-  ├ 📝 Auto Bio     › ${global.autoBio ? on : off}
-  ├ 💬 ChatBot      › ${global.chatBot ? on : off}
-  ├ 👀 View Status  › ${global.autoViewStatus ? on : off}
-  ├ ❤️  Like Status  › ${global.autoLikeStatus ? on : off} ${global.autoLikeEmoji ? '(' + global.autoLikeEmoji + ')' : ''}
-  ├ 💌 Reply Status › ${global.autoReplyStatus ? on : off}
-  ├ 📤 Fwd Status   › ${global.statusToGroup ? on + ' → ' + global.statusToGroup.split('@')[0] : off}
-  └ 👻 Presence     › ${global.fakePresence}
+    ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+      🤖 *Auto Features*
+      ├ 👁️  Auto Read    › ${global.autoRead ? on : off}
+      ├ 📝 Auto Bio     › ${global.autoBio ? on : off}
+      ├ 💬 ChatBot      › ${global.chatBot ? on : off}
+      ├ 👀 View Status  › ${global.autoViewStatus ? on : off}
+      ├ ❤️  Like Status  › ${global.autoLikeStatus ? on : off} ${global.autoLikeEmoji ? '(' + global.autoLikeEmoji + ')' : ''}
+      ├ 💌 Reply Status › ${global.autoReplyStatus ? on : off}
+      ├ 📤 Fwd Status   › ${global.statusToGroup ? on + ' → ' + global.statusToGroup.split('@')[0] : off}
+      └ 👻 Presence     › ${global.fakePresence}
 
-  🛡️  *Protection*
-  ├ 📵 Anti-Call          › ${global.antiCall ? on : off}
-  ├ 🔗 Anti-Link          › ${global.antiLink ? on : off}
-  ├ 🗑️  Anti-Delete        › ${global.antiDelete ? on : off}
-  └ 📢 Anti Status Mention › ${global.antiStatusMention ? on : off}
+      🛡️  *Protection*
+      ├ 📵 Anti-Call          › ${global.antiCall ? on : off}
+      ├ 🔗 Anti-Link          › ${global.antiLink ? on : off}
+      ├ 🗑️  Anti-Delete        › ${global.antiDelete ? on : off}
+      └ 📢 Anti Status Mention › ${global.antiStatusMention ? on : off}
 
-  👥 *Group*
-  ├ 👋 Welcome     › ${global.welcome ? on : off}
-  └ 📣 Admin Events › ${global.adminevent ? on : off}
+      👥 *Group*
+      ├ 👋 Welcome     › ${global.welcome ? on : off}
+      └ 📣 Admin Events › ${global.adminevent ? on : off}
 
-_⚡ Powered by ${global.ownername || 'Toosii Tech'}_`
-reply(settingsText)
-}
+    _⚡ Powered by ${global.ownername || 'Toosii Tech'}_`
+    reply(settingsText)
+    }
+    } catch(e) {
+        console.error('[botconfig]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 break
 
 case 'restart':
 case 'reboot': {
-    await X.sendMessage(m.chat, { react: { text: '🔄', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-await reply(`🔄 *Restarting Bot...*\n\n⏳ _Bot will be back online shortly._\n\n_Powered by ${global.botname}_`)
-await sleep(2000)
-process.exit(0)
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🔄', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    await reply(`🔄 *Restarting Bot...*\n\n⏳ _Bot will be back online shortly._\n\n_Powered by ${global.botname}_`)
+    await sleep(2000)
+    process.exit(0)
+    } catch(e) {
+        console.error('[reboot]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 //━━━━━━━━━━━━━━━━━━━━━━━━//
@@ -4180,37 +4314,47 @@ break
 case 'muslimprayer':
 case 'islamprayer':
 case 'prayermuslim': {
-    await X.sendMessage(m.chat, { react: { text: '🕌', key: m.key } })
-    if (!isOwner) return reply(mess.OnlyOwner)
-    const _arg = (text || '').toLowerCase().trim()
-    const _valid = ['on', 'off', 'dm', 'group', 'all', 'status']
-    if (_arg === 'status' || !_arg) {
-        const _cur = global.muslimPrayer || 'off'
-        return reply(`╔══════════════════════════╗\n║  🕌 *MUSLIM PRAYER REMINDER*\n╚══════════════════════════╝\n\n  ├ 📊 *Status* › *${_cur.toUpperCase()}*\n\n  ├ ${prefix}muslimprayer on    — DM + groups\n  ├ ${prefix}muslimprayer dm    — DM only\n  ├ ${prefix}muslimprayer group — groups only\n  └ ${prefix}muslimprayer off   — disable`)
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🕌', key: m.key } })
+        if (!isOwner) return reply(mess.OnlyOwner)
+        const _arg = (text || '').toLowerCase().trim()
+        const _valid = ['on', 'off', 'dm', 'group', 'all', 'status']
+        if (_arg === 'status' || !_arg) {
+            const _cur = global.muslimPrayer || 'off'
+            return reply(`╔══════════════════════════╗\n║  🕌 *MUSLIM PRAYER REMINDER*\n╚══════════════════════════╝\n\n  ├ 📊 *Status* › *${_cur.toUpperCase()}*\n\n  ├ ${prefix}muslimprayer on    — DM + groups\n  ├ ${prefix}muslimprayer dm    — DM only\n  ├ ${prefix}muslimprayer group — groups only\n  └ ${prefix}muslimprayer off   — disable`)
+        }
+        if (!_valid.includes(_arg)) return reply(`❌ Invalid. Use: on · off · dm · group · all`)
+        global.muslimPrayer = _arg === 'on' ? 'all' : _arg
+        const _labels = { all: '✅ ON (DM + Groups)', dm: '✅ ON (DM only)', group: '✅ ON (Groups only)', off: '❌ OFF' }
+        reply(`🕌 *Muslim Prayer Reminder* › ${_labels[global.muslimPrayer]}`)
     }
-    if (!_valid.includes(_arg)) return reply(`❌ Invalid. Use: on · off · dm · group · all`)
-    global.muslimPrayer = _arg === 'on' ? 'all' : _arg
-    const _labels = { all: '✅ ON (DM + Groups)', dm: '✅ ON (DM only)', group: '✅ ON (Groups only)', off: '❌ OFF' }
-    reply(`🕌 *Muslim Prayer Reminder* › ${_labels[global.muslimPrayer]}`)
-}
+    } catch(e) {
+        console.error('[prayermuslim]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 break
 
 case 'christianprayer':
 case 'devotion':
 case 'prayerchristian': {
-    await X.sendMessage(m.chat, { react: { text: '✝️', key: m.key } })
-    if (!isOwner) return reply(mess.OnlyOwner)
-    const _arg2 = (text || '').toLowerCase().trim()
-    const _valid2 = ['on', 'off', 'dm', 'group', 'all', 'status']
-    if (_arg2 === 'status' || !_arg2) {
-        const _cur2 = global.christianDevotion || 'off'
-        return reply(`╔══════════════════════════╗\n║  ✝️  *CHRISTIAN DEVOTION*\n╚══════════════════════════╝\n\n  ├ 📊 *Status* › *${_cur2.toUpperCase()}*\n\n  ├ ${prefix}christianprayer on    — DM + groups\n  ├ ${prefix}christianprayer dm    — DM only\n  ├ ${prefix}christianprayer group — groups only\n  └ ${prefix}christianprayer off   — disable`)
+    try {
+        await X.sendMessage(m.chat, { react: { text: '✝️', key: m.key } })
+        if (!isOwner) return reply(mess.OnlyOwner)
+        const _arg2 = (text || '').toLowerCase().trim()
+        const _valid2 = ['on', 'off', 'dm', 'group', 'all', 'status']
+        if (_arg2 === 'status' || !_arg2) {
+            const _cur2 = global.christianDevotion || 'off'
+            return reply(`╔══════════════════════════╗\n║  ✝️  *CHRISTIAN DEVOTION*\n╚══════════════════════════╝\n\n  ├ 📊 *Status* › *${_cur2.toUpperCase()}*\n\n  ├ ${prefix}christianprayer on    — DM + groups\n  ├ ${prefix}christianprayer dm    — DM only\n  ├ ${prefix}christianprayer group — groups only\n  └ ${prefix}christianprayer off   — disable`)
+        }
+        if (!_valid2.includes(_arg2)) return reply(`❌ Invalid. Use: on · off · dm · group · all`)
+        global.christianDevotion = _arg2 === 'on' ? 'all' : _arg2
+        const _labels2 = { all: '✅ ON (DM + Groups)', dm: '✅ ON (DM only)', group: '✅ ON (Groups only)', off: '❌ OFF' }
+        reply(`✝️ *Christian Devotion* › ${_labels2[global.christianDevotion]}`)
     }
-    if (!_valid2.includes(_arg2)) return reply(`❌ Invalid. Use: on · off · dm · group · all`)
-    global.christianDevotion = _arg2 === 'on' ? 'all' : _arg2
-    const _labels2 = { all: '✅ ON (DM + Groups)', dm: '✅ ON (DM only)', group: '✅ ON (Groups only)', off: '❌ OFF' }
-    reply(`✝️ *Christian Devotion* › ${_labels2[global.christianDevotion]}`)
-}
+    } catch(e) {
+        console.error('[prayerchristian]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 break
 
 case 'muslimai':{
@@ -4541,79 +4685,89 @@ case 'gemini-pro':{
 }
 break;
 case 'tebak': {
-    await X.sendMessage(m.chat, { react: { text: '🧩', key: m.key } })
-  const quizPath = './database/tebakgame.json';
-  if (!fs.existsSync(quizPath)) return reply('⚠️ Quiz data file not found.');
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🧩', key: m.key } })
+      const quizPath = './database/tebakgame.json';
+      if (!fs.existsSync(quizPath)) return reply('⚠️ Quiz data file not found.');
 
-  const data = JSON.parse(fs.readFileSync(quizPath));
-  const kategoriUnik = [...new Set(data.map(item => item.kategori))];
+      const data = JSON.parse(fs.readFileSync(quizPath));
+      const kategoriUnik = [...new Set(data.map(item => item.kategori))];
 
-  const kategori = args[0]?.toLowerCase();
-  if (!kategori) {
-    const daftar = kategoriUnik.join(', ');
-    return reply(`📚 Usage: .tebak [category]\nExample: .tebak lagu\n\nAvailable categories:\n${daftar}`);
-  }
-
-  if (!kategoriUnik.includes(kategori)) {
-    return reply(`❌ Kategori "${kategori}" not found.\nAvailable categories: ${kategoriUnik.join(', ')}`);
-  }
-  const soalKategori = data.filter(item => item.kategori === kategori);
-  const soal = soalKategori[Math.floor(Math.random() * soalKategori.length)];
-
-  if (!global.tebakGame) global.tebakGame = {};
-  if (global.tebakGame[m.sender]) {
-    return reply('⚠️ You still have an unanswered question! Answer it or type giveup first.');
-  }
-
-  global.tebakGame[m.sender] = {
-    jawaban: soal.jawaban,
-    soal: soal.soal,
-    petunjuk: soal.petunjuk || 'No hint available',
-    timeout: setTimeout(() => {
-      if (global.tebakGame[m.sender]) {
-        reply(`⏰ Time is up!\nThe correct answer is:\n✅ *${global.tebakGame[m.sender].jawaban}*`);
-        delete global.tebakGame[m.sender];
+      const kategori = args[0]?.toLowerCase();
+      if (!kategori) {
+        const daftar = kategoriUnik.join(', ');
+        return reply(`📚 Usage: .tebak [category]\nExample: .tebak lagu\n\nAvailable categories:\n${daftar}`);
       }
-    }, 60000) // 60 detik
-  };
 
-  return reply(`╔══════════════════════════╗\n║  🧠 *GUESS THE ${kategori.toUpperCase()}*\n╚══════════════════════════╝\n\n  ${soal.soal}\n\n  ⏱️ *60 seconds* — reply to answer!`);
-}
+      if (!kategoriUnik.includes(kategori)) {
+        return reply(`❌ Kategori "${kategori}" not found.\nAvailable categories: ${kategoriUnik.join(', ')}`);
+      }
+      const soalKategori = data.filter(item => item.kategori === kategori);
+      const soal = soalKategori[Math.floor(Math.random() * soalKategori.length)];
+
+      if (!global.tebakGame) global.tebakGame = {};
+      if (global.tebakGame[m.sender]) {
+        return reply('⚠️ You still have an unanswered question! Answer it or type giveup first.');
+      }
+
+      global.tebakGame[m.sender] = {
+        jawaban: soal.jawaban,
+        soal: soal.soal,
+        petunjuk: soal.petunjuk || 'No hint available',
+        timeout: setTimeout(() => {
+          if (global.tebakGame[m.sender]) {
+            reply(`⏰ Time is up!\nThe correct answer is:\n✅ *${global.tebakGame[m.sender].jawaban}*`);
+            delete global.tebakGame[m.sender];
+          }
+        }, 60000) // 60 detik
+      };
+
+      return reply(`╔══════════════════════════╗\n║  🧠 *GUESS THE ${kategori.toUpperCase()}*\n╚══════════════════════════╝\n\n  ${soal.soal}\n\n  ⏱️ *60 seconds* — reply to answer!`);
+    }
+    } catch(e) {
+        console.error('[tebak]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 break;
 //━━━━━━━━━━━━━━━━━━━━━━━━//
 //━━━━━━━━━━━━━━━━━━━━━━━━//
 // Info Bot             
 case 'debugrole': {
-    await X.sendMessage(m.chat, { react: { text: '🔍', key: m.key } })
-    if (!isOwner) return reply('Owner only.')
-    let dbgMsg = `*🔍 ROLE DEBUG INFO*\n\n`
-    dbgMsg += `*Bot Identity:*\n`
-    dbgMsg += `• X.user.id: ${X.user?.id || 'null'}\n`
-    dbgMsg += `• X.user.lid: ${X.user?.lid || 'null'}\n`
-    dbgMsg += `• botJid (decoded): ${botJid}\n`
-    dbgMsg += `• botLid (decoded): ${botLid || 'null'}\n\n`
-    dbgMsg += `*Sender Identity:*\n`
-    dbgMsg += `• m.sender: ${m.sender}\n`
-    dbgMsg += `• m.key.participant: ${m.key?.participant || 'null'}\n`
-    dbgMsg += `• senderFromKey: ${senderFromKey || 'null'}\n\n`
-    dbgMsg += `*Role Results:*\n`
-    dbgMsg += `• isGroup: ${isGroup}\n`
-    dbgMsg += `• isOwner: ${isOwner}\n`
-    dbgMsg += `• isAdmins: ${isAdmins}\n`
-    dbgMsg += `• isBotAdmins: ${isBotAdmins}\n`
-    dbgMsg += `• isSuperAdmin: ${isSuperAdmin}\n\n`
-    if (isGroup && participants) {
-        dbgMsg += `*Admin Participants:*\n`
-        participants.filter(p => p.admin).forEach(p => {
-            let matchBot = isParticipantBot(p)
-            let matchSender = isParticipantSender(p)
-            dbgMsg += `• ${p.id}\n`
-            dbgMsg += `  role: ${p.admin} | isBot: ${matchBot} | isSender: ${matchSender}\n`
-            dbgMsg += `  sameAsUserId: ${isSameUser(p.id, X.user.id)} | sameAsLid: ${X.user?.lid ? isSameUser(p.id, X.user.lid) : 'no lid'}\n`
-        })
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🔍', key: m.key } })
+        if (!isOwner) return reply('Owner only.')
+        let dbgMsg = `*🔍 ROLE DEBUG INFO*\n\n`
+        dbgMsg += `*Bot Identity:*\n`
+        dbgMsg += `• X.user.id: ${X.user?.id || 'null'}\n`
+        dbgMsg += `• X.user.lid: ${X.user?.lid || 'null'}\n`
+        dbgMsg += `• botJid (decoded): ${botJid}\n`
+        dbgMsg += `• botLid (decoded): ${botLid || 'null'}\n\n`
+        dbgMsg += `*Sender Identity:*\n`
+        dbgMsg += `• m.sender: ${m.sender}\n`
+        dbgMsg += `• m.key.participant: ${m.key?.participant || 'null'}\n`
+        dbgMsg += `• senderFromKey: ${senderFromKey || 'null'}\n\n`
+        dbgMsg += `*Role Results:*\n`
+        dbgMsg += `• isGroup: ${isGroup}\n`
+        dbgMsg += `• isOwner: ${isOwner}\n`
+        dbgMsg += `• isAdmins: ${isAdmins}\n`
+        dbgMsg += `• isBotAdmins: ${isBotAdmins}\n`
+        dbgMsg += `• isSuperAdmin: ${isSuperAdmin}\n\n`
+        if (isGroup && participants) {
+            dbgMsg += `*Admin Participants:*\n`
+            participants.filter(p => p.admin).forEach(p => {
+                let matchBot = isParticipantBot(p)
+                let matchSender = isParticipantSender(p)
+                dbgMsg += `• ${p.id}\n`
+                dbgMsg += `  role: ${p.admin} | isBot: ${matchBot} | isSender: ${matchSender}\n`
+                dbgMsg += `  sameAsUserId: ${isSameUser(p.id, X.user.id)} | sameAsLid: ${X.user?.lid ? isSameUser(p.id, X.user.lid) : 'no lid'}\n`
+            })
+        }
+        reply(dbgMsg)
     }
-    reply(dbgMsg)
-}
+    } catch(e) {
+        console.error('[debugrole]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 break;
 
 case 'p':
@@ -4708,32 +4862,35 @@ reply(`╔═══════════════════════�
 break   
 //━━━━━━━━━━━━━━━━━━━━━━━━//
 // OWNER MENU COMMANDS
-case 'autotyping': {
-    await X.sendMessage(m.chat, { react: { text: '⌨️', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let atArg = (args[0] || '').toLowerCase()
-if (atArg === 'on') { global.fakePresence = 'typing'; reply('*Auto Typing ON*') }
-else if (atArg === 'off') { global.fakePresence = 'off'; reply('*Auto Typing OFF*') }
-else reply(`*Auto Typing: ${global.fakePresence === 'typing' ? 'ON' : 'OFF'}*\nUsage: ${prefix}autotyping on/off`)
-} break
+// Duplicate 'autotyping' removed — handled above
 
 case 'autoreact': {
-    await X.sendMessage(m.chat, { react: { text: '👍', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let arArg = (args[0] || '').toLowerCase()
-if (!arArg) { reply(`*Auto React: ${global.autoReact ? 'ON' : 'OFF'}*\nEmoji: ${global.autoReactEmoji || '👍'}\nUsage: ${prefix}autoreact on/off\n${prefix}autoreact [emoji]`) }
-else if (arArg === 'on') { global.autoReact = true; reply('*Auto React ON*') }
-else if (arArg === 'off') { global.autoReact = false; reply('*Auto React OFF*') }
-else { global.autoReact = true; global.autoReactEmoji = arArg; reply(`✅ *Auto React ON* › emoji: ${arArg}`) }
+    try {
+        await X.sendMessage(m.chat, { react: { text: '👍', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let arArg = (args[0] || '').toLowerCase()
+    if (!arArg) { reply(`*Auto React: ${global.autoReact ? 'ON' : 'OFF'}*\nEmoji: ${global.autoReactEmoji || '👍'}\nUsage: ${prefix}autoreact on/off\n${prefix}autoreact [emoji]`) }
+    else if (arArg === 'on') { global.autoReact = true; reply('*Auto React ON*') }
+    else if (arArg === 'off') { global.autoReact = false; reply('*Auto React OFF*') }
+    else { global.autoReact = true; global.autoReactEmoji = arArg; reply(`✅ *Auto React ON* › emoji: ${arArg}`) }
+    } catch(e) {
+        console.error('[autoreact]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'pmblocker': {
-    await X.sendMessage(m.chat, { react: { text: '🚫', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let pbArg = (args[0] || '').toLowerCase()
-if (pbArg === 'on') { global.pmBlocker = true; reply('*PM Blocker ON*\nNon-owner PMs will be auto-blocked.') }
-else if (pbArg === 'off') { global.pmBlocker = false; reply('*PM Blocker OFF*') }
-else reply(`*PM Blocker: ${global.pmBlocker ? 'ON' : 'OFF'}*\nUsage: ${prefix}pmblocker on/off`)
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🚫', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let pbArg = (args[0] || '').toLowerCase()
+    if (pbArg === 'on') { global.pmBlocker = true; reply('*PM Blocker ON*\nNon-owner PMs will be auto-blocked.') }
+    else if (pbArg === 'off') { global.pmBlocker = false; reply('*PM Blocker OFF*') }
+    else reply(`*PM Blocker: ${global.pmBlocker ? 'ON' : 'OFF'}*\nUsage: ${prefix}pmblocker on/off`)
+    } catch(e) {
+        console.error('[pmblocker]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'pp':
@@ -4861,37 +5018,52 @@ reply(`✅ *${files.length} temp files* cleared.`)
 } break
 
 case 'sudo': {
-    await X.sendMessage(m.chat, { react: { text: '👑', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let sudoNum = (args[0] || '').replace(/[^0-9]/g, '')
-if (!sudoNum) return reply(`*Sudo Users:* ${global.owner.join(', ')}\n\nUsage:\n${prefix}sudo add [number]\n${prefix}sudo remove [number]`)
-let sudoAction = args[0]?.toLowerCase()
-if (sudoAction === 'add' && args[1]) {
-let num = args[1].replace(/[^0-9]/g, '')
-if (!global.owner.includes(num)) { global.owner.push(num); reply(`✅ *${num}* added as sudo user.`) }
-else reply('Already a sudo user.')
-} else if (sudoAction === 'remove' || sudoAction === 'del') {
-let num = (args[1] || '').replace(/[^0-9]/g, '')
-if (num === global._protectedOwner) return reply('Cannot remove the primary owner.')
-global.owner = global.owner.filter(o => o !== num)
-reply(`✅ *${num}* removed from sudo users.`)
-} else reply(`Usage: ${prefix}sudo add/remove [number]`)
+    try {
+        await X.sendMessage(m.chat, { react: { text: '👑', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let sudoNum = (args[0] || '').replace(/[^0-9]/g, '')
+    if (!sudoNum) return reply(`*Sudo Users:* ${global.owner.join(', ')}\n\nUsage:\n${prefix}sudo add [number]\n${prefix}sudo remove [number]`)
+    let sudoAction = args[0]?.toLowerCase()
+    if (sudoAction === 'add' && args[1]) {
+    let num = args[1].replace(/[^0-9]/g, '')
+    if (!global.owner.includes(num)) { global.owner.push(num); reply(`✅ *${num}* added as sudo user.`) }
+    else reply('Already a sudo user.')
+    } else if (sudoAction === 'remove' || sudoAction === 'del') {
+    let num = (args[1] || '').replace(/[^0-9]/g, '')
+    if (num === global._protectedOwner) return reply('Cannot remove the primary owner.')
+    global.owner = global.owner.filter(o => o !== num)
+    reply(`✅ *${num}* removed from sudo users.`)
+    } else reply(`Usage: ${prefix}sudo add/remove [number]`)
+    } catch(e) {
+        console.error('[sudo]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'setowner': {
-    await X.sendMessage(m.chat, { react: { text: '👑', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let newOwner = (args[0] || '').replace(/[^0-9]/g, '')
-if (!newOwner) return reply(`*Current Owner Number:* ${global.ownerNumber}\nUsage: ${prefix}setowner [number]`)
-global.ownerNumber = newOwner
-if (!global.owner.includes(newOwner)) global.owner.push(newOwner)
-reply(`✅ *Owner updated* › ${newOwner}`)
+    try {
+        await X.sendMessage(m.chat, { react: { text: '👑', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let newOwner = (args[0] || '').replace(/[^0-9]/g, '')
+    if (!newOwner) return reply(`*Current Owner Number:* ${global.ownerNumber}\nUsage: ${prefix}setowner [number]`)
+    global.ownerNumber = newOwner
+    if (!global.owner.includes(newOwner)) global.owner.push(newOwner)
+    reply(`✅ *Owner updated* › ${newOwner}`)
+    } catch(e) {
+        console.error('[setowner]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'setmenu': {
-    await X.sendMessage(m.chat, { react: { text: '🎨', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-reply('*Menu Categories:*\nai, tools, owner, group, downloader, search, sticker, games, other, fun, anime, textmaker, imgedit, github, converter\n\nUse .menu [category] to view specific menus.')
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🎨', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    reply('*Menu Categories:*\nai, tools, owner, group, downloader, search, sticker, games, other, fun, anime, textmaker, imgedit, github, converter\n\nUse .menu [category] to view specific menus.')
+    } catch(e) {
+        console.error('[setmenu]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'menuimage': {
@@ -4910,25 +5082,35 @@ reply(`✅ *Menu image URL set.*`)
 } break
 
 case 'configimage': {
-    await X.sendMessage(m.chat, { react: { text: '🖼️', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-reply(`*Image Config:*\nMenu Thumb: ${global.menuThumb || global.thumb}\nBot Pic: ${global.botPic || 'Default'}\n\nUse ${prefix}menuimage to change menu image\nUse ${prefix}botpic to change bot picture`)
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🖼️', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    reply(`*Image Config:*\nMenu Thumb: ${global.menuThumb || global.thumb}\nBot Pic: ${global.botPic || 'Default'}\n\nUse ${prefix}menuimage to change menu image\nUse ${prefix}botpic to change bot picture`)
+    } catch(e) {
+        console.error('[configimage]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'mode': {
-    await X.sendMessage(m.chat, { react: { text: '⚙️', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let modeArg = (args[0] || '').toLowerCase()
-if (modeArg === 'public') {
-    X.public = true
-    reply(`╔══════════════════════════╗\n║  🌐 *BOT MODE: PUBLIC*\n╚══════════════════════════╝\n\n  ✅ Everyone can use bot commands.`)
-} else if (modeArg === 'private' || modeArg === 'self') {
-    X.public = false
-    reply(`╔══════════════════════════╗\n║  🔒 *BOT MODE: PRIVATE*\n╚══════════════════════════╝\n\n  🚫 Only the owner can use commands.`)
-} else {
-    let currentMode = X.public !== false ? 'PUBLIC ✅' : 'PRIVATE 🔒'
-    reply(`╔══════════════════════════╗\n║  ⚙️  *BOT MODE*\n╚══════════════════════════╝\n\n  ├ 📊 *Current* › ${currentMode}\n  ├ ${prefix}mode public  — all users\n  └ ${prefix}mode private — owner only`)
-}
+    try {
+        await X.sendMessage(m.chat, { react: { text: '⚙️', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let modeArg = (args[0] || '').toLowerCase()
+    if (modeArg === 'public') {
+        X.public = true
+        reply(`╔══════════════════════════╗\n║  🌐 *BOT MODE: PUBLIC*\n╚══════════════════════════╝\n\n  ✅ Everyone can use bot commands.`)
+    } else if (modeArg === 'private' || modeArg === 'self') {
+        X.public = false
+        reply(`╔══════════════════════════╗\n║  🔒 *BOT MODE: PRIVATE*\n╚══════════════════════════╝\n\n  🚫 Only the owner can use commands.`)
+    } else {
+        let currentMode = X.public !== false ? 'PUBLIC ✅' : 'PRIVATE 🔒'
+        reply(`╔══════════════════════════╗\n║  ⚙️  *BOT MODE*\n╚══════════════════════════╝\n\n  ├ 📊 *Current* › ${currentMode}\n  ├ ${prefix}mode public  — all users\n  └ ${prefix}mode private — owner only`)
+    }
+    } catch(e) {
+        console.error('[mode]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 // GROUP ADMIN COMMANDS
@@ -4963,91 +5145,126 @@ else reply(mess.error)
 } break
 
 case 'ban': {
-    await X.sendMessage(m.chat, { react: { text: '🚫', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-if (!isAdmins && !isOwner) return reply(mess.admin)
-let banUser = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : text ? text.replace(/[^0-9]/g, '') + '@s.whatsapp.net' : null
-if (!banUser) return reply(`📌 *Usage:* ${prefix}ban @user`)
-let isBanOwner = owner.some(o => banUser.includes(o)) || (typeof X.areJidsSameUser === 'function' && owner.some(o => X.areJidsSameUser(banUser, o + '@s.whatsapp.net')))
-if (isBanOwner) return reply('🛡️ Cannot ban the bot owner.')
-let banUsers = loadUsers()
-if (!banUsers[banUser]) banUsers[banUser] = { name: banUser.split('@')[0], firstSeen: new Date().toISOString(), lastSeen: new Date().toISOString(), commandCount: 0, commands: {} }
-banUsers[banUser].banned = true
-saveUsers(banUsers)
-X.sendMessage(from, { text: `🚫 *@${banUser.split('@')[0]} has been banned from using the bot.*`, mentions: [banUser] }, { quoted: m })
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🚫', key: m.key } })
+    if (!m.isGroup) return reply(mess.OnlyGrup)
+    if (!isAdmins && !isOwner) return reply(mess.admin)
+    let banUser = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : text ? text.replace(/[^0-9]/g, '') + '@s.whatsapp.net' : null
+    if (!banUser) return reply(`📌 *Usage:* ${prefix}ban @user`)
+    let isBanOwner = owner.some(o => banUser.includes(o)) || (typeof X.areJidsSameUser === 'function' && owner.some(o => X.areJidsSameUser(banUser, o + '@s.whatsapp.net')))
+    if (isBanOwner) return reply('🛡️ Cannot ban the bot owner.')
+    let banUsers = loadUsers()
+    if (!banUsers[banUser]) banUsers[banUser] = { name: banUser.split('@')[0], firstSeen: new Date().toISOString(), lastSeen: new Date().toISOString(), commandCount: 0, commands: {} }
+    banUsers[banUser].banned = true
+    saveUsers(banUsers)
+    X.sendMessage(from, { text: `🚫 *@${banUser.split('@')[0]} has been banned from using the bot.*`, mentions: [banUser] }, { quoted: m })
+    } catch(e) {
+        console.error('[ban]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'unban': {
-    await X.sendMessage(m.chat, { react: { text: '✅', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-if (!isAdmins && !isOwner) return reply(mess.admin)
-let unbanUser = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : text ? text.replace(/[^0-9]/g, '') + '@s.whatsapp.net' : null
-if (!unbanUser) return reply(`📌 *Usage:* ${prefix}unban @user`)
-let usersDb = loadUsers()
-if (usersDb[unbanUser]) { usersDb[unbanUser].banned = false; saveUsers(usersDb) }
-X.sendMessage(from, { text: `✅ *@${unbanUser.split('@')[0]} has been unbanned.*`, mentions: [unbanUser] }, { quoted: m })
+    try {
+        await X.sendMessage(m.chat, { react: { text: '✅', key: m.key } })
+    if (!m.isGroup) return reply(mess.OnlyGrup)
+    if (!isAdmins && !isOwner) return reply(mess.admin)
+    let unbanUser = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : text ? text.replace(/[^0-9]/g, '') + '@s.whatsapp.net' : null
+    if (!unbanUser) return reply(`📌 *Usage:* ${prefix}unban @user`)
+    let usersDb = loadUsers()
+    if (usersDb[unbanUser]) { usersDb[unbanUser].banned = false; saveUsers(usersDb) }
+    X.sendMessage(from, { text: `✅ *@${unbanUser.split('@')[0]} has been unbanned.*`, mentions: [unbanUser] }, { quoted: m })
+    } catch(e) {
+        console.error('[unban]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'antisocialgames':
 case 'antisgames': {
-    await X.sendMessage(m.chat, { react: { text: '🎭', key: m.key } })
-    if (!m.isGroup) return reply(mess.OnlyGrup)
-    if (!isAdmins && !isOwner) return reply(mess.admin)
-    if (!global.antiSocialGames) global.antiSocialGames = {}
-    const _asgArg = (args[0] || '').toLowerCase()
-    if (!_asgArg || _asgArg === 'status') {
-        const _on = global.antiSocialGames[m.chat] ? '✅ ON' : '❌ OFF'
-        return reply(`╔══════════════════════════╗\n║  🎭 *ANTI SOCIAL GAMES*\n╚══════════════════════════╝\n\n  ├ 📊 *Status* › *${_on}*\n\n  _When ON, blocks:_\n  ├ .vibe  ├ .rizz   ├ .iq\n  ├ .ship  ├ .simp   ├ .wasted\n  ├ .truth ├ .dare   └ .lolice\n\n  _Removed offensive aliases:_\n  ├ .gay   (now .vibe)\n  └ .horny (now .rizz)\n\n  ├ ${prefix}antisocialgames on\n  └ ${prefix}antisocialgames off`)
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🎭', key: m.key } })
+        if (!m.isGroup) return reply(mess.OnlyGrup)
+        if (!isAdmins && !isOwner) return reply(mess.admin)
+        if (!global.antiSocialGames) global.antiSocialGames = {}
+        const _asgArg = (args[0] || '').toLowerCase()
+        if (!_asgArg || _asgArg === 'status') {
+            const _on = global.antiSocialGames[m.chat] ? '✅ ON' : '❌ OFF'
+            return reply(`╔══════════════════════════╗\n║  🎭 *ANTI SOCIAL GAMES*\n╚══════════════════════════╝\n\n  ├ 📊 *Status* › *${_on}*\n\n  _When ON, blocks:_\n  ├ .vibe  ├ .rizz   ├ .iq\n  ├ .ship  ├ .simp   ├ .wasted\n  ├ .truth ├ .dare   └ .lolice\n\n  _Removed offensive aliases:_\n  ├ .gay   (now .vibe)\n  └ .horny (now .rizz)\n\n  ├ ${prefix}antisocialgames on\n  └ ${prefix}antisocialgames off`)
+        }
+        if (_asgArg === 'on') {
+            global.antiSocialGames[m.chat] = true
+            return reply(`✅ *Anti Social Games ON*\n_Social game commands are now blocked in this group._`)
+        }
+        if (_asgArg === 'off') {
+            global.antiSocialGames[m.chat] = false
+            return reply(`❌ *Anti Social Games OFF*\n_Social game commands are now allowed._`)
+        }
     }
-    if (_asgArg === 'on') {
-        global.antiSocialGames[m.chat] = true
-        return reply(`✅ *Anti Social Games ON*\n_Social game commands are now blocked in this group._`)
+    } catch(e) {
+        console.error('[antisgames]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
     }
-    if (_asgArg === 'off') {
-        global.antiSocialGames[m.chat] = false
-        return reply(`❌ *Anti Social Games OFF*\n_Social game commands are now allowed._`)
-    }
-}
 break
 
 case 'antibadword': {
-    await X.sendMessage(m.chat, { react: { text: '🤬', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-if (!isAdmins && !isOwner) return reply(mess.admin)
-let abwArg = (args[0] || '').toLowerCase()
-if (abwArg === 'on') { global.antiBadword = true; reply('🛡️ *Anti Badword ON* — Bad words will be detected.') }
-else if (abwArg === 'off') { global.antiBadword = false; reply('❌ *Anti Badword OFF*') }
-else reply(`🛡️ *Anti Badword: ${global.antiBadword ? '✅ ON' : '❌ OFF'}*\n\n📌 Usage: ${prefix}antibadword on/off`)
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🤬', key: m.key } })
+    if (!m.isGroup) return reply(mess.OnlyGrup)
+    if (!isAdmins && !isOwner) return reply(mess.admin)
+    let abwArg = (args[0] || '').toLowerCase()
+    if (abwArg === 'on') { global.antiBadword = true; reply('🛡️ *Anti Badword ON* — Bad words will be detected.') }
+    else if (abwArg === 'off') { global.antiBadword = false; reply('❌ *Anti Badword OFF*') }
+    else reply(`🛡️ *Anti Badword: ${global.antiBadword ? '✅ ON' : '❌ OFF'}*\n\n📌 Usage: ${prefix}antibadword on/off`)
+    } catch(e) {
+        console.error('[antibadword]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'antitag': {
-    await X.sendMessage(m.chat, { react: { text: '🏷️', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-if (!isAdmins && !isOwner) return reply(mess.admin)
-let atgArg = (args[0] || '').toLowerCase()
-if (atgArg === 'on') { global.antiTag = true; reply('🛡️ *Anti Tag ON* — Mass tagging will be detected.') }
-else if (atgArg === 'off') { global.antiTag = false; reply('❌ *Anti Tag OFF*') }
-else reply(`🛡️ *Anti Tag: ${global.antiTag ? '✅ ON' : '❌ OFF'}*\n\n📌 Usage: ${prefix}antitag on/off`)
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🏷️', key: m.key } })
+    if (!m.isGroup) return reply(mess.OnlyGrup)
+    if (!isAdmins && !isOwner) return reply(mess.admin)
+    let atgArg = (args[0] || '').toLowerCase()
+    if (atgArg === 'on') { global.antiTag = true; reply('🛡️ *Anti Tag ON* — Mass tagging will be detected.') }
+    else if (atgArg === 'off') { global.antiTag = false; reply('❌ *Anti Tag OFF*') }
+    else reply(`🛡️ *Anti Tag: ${global.antiTag ? '✅ ON' : '❌ OFF'}*\n\n📌 Usage: ${prefix}antitag on/off`)
+    } catch(e) {
+        console.error('[antitag]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'antisticker': {
-    await X.sendMessage(m.chat, { react: { text: '🖼️', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-if (!isAdmins && !isOwner) return reply(mess.admin)
-let asArg = (args[0] || '').toLowerCase()
-if (asArg === 'on') { global.antiSticker = true; reply('🛡️ *Anti Sticker ON* — Stickers will be deleted.') }
-else if (asArg === 'off') { global.antiSticker = false; reply('❌ *Anti Sticker OFF*') }
-else reply(`🛡️ *Anti Sticker: ${global.antiSticker ? '✅ ON' : '❌ OFF'}*\n\n📌 Usage: ${prefix}antisticker on/off`)
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🖼️', key: m.key } })
+    if (!m.isGroup) return reply(mess.OnlyGrup)
+    if (!isAdmins && !isOwner) return reply(mess.admin)
+    let asArg = (args[0] || '').toLowerCase()
+    if (asArg === 'on') { global.antiSticker = true; reply('🛡️ *Anti Sticker ON* — Stickers will be deleted.') }
+    else if (asArg === 'off') { global.antiSticker = false; reply('❌ *Anti Sticker OFF*') }
+    else reply(`🛡️ *Anti Sticker: ${global.antiSticker ? '✅ ON' : '❌ OFF'}*\n\n📌 Usage: ${prefix}antisticker on/off`)
+    } catch(e) {
+        console.error('[antisticker]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'antidemote': {
-    await X.sendMessage(m.chat, { react: { text: '⚠️', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-if (!isAdmins && !isOwner) return reply(mess.admin)
-let adArg2 = (args[0] || '').toLowerCase()
-if (adArg2 === 'on') { global.antiDemote = true; reply('🛡️ *Anti Demote ON* — Demoted admins will be re-promoted.') }
-else if (adArg2 === 'off') { global.antiDemote = false; reply('❌ *Anti Demote OFF*') }
-else reply(`🛡️ *Anti Demote: ${global.antiDemote ? '✅ ON' : '❌ OFF'}*\n\n📌 Usage: ${prefix}antidemote on/off`)
+    try {
+        await X.sendMessage(m.chat, { react: { text: '⚠️', key: m.key } })
+    if (!m.isGroup) return reply(mess.OnlyGrup)
+    if (!isAdmins && !isOwner) return reply(mess.admin)
+    let adArg2 = (args[0] || '').toLowerCase()
+    if (adArg2 === 'on') { global.antiDemote = true; reply('🛡️ *Anti Demote ON* — Demoted admins will be re-promoted.') }
+    else if (adArg2 === 'off') { global.antiDemote = false; reply('❌ *Anti Demote OFF*') }
+    else reply(`🛡️ *Anti Demote: ${global.antiDemote ? '✅ ON' : '❌ OFF'}*\n\n📌 Usage: ${prefix}antidemote on/off`)
+    } catch(e) {
+        console.error('[antidemote]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'setgdesc': {
@@ -5163,91 +5380,131 @@ else reply(`❌ *Failed to get group link.*\n_${err.message || 'Unknown error'}_
 } break
 
 case 'goodbye': {
-    await X.sendMessage(m.chat, { react: { text: '👋', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-if (!isAdmins && !isOwner) return reply(mess.admin)
-let gbArg = (args[0] || '').toLowerCase()
-if (gbArg === 'on') {
-    global.welcome = true
-    reply(`╔══════════════════════════╗\n║  👋 *GOODBYE MESSAGES*\n╚══════════════════════════╝\n\n  ✅ *Enabled in ${groupName || 'this group'}*\n  _Bot will farewell departing members._`)
-} else if (gbArg === 'off') {
-    global.welcome = false
-    reply(`╔══════════════════════════╗\n║  👋 *GOODBYE MESSAGES*\n╚══════════════════════════╝\n\n  ❌ *Disabled in ${groupName || 'this group'}*\n  _Goodbye messages turned off._`)
-} else {
-    let gbState = global.welcome ? '✅ ON' : '❌ OFF'
-    reply(`╔══════════════════════════╗\n║  👋 *GOODBYE MESSAGES*\n╚══════════════════════════╝\n\n  ├ 📊 *Status* › ${gbState}\n  └ Farewells departing members\n\n  ├ ${prefix}goodbye on  — Enable\n  └ ${prefix}goodbye off — Disable`)
-}
+    try {
+        await X.sendMessage(m.chat, { react: { text: '👋', key: m.key } })
+    if (!m.isGroup) return reply(mess.OnlyGrup)
+    if (!isAdmins && !isOwner) return reply(mess.admin)
+    let gbArg = (args[0] || '').toLowerCase()
+    if (gbArg === 'on') {
+        global.welcome = true
+        reply(`╔══════════════════════════╗\n║  👋 *GOODBYE MESSAGES*\n╚══════════════════════════╝\n\n  ✅ *Enabled in ${groupName || 'this group'}*\n  _Bot will farewell departing members._`)
+    } else if (gbArg === 'off') {
+        global.welcome = false
+        reply(`╔══════════════════════════╗\n║  👋 *GOODBYE MESSAGES*\n╚══════════════════════════╝\n\n  ❌ *Disabled in ${groupName || 'this group'}*\n  _Goodbye messages turned off._`)
+    } else {
+        let gbState = global.welcome ? '✅ ON' : '❌ OFF'
+        reply(`╔══════════════════════════╗\n║  👋 *GOODBYE MESSAGES*\n╚══════════════════════════╝\n\n  ├ 📊 *Status* › ${gbState}\n  └ Farewells departing members\n\n  ├ ${prefix}goodbye on  — Enable\n  └ ${prefix}goodbye off — Disable`)
+    }
+    } catch(e) {
+        console.error('[goodbye]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 // GROUP TOOLS COMMANDS
 case 'tagall': {
-    await X.sendMessage(m.chat, { react: { text: '📢', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-if (!isAdmins && !isOwner) return reply(mess.admin)
-let tagMsg = text || '📢 Tag All Members'
-let tagText = `*${tagMsg}*\n\n`
-let mentions = []
-for (let mem of participants) { if (!mem.id.endsWith('@newsletter')) { tagText += `• @${mem.id.split('@')[0]}\n`; mentions.push(mem.id) } }
-X.sendMessage(from, { text: tagText, mentions }, { quoted: m })
+    try {
+        await X.sendMessage(m.chat, { react: { text: '📢', key: m.key } })
+    if (!m.isGroup) return reply(mess.OnlyGrup)
+    if (!isAdmins && !isOwner) return reply(mess.admin)
+    let tagMsg = text || '📢 Tag All Members'
+    let tagText = `*${tagMsg}*\n\n`
+    let mentions = []
+    for (let mem of participants) { if (!mem.id.endsWith('@newsletter')) { tagText += `• @${mem.id.split('@')[0]}\n`; mentions.push(mem.id) } }
+    X.sendMessage(from, { text: tagText, mentions }, { quoted: m })
+    } catch(e) {
+        console.error('[tagall]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'tag': {
-    await X.sendMessage(m.chat, { react: { text: '📢', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-if (!text) return reply(`📌 *Usage:* ${prefix}tag [message]`)
-let tagMentions = participants.map(p => p.id).filter(id => !id.endsWith('@newsletter'))
-X.sendMessage(from, { text: text, mentions: tagMentions }, { quoted: m })
+    try {
+        await X.sendMessage(m.chat, { react: { text: '📢', key: m.key } })
+    if (!m.isGroup) return reply(mess.OnlyGrup)
+    if (!text) return reply(`📌 *Usage:* ${prefix}tag [message]`)
+    let tagMentions = participants.map(p => p.id).filter(id => !id.endsWith('@newsletter'))
+    X.sendMessage(from, { text: text, mentions: tagMentions }, { quoted: m })
+    } catch(e) {
+        console.error('[tag]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'hidetag': {
-    await X.sendMessage(m.chat, { react: { text: '🏷️', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-if (!isAdmins && !isOwner) return reply(mess.admin)
-let htText = text || ''
-let htMentions = participants.map(p => p.id).filter(id => !id.endsWith('@newsletter'))
-X.sendMessage(from, { text: htText, mentions: htMentions }, { quoted: m })
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🏷️', key: m.key } })
+    if (!m.isGroup) return reply(mess.OnlyGrup)
+    if (!isAdmins && !isOwner) return reply(mess.admin)
+    let htText = text || ''
+    let htMentions = participants.map(p => p.id).filter(id => !id.endsWith('@newsletter'))
+    X.sendMessage(from, { text: htText, mentions: htMentions }, { quoted: m })
+    } catch(e) {
+        console.error('[hidetag]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'tagnoadmin': {
-    await X.sendMessage(m.chat, { react: { text: '📢', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-if (!isAdmins && !isOwner) return reply(mess.admin)
-let nonAdmins = participants.filter(p => !p.admin && !p.id.endsWith('@newsletter')).map(p => p.id)
-let tnaText = `📢 *${text || 'Attention non-admins!'}*\n\n`
-nonAdmins.forEach(id => tnaText += `• @${id.split('@')[0]}\n`)
-X.sendMessage(from, { text: tnaText, mentions: nonAdmins }, { quoted: m })
+    try {
+        await X.sendMessage(m.chat, { react: { text: '📢', key: m.key } })
+    if (!m.isGroup) return reply(mess.OnlyGrup)
+    if (!isAdmins && !isOwner) return reply(mess.admin)
+    let nonAdmins = participants.filter(p => !p.admin && !p.id.endsWith('@newsletter')).map(p => p.id)
+    let tnaText = `📢 *${text || 'Attention non-admins!'}*\n\n`
+    nonAdmins.forEach(id => tnaText += `• @${id.split('@')[0]}\n`)
+    X.sendMessage(from, { text: tnaText, mentions: nonAdmins }, { quoted: m })
+    } catch(e) {
+        console.error('[tagnoadmin]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'mention': {
-    await X.sendMessage(m.chat, { react: { text: '📢', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-if (!text) return reply(`📌 *Usage:* ${prefix}mention [message]`)
-let mentionIds = participants.map(p => p.id).filter(id => !id.endsWith('@newsletter'))
-X.sendMessage(from, { text: text, mentions: mentionIds }, { quoted: m })
+    try {
+        await X.sendMessage(m.chat, { react: { text: '📢', key: m.key } })
+    if (!m.isGroup) return reply(mess.OnlyGrup)
+    if (!text) return reply(`📌 *Usage:* ${prefix}mention [message]`)
+    let mentionIds = participants.map(p => p.id).filter(id => !id.endsWith('@newsletter'))
+    X.sendMessage(from, { text: text, mentions: mentionIds }, { quoted: m })
+    } catch(e) {
+        console.error('[mention]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'groupinfo': {
-    await X.sendMessage(m.chat, { react: { text: '📊', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-let gInfo = `*Group Info*\n\n`
-gInfo += `Name: ${groupMetadata.subject}\n`
-gInfo += `ID: ${m.chat}\n`
-gInfo += `Created: ${new Date(groupMetadata.creation * 1000).toLocaleDateString()}\n`
-gInfo += `Members: ${participants.length}\n`
-gInfo += `Admins: ${groupAdmins.length}\n`
-gInfo += `Description: ${groupMetadata.desc || 'None'}\n`
-reply(gInfo)
+    try {
+        await X.sendMessage(m.chat, { react: { text: '📊', key: m.key } })
+    if (!m.isGroup) return reply(mess.OnlyGrup)
+    let gInfo = `*Group Info*\n\n`
+    gInfo += `Name: ${groupMetadata.subject}\n`
+    gInfo += `ID: ${m.chat}\n`
+    gInfo += `Created: ${new Date(groupMetadata.creation * 1000).toLocaleDateString()}\n`
+    gInfo += `Members: ${participants.length}\n`
+    gInfo += `Admins: ${groupAdmins.length}\n`
+    gInfo += `Description: ${groupMetadata.desc || 'None'}\n`
+    reply(gInfo)
+    } catch(e) {
+        console.error('[groupinfo]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'admins': {
-    await X.sendMessage(m.chat, { react: { text: '👑', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-let adminList = '*Group Admins:*\n\n'
-let adminMentions = []
-for (let p of participants) {
-if (p.admin) { adminList += `@${p.id.split('@')[0]} (${p.admin})\n`; adminMentions.push(p.id) }
-}
-X.sendMessage(from, { text: adminList, mentions: adminMentions }, { quoted: m })
+    try {
+        await X.sendMessage(m.chat, { react: { text: '👑', key: m.key } })
+    if (!m.isGroup) return reply(mess.OnlyGrup)
+    let adminList = '*Group Admins:*\n\n'
+    let adminMentions = []
+    for (let p of participants) {
+    if (p.admin) { adminList += `@${p.id.split('@')[0]} (${p.admin})\n`; adminMentions.push(p.id) }
+    }
+    X.sendMessage(from, { text: adminList, mentions: adminMentions }, { quoted: m })
+    } catch(e) {
+        console.error('[admins]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'leave': {
@@ -5334,10 +5591,15 @@ try {
 } break
 
 case 'clear': {
-    await X.sendMessage(m.chat, { react: { text: '🗑️', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-if (!isAdmins && !isOwner) return reply(mess.admin)
-reply('*Chat cleared.* (Note: WhatsApp does not support remote chat clearing)')
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🗑️', key: m.key } })
+    if (!m.isGroup) return reply(mess.OnlyGrup)
+    if (!isAdmins && !isOwner) return reply(mess.admin)
+    reply('*Chat cleared.* (Note: WhatsApp does not support remote chat clearing)')
+    } catch(e) {
+        console.error('[clear]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 //━━━━━━━━━━━━━━━━━━━━━━━━//
@@ -6078,9 +6340,14 @@ reply(`╔═══════════════════════�
 } break
 
 case 'transcribe': {
-    await X.sendMessage(m.chat, { react: { text: '🎙️', key: m.key } })
-if (!m.quoted || !/audio/.test(m.quoted.mimetype || '')) return reply(`Reply to an audio with ${prefix}transcribe`)
-reply('*Transcribe:* Audio transcription requires a paid API. Use AI commands with audio description instead.')
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🎙️', key: m.key } })
+    if (!m.quoted || !/audio/.test(m.quoted.mimetype || '')) return reply(`Reply to an audio with ${prefix}transcribe`)
+    reply('*Transcribe:* Audio transcription requires a paid API. Use AI commands with audio description instead.')
+    } catch(e) {
+        console.error('[transcribe]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'locate':
@@ -6318,48 +6585,73 @@ try {
 // Game Commands
 case 'tictactoe':
 case 'ttt': {
-    await X.sendMessage(m.chat, { react: { text: '❎', key: m.key } })
-if (!m.isGroup) return reply(mess.OnlyGrup)
-let tttUser = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : null
-if (!tttUser) return reply(`Usage: ${prefix}ttt @opponent`)
-if (tttUser === sender) return reply('You cannot play against yourself!')
-if (!global.tttGames) global.tttGames = {}
-let gameId = m.chat
-if (global.tttGames[gameId]) return reply('A game is already in progress in this chat. Use .tttend to end it.')
-global.tttGames[gameId] = { board: [' ',' ',' ',' ',' ',' ',' ',' ',' '], players: { X: sender, O: tttUser }, turn: 'X' }
-let boardDisplay = (b) => `\`\`\`\n ${b[0]} | ${b[1]} | ${b[2]}\n---+---+---\n ${b[3]} | ${b[4]} | ${b[5]}\n---+---+---\n ${b[6]} | ${b[7]} | ${b[8]}\n\`\`\``
-X.sendMessage(from, { text: `*Tic Tac Toe*\n\n@${sender.split('@')[0]} (X) vs @${tttUser.split('@')[0]} (O)\n\n${boardDisplay(global.tttGames[gameId].board)}\n\n@${sender.split('@')[0]}'s turn (X)\nReply with a number (1-9) to place your mark.`, mentions: [sender, tttUser] }, { quoted: m })
+    try {
+        await X.sendMessage(m.chat, { react: { text: '❎', key: m.key } })
+    if (!m.isGroup) return reply(mess.OnlyGrup)
+    let tttUser = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : null
+    if (!tttUser) return reply(`Usage: ${prefix}ttt @opponent`)
+    if (tttUser === sender) return reply('You cannot play against yourself!')
+    if (!global.tttGames) global.tttGames = {}
+    let gameId = m.chat
+    if (global.tttGames[gameId]) return reply('A game is already in progress in this chat. Use .tttend to end it.')
+    global.tttGames[gameId] = { board: [' ',' ',' ',' ',' ',' ',' ',' ',' '], players: { X: sender, O: tttUser }, turn: 'X' }
+    let boardDisplay = (b) => `\`\`\`\n ${b[0]} | ${b[1]} | ${b[2]}\n---+---+---\n ${b[3]} | ${b[4]} | ${b[5]}\n---+---+---\n ${b[6]} | ${b[7]} | ${b[8]}\n\`\`\``
+    X.sendMessage(from, { text: `*Tic Tac Toe*\n\n@${sender.split('@')[0]} (X) vs @${tttUser.split('@')[0]} (O)\n\n${boardDisplay(global.tttGames[gameId].board)}\n\n@${sender.split('@')[0]}'s turn (X)\nReply with a number (1-9) to place your mark.`, mentions: [sender, tttUser] }, { quoted: m })
+    } catch(e) {
+        console.error('[ttt]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'tttend': {
-    await X.sendMessage(m.chat, { react: { text: '🏁', key: m.key } })
-if (!global.tttGames || !global.tttGames[m.chat]) return reply('No game in progress.')
-delete global.tttGames[m.chat]
-reply('*Game ended.*')
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🏁', key: m.key } })
+    if (!global.tttGames || !global.tttGames[m.chat]) return reply('No game in progress.')
+    delete global.tttGames[m.chat]
+    reply('*Game ended.*')
+    } catch(e) {
+        console.error('[tttend]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'connect4':
 case 'c4': {
-    await X.sendMessage(m.chat, { react: { text: '🔴', key: m.key } })
-reply('*Connect 4:* Coming soon! Use .ttt for Tic Tac Toe.')
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🔴', key: m.key } })
+    reply('*Connect 4:* Coming soon! Use .ttt for Tic Tac Toe.')
+    } catch(e) {
+        console.error('[c4]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'hangman': {
-    await X.sendMessage(m.chat, { react: { text: '🎯', key: m.key } })
-if (!global.hangmanGames) global.hangmanGames = {}
-if (global.hangmanGames[m.chat]) return reply('A hangman game is already in progress! Use .hangmanend to end it.')
-let words = ['javascript', 'python', 'programming', 'computer', 'algorithm', 'database', 'internet', 'software', 'hardware', 'keyboard', 'function', 'variable', 'boolean', 'whatsapp', 'telegram', 'android', 'network', 'security', 'elephant', 'universe']
-let word = words[Math.floor(Math.random() * words.length)]
-global.hangmanGames[m.chat] = { word, guessed: [], lives: 6, players: [sender] }
-let display = word.split('').map(l => '_').join(' ')
-reply(`╔══════════════════════════╗\n║  🪢 *HANGMAN*\n╚══════════════════════════╝\n\n  ${display}\n\n  ├ ❤️  Lives › 6\n  └ 🔡 Letters › ${word.length}\n\n  _Send a single letter to guess!_`)
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🎯', key: m.key } })
+    if (!global.hangmanGames) global.hangmanGames = {}
+    if (global.hangmanGames[m.chat]) return reply('A hangman game is already in progress! Use .hangmanend to end it.')
+    let words = ['javascript', 'python', 'programming', 'computer', 'algorithm', 'database', 'internet', 'software', 'hardware', 'keyboard', 'function', 'variable', 'boolean', 'whatsapp', 'telegram', 'android', 'network', 'security', 'elephant', 'universe']
+    let word = words[Math.floor(Math.random() * words.length)]
+    global.hangmanGames[m.chat] = { word, guessed: [], lives: 6, players: [sender] }
+    let display = word.split('').map(l => '_').join(' ')
+    reply(`╔══════════════════════════╗\n║  🪢 *HANGMAN*\n╚══════════════════════════╝\n\n  ${display}\n\n  ├ ❤️  Lives › 6\n  └ 🔡 Letters › ${word.length}\n\n  _Send a single letter to guess!_`)
+    } catch(e) {
+        console.error('[hangman]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'hangmanend': {
-    await X.sendMessage(m.chat, { react: { text: '🏁', key: m.key } })
-if (!global.hangmanGames || !global.hangmanGames[m.chat]) return reply('No hangman game in progress.')
-reply(`╔══════════════════════════╗\n║  🏁 *GAME ENDED*\n╚══════════════════════════╝\n\n  └ 🔡 *Word* › *${global.hangmanGames[m.chat].word}*`)
-delete global.hangmanGames[m.chat]
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🏁', key: m.key } })
+    if (!global.hangmanGames || !global.hangmanGames[m.chat]) return reply('No hangman game in progress.')
+    reply(`╔══════════════════════════╗\n║  🏁 *GAME ENDED*\n╚══════════════════════════╝\n\n  └ 🔡 *Word* › *${global.hangmanGames[m.chat].word}*`)
+    delete global.hangmanGames[m.chat]
+    } catch(e) {
+        console.error('[hangmanend]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'trivia': {
@@ -6381,157 +6673,252 @@ reply(qText)
 } break
 
 case 'answer': {
-    await X.sendMessage(m.chat, { react: { text: '✅', key: m.key } })
-if (!global.triviaGames || !global.triviaGames[m.chat]) return reply('No trivia in progress. Use .trivia to start.')
-let userAnswer = text?.toLowerCase().trim()
-if (!userAnswer) return reply('Please provide your answer.')
-if (userAnswer === global.triviaGames[m.chat].answer || userAnswer === global.triviaGames[m.chat].answer.charAt(0)) {
-clearTimeout(global.triviaGames[m.chat].timeout)
-delete global.triviaGames[m.chat]
-reply(`*Correct!* Well done, @${sender.split('@')[0]}! 🎉`)
-} else reply(`❌ *Wrong!* Try again or wait for timeout.`)
+    try {
+        await X.sendMessage(m.chat, { react: { text: '✅', key: m.key } })
+    if (!global.triviaGames || !global.triviaGames[m.chat]) return reply('No trivia in progress. Use .trivia to start.')
+    let userAnswer = text?.toLowerCase().trim()
+    if (!userAnswer) return reply('Please provide your answer.')
+    if (userAnswer === global.triviaGames[m.chat].answer || userAnswer === global.triviaGames[m.chat].answer.charAt(0)) {
+    clearTimeout(global.triviaGames[m.chat].timeout)
+    delete global.triviaGames[m.chat]
+    reply(`*Correct!* Well done, @${sender.split('@')[0]}! 🎉`)
+    } else reply(`❌ *Wrong!* Try again or wait for timeout.`)
+    } catch(e) {
+        console.error('[answer]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'truth': {
-    await X.sendMessage(m.chat, { react: { text: '💬', key: m.key } })
-    if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*`)
-let truths = ['What is your biggest fear?', 'What is the most embarrassing thing you have done?', 'What is a secret you have never told anyone?', 'Who was your first crush?', 'What is the worst lie you have told?', 'What is your guilty pleasure?', 'Have you ever cheated on a test?', 'What is the most childish thing you still do?', 'What is your biggest insecurity?', 'What was your most awkward date?', 'Have you ever been caught lying?', 'What is the craziest thing on your bucket list?', 'What is the weirdest dream you have had?', 'If you could be invisible for a day what would you do?', 'What is the most stupid thing you have ever done?']
-reply(`╔══════════════════════════╗\n║  💬 *TRUTH*\n╚══════════════════════════╝\n\n  ${truths[Math.floor(Math.random() * truths.length)]}`)
+    try {
+        await X.sendMessage(m.chat, { react: { text: '💬', key: m.key } })
+        if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*`)
+    let truths = ['What is your biggest fear?', 'What is the most embarrassing thing you have done?', 'What is a secret you have never told anyone?', 'Who was your first crush?', 'What is the worst lie you have told?', 'What is your guilty pleasure?', 'Have you ever cheated on a test?', 'What is the most childish thing you still do?', 'What is your biggest insecurity?', 'What was your most awkward date?', 'Have you ever been caught lying?', 'What is the craziest thing on your bucket list?', 'What is the weirdest dream you have had?', 'If you could be invisible for a day what would you do?', 'What is the most stupid thing you have ever done?']
+    reply(`╔══════════════════════════╗\n║  💬 *TRUTH*\n╚══════════════════════════╝\n\n  ${truths[Math.floor(Math.random() * truths.length)]}`)
+    } catch(e) {
+        console.error('[truth]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'dare': {
-    await X.sendMessage(m.chat, { react: { text: '🎯', key: m.key } })
-    if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*`)
-let dares = ['Send a voice note singing your favorite song.', 'Change your profile picture to something funny for 1 hour.', 'Send the last photo in your gallery.', 'Text your crush right now.', 'Do 10 pushups and send a video.', 'Send a voice note doing your best animal impression.', 'Let someone else send a message from your phone.', 'Share your screen time report.', 'Send a selfie right now without filters.', 'Call the 5th person in your contacts and sing happy birthday.', 'Post a childhood photo in the group.', 'Let the group choose your status for 24 hours.', 'Send a voice note speaking in an accent.', 'Do a handstand and send proof.', 'Type with your eyes closed for the next message.']
-reply(`╔══════════════════════════╗\n║  🔥 *DARE*\n╚══════════════════════════╝\n\n  ${dares[Math.floor(Math.random() * dares.length)]}`)
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🎯', key: m.key } })
+        if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*`)
+    let dares = ['Send a voice note singing your favorite song.', 'Change your profile picture to something funny for 1 hour.', 'Send the last photo in your gallery.', 'Text your crush right now.', 'Do 10 pushups and send a video.', 'Send a voice note doing your best animal impression.', 'Let someone else send a message from your phone.', 'Share your screen time report.', 'Send a selfie right now without filters.', 'Call the 5th person in your contacts and sing happy birthday.', 'Post a childhood photo in the group.', 'Let the group choose your status for 24 hours.', 'Send a voice note speaking in an accent.', 'Do a handstand and send proof.', 'Type with your eyes closed for the next message.']
+    reply(`╔══════════════════════════╗\n║  🔥 *DARE*\n╚══════════════════════════╝\n\n  ${dares[Math.floor(Math.random() * dares.length)]}`)
+    } catch(e) {
+        console.error('[dare]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case '8ball': {
-    await X.sendMessage(m.chat, { react: { text: '🎱', key: m.key } })
-if (!text) return reply(`Example: ${prefix}8ball Will I pass my exam?`)
-let responses8 = ['It is certain.', 'It is decidedly so.', 'Without a doubt.', 'Yes definitely.', 'You may rely on it.', 'As I see it, yes.', 'Most likely.', 'Outlook good.', 'Yes.', 'Signs point to yes.', 'Reply hazy, try again.', 'Ask again later.', 'Better not tell you now.', 'Cannot predict now.', 'Concentrate and ask again.', 'Don\'t count on it.', 'My reply is no.', 'My sources say no.', 'Outlook not so good.', 'Very doubtful.']
-reply(`╔══════════════════════════╗\n║  🎱 *MAGIC 8-BALL*\n╚══════════════════════════╝\n\n  ❓ *${text}*\n\n  🎱 ${responses8[Math.floor(Math.random() * responses8.length)]}`)
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🎱', key: m.key } })
+    if (!text) return reply(`Example: ${prefix}8ball Will I pass my exam?`)
+    let responses8 = ['It is certain.', 'It is decidedly so.', 'Without a doubt.', 'Yes definitely.', 'You may rely on it.', 'As I see it, yes.', 'Most likely.', 'Outlook good.', 'Yes.', 'Signs point to yes.', 'Reply hazy, try again.', 'Ask again later.', 'Better not tell you now.', 'Cannot predict now.', 'Concentrate and ask again.', 'Don\'t count on it.', 'My reply is no.', 'My sources say no.', 'Outlook not so good.', 'Very doubtful.']
+    reply(`╔══════════════════════════╗\n║  🎱 *MAGIC 8-BALL*\n╚══════════════════════════╝\n\n  ❓ *${text}*\n\n  🎱 ${responses8[Math.floor(Math.random() * responses8.length)]}`)
+    } catch(e) {
+        console.error('[8ball]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'cf':
 case 'coinflip':
 case 'flip': {
-    await X.sendMessage(m.chat, { react: { text: '🪙', key: m.key } })
-let coin = Math.random() < 0.5 ? 'Heads' : 'Tails'
-reply(`🪙 *Coin Flip* › *${coin}!*`)
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🪙', key: m.key } })
+    let coin = Math.random() < 0.5 ? 'Heads' : 'Tails'
+    reply(`🪙 *Coin Flip* › *${coin}!*`)
+    } catch(e) {
+        console.error('[flip]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'dice':
 case 'roll': {
-    await X.sendMessage(m.chat, { react: { text: '🎲', key: m.key } })
-let sides = parseInt(args[0]) || 6
-let result = Math.floor(Math.random() * sides) + 1
-reply(`🎲 *Dice Roll (d${sides})* › *${result}*`)
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🎲', key: m.key } })
+    let sides = parseInt(args[0]) || 6
+    let result = Math.floor(Math.random() * sides) + 1
+    reply(`🎲 *Dice Roll (d${sides})* › *${result}*`)
+    } catch(e) {
+        console.error('[roll]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'rps': {
-    await X.sendMessage(m.chat, { react: { text: '✊', key: m.key } })
-let choices = ['rock', 'paper', 'scissors']
-let userChoice = (args[0] || '').toLowerCase()
-if (!['rock', 'paper', 'scissors', 'r', 'p', 's'].includes(userChoice)) return reply(`Usage: ${prefix}rps rock/paper/scissors`)
-if (userChoice === 'r') userChoice = 'rock'
-if (userChoice === 'p') userChoice = 'paper'
-if (userChoice === 's') userChoice = 'scissors'
-let botChoice = choices[Math.floor(Math.random() * 3)]
-let rpsResult = userChoice === botChoice ? 'Draw!' : (userChoice === 'rock' && botChoice === 'scissors') || (userChoice === 'paper' && botChoice === 'rock') || (userChoice === 'scissors' && botChoice === 'paper') ? 'You win! 🎉' : 'You lose! 😢'
-reply(`╔══════════════════════════╗\n║  ✂️  *ROCK PAPER SCISSORS*\n╚══════════════════════════╝\n\n  ├ 👤 *You* › ${userChoice}\n  ├ 🤖 *Bot* › ${botChoice}\n  └ 🏆 *${rpsResult}*`)
+    try {
+        await X.sendMessage(m.chat, { react: { text: '✊', key: m.key } })
+    let choices = ['rock', 'paper', 'scissors']
+    let userChoice = (args[0] || '').toLowerCase()
+    if (!['rock', 'paper', 'scissors', 'r', 'p', 's'].includes(userChoice)) return reply(`Usage: ${prefix}rps rock/paper/scissors`)
+    if (userChoice === 'r') userChoice = 'rock'
+    if (userChoice === 'p') userChoice = 'paper'
+    if (userChoice === 's') userChoice = 'scissors'
+    let botChoice = choices[Math.floor(Math.random() * 3)]
+    let rpsResult = userChoice === botChoice ? 'Draw!' : (userChoice === 'rock' && botChoice === 'scissors') || (userChoice === 'paper' && botChoice === 'rock') || (userChoice === 'scissors' && botChoice === 'paper') ? 'You win! 🎉' : 'You lose! 😢'
+    reply(`╔══════════════════════════╗\n║  ✂️  *ROCK PAPER SCISSORS*\n╚══════════════════════════╝\n\n  ├ 👤 *You* › ${userChoice}\n  ├ 🤖 *Bot* › ${botChoice}\n  └ 🏆 *${rpsResult}*`)
+    } catch(e) {
+        console.error('[rps]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'slot': {
-    await X.sendMessage(m.chat, { react: { text: '🎰', key: m.key } })
-let symbols = ['🍒', '🍋', '🍊', '🍇', '💎', '7️⃣', '🔔']
-let s1 = symbols[Math.floor(Math.random() * symbols.length)]
-let s2 = symbols[Math.floor(Math.random() * symbols.length)]
-let s3 = symbols[Math.floor(Math.random() * symbols.length)]
-let slotWin = s1 === s2 && s2 === s3 ? '🎉 JACKPOT! You won!' : s1 === s2 || s2 === s3 || s1 === s3 ? '😃 Two match! Small win!' : '😢 No match. Try again!'
-reply(`╔══════════════════════════╗\n║  🎰 *SLOT MACHINE*\n╚══════════════════════════╝\n\n  [ ${s1} | ${s2} | ${s3} ]\n\n  ${slotWin}`)
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🎰', key: m.key } })
+    let symbols = ['🍒', '🍋', '🍊', '🍇', '💎', '7️⃣', '🔔']
+    let s1 = symbols[Math.floor(Math.random() * symbols.length)]
+    let s2 = symbols[Math.floor(Math.random() * symbols.length)]
+    let s3 = symbols[Math.floor(Math.random() * symbols.length)]
+    let slotWin = s1 === s2 && s2 === s3 ? '🎉 JACKPOT! You won!' : s1 === s2 || s2 === s3 || s1 === s3 ? '😃 Two match! Small win!' : '😢 No match. Try again!'
+    reply(`╔══════════════════════════╗\n║  🎰 *SLOT MACHINE*\n╚══════════════════════════╝\n\n  [ ${s1} | ${s2} | ${s3} ]\n\n  ${slotWin}`)
+    } catch(e) {
+        console.error('[slot]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 //━━━━━━━━━━━━━━━━━━━━━━━━//
 // Fun & Social Commands
 case 'compliment': {
-    await X.sendMessage(m.chat, { react: { text: '😊', key: m.key } })
-let compliments = ['You are an amazing person!', 'Your smile lights up the room!', 'You are incredibly talented!', 'The world is better with you in it!', 'You have a heart of gold!', 'Your kindness is inspiring!', 'You are a ray of sunshine!', 'You make everything better!', 'You are one of a kind!', 'Your energy is contagious!']
-let target = (m.mentionedJid && m.mentionedJid[0]) ? `@${m.mentionedJid[0].split('@')[0]}` : pushname
-reply(`╔══════════════════════════╗\n║  💐 *COMPLIMENT*\n╚══════════════════════════╝\n\n  👤 *${target}*\n  ${compliments[Math.floor(Math.random() * compliments.length)]}`)
+    try {
+        await X.sendMessage(m.chat, { react: { text: '😊', key: m.key } })
+    let compliments = ['You are an amazing person!', 'Your smile lights up the room!', 'You are incredibly talented!', 'The world is better with you in it!', 'You have a heart of gold!', 'Your kindness is inspiring!', 'You are a ray of sunshine!', 'You make everything better!', 'You are one of a kind!', 'Your energy is contagious!']
+    let target = (m.mentionedJid && m.mentionedJid[0]) ? `@${m.mentionedJid[0].split('@')[0]}` : pushname
+    reply(`╔══════════════════════════╗\n║  💐 *COMPLIMENT*\n╚══════════════════════════╝\n\n  👤 *${target}*\n  ${compliments[Math.floor(Math.random() * compliments.length)]}`)
+    } catch(e) {
+        console.error('[compliment]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'insult': {
-    await X.sendMessage(m.chat, { react: { text: '😤', key: m.key } })
-let insults = ['You are the human equivalent of a participation award.', 'If you were a spice, you would be flour.', 'You bring everyone so much joy when you leave.', 'You are like a cloud. When you disappear it is a beautiful day.', 'You are proof that even evolution makes mistakes.', 'Light travels faster than sound, which is why you seemed bright until you spoke.']
-let target2 = (m.mentionedJid && m.mentionedJid[0]) ? `@${m.mentionedJid[0].split('@')[0]}` : pushname
-reply(`╔══════════════════════════╗\n║  🔥 *ROAST*\n╚══════════════════════════╝\n\n  👤 *${target2}*\n  ${insults[Math.floor(Math.random() * insults.length)]}`)
+    try {
+        await X.sendMessage(m.chat, { react: { text: '😤', key: m.key } })
+    let insults = ['You are the human equivalent of a participation award.', 'If you were a spice, you would be flour.', 'You bring everyone so much joy when you leave.', 'You are like a cloud. When you disappear it is a beautiful day.', 'You are proof that even evolution makes mistakes.', 'Light travels faster than sound, which is why you seemed bright until you spoke.']
+    let target2 = (m.mentionedJid && m.mentionedJid[0]) ? `@${m.mentionedJid[0].split('@')[0]}` : pushname
+    reply(`╔══════════════════════════╗\n║  🔥 *ROAST*\n╚══════════════════════════╝\n\n  👤 *${target2}*\n  ${insults[Math.floor(Math.random() * insults.length)]}`)
+    } catch(e) {
+        console.error('[insult]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'flirt': {
-    await X.sendMessage(m.chat, { react: { text: '😏', key: m.key } })
-let flirts = ['Are you a magician? Because whenever I look at you, everyone else disappears.', 'Do you have a map? I keep getting lost in your eyes.', 'Are you a campfire? Because you are hot and I want s\'more.', 'Is your name Google? Because you have everything I have been searching for.', 'Do you believe in love at first sight, or should I walk by again?', 'If beauty were time, you would be an eternity.']
-reply(`╔══════════════════════════╗\n║  💘 *FLIRT*\n╚══════════════════════════╝\n\n  ${flirts[Math.floor(Math.random() * flirts.length)]}`)
+    try {
+        await X.sendMessage(m.chat, { react: { text: '😏', key: m.key } })
+    let flirts = ['Are you a magician? Because whenever I look at you, everyone else disappears.', 'Do you have a map? I keep getting lost in your eyes.', 'Are you a campfire? Because you are hot and I want s\'more.', 'Is your name Google? Because you have everything I have been searching for.', 'Do you believe in love at first sight, or should I walk by again?', 'If beauty were time, you would be an eternity.']
+    reply(`╔══════════════════════════╗\n║  💘 *FLIRT*\n╚══════════════════════════╝\n\n  ${flirts[Math.floor(Math.random() * flirts.length)]}`)
+    } catch(e) {
+        console.error('[flirt]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'shayari': {
-    await X.sendMessage(m.chat, { react: { text: '✨', key: m.key } })
-let shayaris = ['Dil mein tere liye jagah hai,\nPar tu door hai, yeh kya wajah hai.', 'Teri yaad mein hum pagal hue,\nDuniya se hum bekhabar hue.', 'Mohabbat ka koi mol nahi,\nDil hai yeh koi phool nahi.', 'Zindagi mein teri kami hai,\nHar khushi adhuri si hai.', 'Tere bina zindagi se koi shikwa nahi,\nTere bina zindagi hai toh kya.']
-reply(`╔══════════════════════════╗\n║  📜 *SHAYARI*\n╚══════════════════════════╝\n\n  ${shayaris[Math.floor(Math.random() * shayaris.length)]}`)
+    try {
+        await X.sendMessage(m.chat, { react: { text: '✨', key: m.key } })
+    let shayaris = ['Dil mein tere liye jagah hai,\nPar tu door hai, yeh kya wajah hai.', 'Teri yaad mein hum pagal hue,\nDuniya se hum bekhabar hue.', 'Mohabbat ka koi mol nahi,\nDil hai yeh koi phool nahi.', 'Zindagi mein teri kami hai,\nHar khushi adhuri si hai.', 'Tere bina zindagi se koi shikwa nahi,\nTere bina zindagi hai toh kya.']
+    reply(`╔══════════════════════════╗\n║  📜 *SHAYARI*\n╚══════════════════════════╝\n\n  ${shayaris[Math.floor(Math.random() * shayaris.length)]}`)
+    } catch(e) {
+        console.error('[shayari]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'goodnight': {
-    await X.sendMessage(m.chat, { react: { text: '🌙', key: m.key } })
-let gn = ['Sweet dreams! May tomorrow bring you joy. 🌙', 'Good night! Sleep tight and don\'t let the bugs bite! 💤', 'Wishing you a peaceful night full of beautiful dreams. ✨', 'Close your eyes and let the stars guide your dreams. 🌟', 'Good night! Tomorrow is a new opportunity. Rest well! 😴']
-reply(`╔══════════════════════════╗\n║  🌙 *GOOD NIGHT*\n╚══════════════════════════╝\n\n  ${gn[Math.floor(Math.random() * gn.length)]}`)
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🌙', key: m.key } })
+    let gn = ['Sweet dreams! May tomorrow bring you joy. 🌙', 'Good night! Sleep tight and don\'t let the bugs bite! 💤', 'Wishing you a peaceful night full of beautiful dreams. ✨', 'Close your eyes and let the stars guide your dreams. 🌟', 'Good night! Tomorrow is a new opportunity. Rest well! 😴']
+    reply(`╔══════════════════════════╗\n║  🌙 *GOOD NIGHT*\n╚══════════════════════════╝\n\n  ${gn[Math.floor(Math.random() * gn.length)]}`)
+    } catch(e) {
+        console.error('[goodnight]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'roseday': {
-    await X.sendMessage(m.chat, { react: { text: '🌹', key: m.key } })
-reply('🌹 *Happy Rose Day!* 🌹\nRoses are red, violets are blue, sending this beautiful rose just for you! May your day be as beautiful as a garden full of roses.')
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🌹', key: m.key } })
+    reply('🌹 *Happy Rose Day!* 🌹\nRoses are red, violets are blue, sending this beautiful rose just for you! May your day be as beautiful as a garden full of roses.')
+    } catch(e) {
+        console.error('[roseday]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'character': {
-    await X.sendMessage(m.chat, { react: { text: '🎌', key: m.key } })
-let characters = ['Naruto Uzumaki', 'Goku', 'Luffy', 'Batman', 'Spider-Man', 'Iron Man', 'Sherlock Holmes', 'Harry Potter', 'Pikachu', 'Mario', 'Sonic', 'Link (Zelda)', 'Levi Ackerman', 'Tanjiro Kamado', 'Eren Yeager', 'Gojo Satoru']
-reply(`╔══════════════════════════╗\n║  🎭 *RANDOM CHARACTER*\n╚══════════════════════════╝\n\n  ${characters[Math.floor(Math.random() * characters.length)]}`)
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🎌', key: m.key } })
+    let characters = ['Naruto Uzumaki', 'Goku', 'Luffy', 'Batman', 'Spider-Man', 'Iron Man', 'Sherlock Holmes', 'Harry Potter', 'Pikachu', 'Mario', 'Sonic', 'Link (Zelda)', 'Levi Ackerman', 'Tanjiro Kamado', 'Eren Yeager', 'Gojo Satoru']
+    reply(`╔══════════════════════════╗\n║  🎭 *RANDOM CHARACTER*\n╚══════════════════════════╝\n\n  ${characters[Math.floor(Math.random() * characters.length)]}`)
+    } catch(e) {
+        console.error('[character]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'ship': {
-    await X.sendMessage(m.chat, { react: { text: '💑', key: m.key } })
-    if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*`)
-if (!m.isGroup) return reply(mess.OnlyGrup)
-let members = participants.map(p => p.id)
-let p1 = m.mentionedJid && m.mentionedJid[0] ? m.mentionedJid[0] : members[Math.floor(Math.random() * members.length)]
-let p2 = m.mentionedJid && m.mentionedJid[1] ? m.mentionedJid[1] : members[Math.floor(Math.random() * members.length)]
-let shipPercent = Math.floor(Math.random() * 101)
-let bar = '█'.repeat(Math.floor(shipPercent/10)) + '░'.repeat(10 - Math.floor(shipPercent/10))
-X.sendMessage(from, { text: `*💕 Love Ship 💕*\n\n@${p1.split('@')[0]} ❤️ @${p2.split('@')[0]}\n\n[${bar}] ${shipPercent}%\n\n${shipPercent > 80 ? 'Perfect match! 💕' : shipPercent > 50 ? 'Good chemistry! 💖' : shipPercent > 30 ? 'There is potential! 💛' : 'Not meant to be... 💔'}`, mentions: [p1, p2] }, { quoted: m })
+    try {
+        await X.sendMessage(m.chat, { react: { text: '💑', key: m.key } })
+        if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*`)
+    if (!m.isGroup) return reply(mess.OnlyGrup)
+    let members = participants.map(p => p.id)
+    let p1 = m.mentionedJid && m.mentionedJid[0] ? m.mentionedJid[0] : members[Math.floor(Math.random() * members.length)]
+    let p2 = m.mentionedJid && m.mentionedJid[1] ? m.mentionedJid[1] : members[Math.floor(Math.random() * members.length)]
+    let shipPercent = Math.floor(Math.random() * 101)
+    let bar = '█'.repeat(Math.floor(shipPercent/10)) + '░'.repeat(10 - Math.floor(shipPercent/10))
+    X.sendMessage(from, { text: `*💕 Love Ship 💕*\n\n@${p1.split('@')[0]} ❤️ @${p2.split('@')[0]}\n\n[${bar}] ${shipPercent}%\n\n${shipPercent > 80 ? 'Perfect match! 💕' : shipPercent > 50 ? 'Good chemistry! 💖' : shipPercent > 30 ? 'There is potential! 💛' : 'Not meant to be... 💔'}`, mentions: [p1, p2] }, { quoted: m })
+    } catch(e) {
+        console.error('[ship]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'simp': {
-    await X.sendMessage(m.chat, { react: { text: '😍', key: m.key } })
-    if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*`)
-let simpTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : sender
-let simpLevel = Math.floor(Math.random() * 101)
-X.sendMessage(from, { text: `*Simp Meter:*\n@${simpTarget.split('@')[0]}\n\n${'🟩'.repeat(Math.floor(simpLevel/10))}${'⬜'.repeat(10 - Math.floor(simpLevel/10))} ${simpLevel}%\n\n${simpLevel > 80 ? 'MAXIMUM SIMP! 😂' : simpLevel > 50 ? 'Moderate simp 😏' : 'Not a simp 😎'}`, mentions: [simpTarget] }, { quoted: m })
+    try {
+        await X.sendMessage(m.chat, { react: { text: '😍', key: m.key } })
+        if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*`)
+    let simpTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : sender
+    let simpLevel = Math.floor(Math.random() * 101)
+    X.sendMessage(from, { text: `*Simp Meter:*\n@${simpTarget.split('@')[0]}\n\n${'🟩'.repeat(Math.floor(simpLevel/10))}${'⬜'.repeat(10 - Math.floor(simpLevel/10))} ${simpLevel}%\n\n${simpLevel > 80 ? 'MAXIMUM SIMP! 😂' : simpLevel > 50 ? 'Moderate simp 😏' : 'Not a simp 😎'}`, mentions: [simpTarget] }, { quoted: m })
+    } catch(e) {
+        console.error('[simp]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'wasted': {
-    await X.sendMessage(m.chat, { react: { text: '💀', key: m.key } })
-    if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*`)
-let wastedTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : sender
-X.sendMessage(from, { text: `*WASTED*\n\n@${wastedTarget.split('@')[0]} is WASTED 💀\n\nR.I.P.`, mentions: [wastedTarget] }, { quoted: m })
+    try {
+        await X.sendMessage(m.chat, { react: { text: '💀', key: m.key } })
+        if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*`)
+    let wastedTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : sender
+    X.sendMessage(from, { text: `*WASTED*\n\n@${wastedTarget.split('@')[0]} is WASTED 💀\n\nR.I.P.`, mentions: [wastedTarget] }, { quoted: m })
+    } catch(e) {
+        console.error('[wasted]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'stupid':
 case 'iq': {
-    await X.sendMessage(m.chat, { react: { text: '🧠', key: m.key } })
-    if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*`)
-let iqTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : sender
-let iqScore = Math.floor(Math.random() * 80) + 70
-const iqMsg = iqScore > 130 ? 'Genius level! 🧠💡' : iqScore > 110 ? 'Above average mind 🎓' : iqScore > 90 ? 'Average intelligence 😊' : 'Room to grow! 📚'
-X.sendMessage(from, { text: `╔══════════════════════════╗\n║  🧠 *IQ METER*\n╚══════════════════════════╝\n\n  👤 @${iqTarget.split('@')[0]}\n\n  ${'🧠'.repeat(Math.min(10,Math.floor(iqScore/15)))}${'⬜'.repeat(10 - Math.min(10,Math.floor(iqScore/15)))} *IQ: ${iqScore}*\n\n  _${iqMsg}_`, mentions: [iqTarget] }, { quoted: m })
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🧠', key: m.key } })
+        if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*`)
+    let iqTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : sender
+    let iqScore = Math.floor(Math.random() * 80) + 70
+    const iqMsg = iqScore > 130 ? 'Genius level! 🧠💡' : iqScore > 110 ? 'Above average mind 🎓' : iqScore > 90 ? 'Average intelligence 😊' : 'Room to grow! 📚'
+    X.sendMessage(from, { text: `╔══════════════════════════╗\n║  🧠 *IQ METER*\n╚══════════════════════════╝\n\n  👤 @${iqTarget.split('@')[0]}\n\n  ${'🧠'.repeat(Math.min(10,Math.floor(iqScore/15)))}${'⬜'.repeat(10 - Math.min(10,Math.floor(iqScore/15)))} *IQ: ${iqScore}*\n\n  _${iqMsg}_`, mentions: [iqTarget] }, { quoted: m })
+    } catch(e) {
+        console.error('[iq]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'joke': {
@@ -6840,395 +7227,595 @@ await X.sendMessage(m.chat, { image: { url: data.data[0].images.jpg.image_url },
 // All outputs are plain Unicode text — everyone sees them in any WhatsApp chat
 // Owner uses the command, copies the output, pastes it anywhere
 case 'setfont': {
-    await X.sendMessage(m.chat, { react: { text: '✏️', key: m.key } })
-// Activate persistent font mode — all your messages auto-convert until you run .fontoff
-if (!isOwner) return reply(mess.OnlyOwner)
-const _validFonts = ['bold','italic','bolditalic','mono','serif','serifbold','serifitalic','scriptfont','scriptbold','fraktur','frakturbold','doublestruck','smallcaps','bubble','bubblebold','square','squarebold','wide','upsidedown','strikethrough','underline','aesthetic','tiny','cursive','gothic','medieval','oldeng','inverted','mirror','currency','dotted','parenthesis','flags']
-let _chosen = (text || '').toLowerCase().trim()
-if (!_chosen) return reply(`*🔤 Set Font Mode*\n\nUsage: ${prefix}setfont [fontname]\n\nAvailable fonts:\n${_validFonts.map(f=>'• '+f).join('\n')}\n\n_Every message you send will auto-convert until you use ${prefix}fontoff_`)
-if (!_validFonts.includes(_chosen)) return reply(`❌ Unknown font: *${_chosen}*\n\nValid options:\n${_validFonts.map(f=>'• '+f).join('\n')}`)
-global.ownerFontMode = _chosen
-reply(`✅ *Font mode set to: ${_chosen}*\n\n_Every message you send will now appear in ${_chosen} style._\n_Use ${prefix}fontoff to return to normal._`)
+    try {
+        await X.sendMessage(m.chat, { react: { text: '✏️', key: m.key } })
+    // Activate persistent font mode — all your messages auto-convert until you run .fontoff
+    if (!isOwner) return reply(mess.OnlyOwner)
+    const _validFonts = ['bold','italic','bolditalic','mono','serif','serifbold','serifitalic','scriptfont','scriptbold','fraktur','frakturbold','doublestruck','smallcaps','bubble','bubblebold','square','squarebold','wide','upsidedown','strikethrough','underline','aesthetic','tiny','cursive','gothic','medieval','oldeng','inverted','mirror','currency','dotted','parenthesis','flags']
+    let _chosen = (text || '').toLowerCase().trim()
+    if (!_chosen) return reply(`*🔤 Set Font Mode*\n\nUsage: ${prefix}setfont [fontname]\n\nAvailable fonts:\n${_validFonts.map(f=>'• '+f).join('\n')}\n\n_Every message you send will auto-convert until you use ${prefix}fontoff_`)
+    if (!_validFonts.includes(_chosen)) return reply(`❌ Unknown font: *${_chosen}*\n\nValid options:\n${_validFonts.map(f=>'• '+f).join('\n')}`)
+    global.ownerFontMode = _chosen
+    reply(`✅ *Font mode set to: ${_chosen}*\n\n_Every message you send will now appear in ${_chosen} style._\n_Use ${prefix}fontoff to return to normal._`)
+    } catch(e) {
+        console.error('[setfont]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'fontoff':
 case 'resetfont': {
-    await X.sendMessage(m.chat, { react: { text: '✏️', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-global.ownerFontMode = 'off'
-reply(`✅ *Font mode disabled.*\n_Your messages will now send normally._`)
+    try {
+        await X.sendMessage(m.chat, { react: { text: '✏️', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    global.ownerFontMode = 'off'
+    reply(`✅ *Font mode disabled.*\n_Your messages will now send normally._`)
+    } catch(e) {
+        console.error('[resetfont]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'font':
 case 'fonts': {
-    await X.sendMessage(m.chat, { react: { text: '🔤', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-reply(`╔══════════════════════════╗\n║  🔤 *FONT CONVERTER*\n╚══════════════════════════╝\n\n  *Classic*\n  ${prefix}bold · ${prefix}italic · ${prefix}bolditalic\n  ${prefix}mono · ${prefix}serif · ${prefix}serifbold\n\n  *Decorative*\n  ${prefix}scriptfont · ${prefix}scriptbold\n  ${prefix}fraktur · ${prefix}frakturbold\n  ${prefix}doublestruck · ${prefix}smallcaps\n\n  *Fun & Stylized*\n  ${prefix}bubble · ${prefix}bubblebold\n  ${prefix}square · ${prefix}squarebold\n  ${prefix}wide · ${prefix}upsidedown\n  ${prefix}strikethrough · ${prefix}underline\n\n  └ ${prefix}allfonts [text] — preview all\n  _Tip: ${prefix}setfont [name] for persistent style_`)
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🔤', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    reply(`╔══════════════════════════╗\n║  🔤 *FONT CONVERTER*\n╚══════════════════════════╝\n\n  *Classic*\n  ${prefix}bold · ${prefix}italic · ${prefix}bolditalic\n  ${prefix}mono · ${prefix}serif · ${prefix}serifbold\n\n  *Decorative*\n  ${prefix}scriptfont · ${prefix}scriptbold\n  ${prefix}fraktur · ${prefix}frakturbold\n  ${prefix}doublestruck · ${prefix}smallcaps\n\n  *Fun & Stylized*\n  ${prefix}bubble · ${prefix}bubblebold\n  ${prefix}square · ${prefix}squarebold\n  ${prefix}wide · ${prefix}upsidedown\n  ${prefix}strikethrough · ${prefix}underline\n\n  └ ${prefix}allfonts [text] — preview all\n  _Tip: ${prefix}setfont [name] for persistent style_`)
+    } catch(e) {
+        console.error('[fonts]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'bold': {
-    await X.sendMessage(m.chat, { react: { text: '𝐁', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}bold [text]`)
-const boldMap={a:'𝗮',b:'𝗯',c:'𝗰',d:'𝗱',e:'𝗲',f:'𝗳',g:'𝗴',h:'𝗵',i:'𝗶',j:'𝗷',k:'𝗸',l:'𝗹',m:'𝗺',n:'𝗻',o:'𝗼',p:'𝗽',q:'𝗾',r:'𝗿',s:'𝘀',t:'𝘁',u:'𝘂',v:'𝘃',w:'𝘄',x:'𝘅',y:'𝘆',z:'𝘇',A:'𝗔',B:'𝗕',C:'𝗖',D:'𝗗',E:'𝗘',F:'𝗙',G:'𝗚',H:'𝗛',I:'𝗜',J:'𝗝',K:'𝗞',L:'𝗟',M:'𝗠',N:'𝗡',O:'𝗢',P:'𝗣',Q:'𝗤',R:'𝗥',S:'𝗦',T:'𝗧',U:'𝗨',V:'𝗩',W:'𝗪',X:'𝗫',Y:'𝗬',Z:'𝗭','0':'𝟬','1':'𝟭','2':'𝟮','3':'𝟯','4':'𝟰','5':'𝟱','6':'𝟲','7':'𝟳','8':'𝟴','9':'𝟵'}
-reply([...ftIn].map(c=>boldMap[c]||c).join(''))
+    try {
+        await X.sendMessage(m.chat, { react: { text: '𝐁', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
+    if (!ftIn) return reply(`Usage: ${prefix}bold [text]`)
+    const boldMap={a:'𝗮',b:'𝗯',c:'𝗰',d:'𝗱',e:'𝗲',f:'𝗳',g:'𝗴',h:'𝗵',i:'𝗶',j:'𝗷',k:'𝗸',l:'𝗹',m:'𝗺',n:'𝗻',o:'𝗼',p:'𝗽',q:'𝗾',r:'𝗿',s:'𝘀',t:'𝘁',u:'𝘂',v:'𝘃',w:'𝘄',x:'𝘅',y:'𝘆',z:'𝘇',A:'𝗔',B:'𝗕',C:'𝗖',D:'𝗗',E:'𝗘',F:'𝗙',G:'𝗚',H:'𝗛',I:'𝗜',J:'𝗝',K:'𝗞',L:'𝗟',M:'𝗠',N:'𝗡',O:'𝗢',P:'𝗣',Q:'𝗤',R:'𝗥',S:'𝗦',T:'𝗧',U:'𝗨',V:'𝗩',W:'𝗪',X:'𝗫',Y:'𝗬',Z:'𝗭','0':'𝟬','1':'𝟭','2':'𝟮','3':'𝟯','4':'𝟰','5':'𝟱','6':'𝟲','7':'𝟳','8':'𝟴','9':'𝟵'}
+    reply([...ftIn].map(c=>boldMap[c]||c).join(''))
+    } catch(e) {
+        console.error('[bold]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'italic': {
-    await X.sendMessage(m.chat, { react: { text: '𝐼', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}italic [text]`)
-const italicMap={a:'𝘢',b:'𝘣',c:'𝘤',d:'𝘥',e:'𝘦',f:'𝘧',g:'𝘨',h:'𝘩',i:'𝘪',j:'𝘫',k:'𝘬',l:'𝘭',m:'𝘮',n:'𝘯',o:'𝘰',p:'𝘱',q:'𝘲',r:'𝘳',s:'𝘴',t:'𝘵',u:'𝘶',v:'𝘷',w:'𝘸',x:'𝘹',y:'𝘺',z:'𝘻',A:'𝘈',B:'𝘉',C:'𝘊',D:'𝘋',E:'𝘌',F:'𝘍',G:'𝘎',H:'𝘏',I:'𝘐',J:'𝘑',K:'𝘒',L:'𝘓',M:'𝘔',N:'𝘕',O:'𝘖',P:'𝘗',Q:'𝘘',R:'𝘙',S:'𝘚',T:'𝘛',U:'𝘜',V:'𝘝',W:'𝘞',X:'𝘟',Y:'𝘠',Z:'𝘡'}
-reply([...ftIn].map(c=>italicMap[c]||c).join(''))
+    try {
+        await X.sendMessage(m.chat, { react: { text: '𝐼', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
+    if (!ftIn) return reply(`Usage: ${prefix}italic [text]`)
+    const italicMap={a:'𝘢',b:'𝘣',c:'𝘤',d:'𝘥',e:'𝘦',f:'𝘧',g:'𝘨',h:'𝘩',i:'𝘪',j:'𝘫',k:'𝘬',l:'𝘭',m:'𝘮',n:'𝘯',o:'𝘰',p:'𝘱',q:'𝘲',r:'𝘳',s:'𝘴',t:'𝘵',u:'𝘶',v:'𝘷',w:'𝘸',x:'𝘹',y:'𝘺',z:'𝘻',A:'𝘈',B:'𝘉',C:'𝘊',D:'𝘋',E:'𝘌',F:'𝘍',G:'𝘎',H:'𝘏',I:'𝘐',J:'𝘑',K:'𝘒',L:'𝘓',M:'𝘔',N:'𝘕',O:'𝘖',P:'𝘗',Q:'𝘘',R:'𝘙',S:'𝘚',T:'𝘛',U:'𝘜',V:'𝘝',W:'𝘞',X:'𝘟',Y:'𝘠',Z:'𝘡'}
+    reply([...ftIn].map(c=>italicMap[c]||c).join(''))
+    } catch(e) {
+        console.error('[italic]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'bolditalic': {
-    await X.sendMessage(m.chat, { react: { text: '𝑩', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}bolditalic [text]`)
-const biMap={a:'𝙖',b:'𝙗',c:'𝙘',d:'𝙙',e:'𝙚',f:'𝙛',g:'𝙜',h:'𝙝',i:'𝙞',j:'𝙟',k:'𝙠',l:'𝙡',m:'𝙢',n:'𝙣',o:'𝙤',p:'𝙥',q:'𝙦',r:'𝙧',s:'𝙨',t:'𝙩',u:'𝙪',v:'𝙫',w:'𝙬',x:'𝙭',y:'𝙮',z:'𝙯',A:'𝘼',B:'𝘽',C:'𝘾',D:'𝘿',E:'𝙀',F:'𝙁',G:'𝙂',H:'𝙃',I:'𝙄',J:'𝙅',K:'𝙆',L:'𝙇',M:'𝙈',N:'𝙉',O:'𝙊',P:'𝙋',Q:'𝙌',R:'𝙍',S:'𝙎',T:'𝙏',U:'𝙐',V:'𝙑',W:'𝙒',X:'𝙓',Y:'𝙔',Z:'𝙕'}
-reply([...ftIn].map(c=>biMap[c]||c).join(''))
+    try {
+        await X.sendMessage(m.chat, { react: { text: '𝑩', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
+    if (!ftIn) return reply(`Usage: ${prefix}bolditalic [text]`)
+    const biMap={a:'𝙖',b:'𝙗',c:'𝙘',d:'𝙙',e:'𝙚',f:'𝙛',g:'𝙜',h:'𝙝',i:'𝙞',j:'𝙟',k:'𝙠',l:'𝙡',m:'𝙢',n:'𝙣',o:'𝙤',p:'𝙥',q:'𝙦',r:'𝙧',s:'𝙨',t:'𝙩',u:'𝙪',v:'𝙫',w:'𝙬',x:'𝙭',y:'𝙮',z:'𝙯',A:'𝘼',B:'𝘽',C:'𝘾',D:'𝘿',E:'𝙀',F:'𝙁',G:'𝙂',H:'𝙃',I:'𝙄',J:'𝙅',K:'𝙆',L:'𝙇',M:'𝙈',N:'𝙉',O:'𝙊',P:'𝙋',Q:'𝙌',R:'𝙍',S:'𝙎',T:'𝙏',U:'𝙐',V:'𝙑',W:'𝙒',X:'𝙓',Y:'𝙔',Z:'𝙕'}
+    reply([...ftIn].map(c=>biMap[c]||c).join(''))
+    } catch(e) {
+        console.error('[bolditalic]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'mono': {
-    await X.sendMessage(m.chat, { react: { text: '𝙼', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}mono [text]`)
-const monoMap={a:'𝚊',b:'𝚋',c:'𝚌',d:'𝚍',e:'𝚎',f:'𝚏',g:'𝚐',h:'𝚑',i:'𝚒',j:'𝚓',k:'𝚔',l:'𝚕',m:'𝚖',n:'𝚗',o:'𝚘',p:'𝚙',q:'𝚚',r:'𝚛',s:'𝚜',t:'𝚝',u:'𝚞',v:'𝚟',w:'𝚠',x:'𝚡',y:'𝚢',z:'𝚣',A:'𝙰',B:'𝙱',C:'𝙲',D:'𝙳',E:'𝙴',F:'𝙵',G:'𝙶',H:'𝙷',I:'𝙸',J:'𝙹',K:'𝙺',L:'𝙻',M:'𝙼',N:'𝙽',O:'𝙾',P:'𝙿',Q:'𝚀',R:'𝚁',S:'𝚂',T:'𝚃',U:'𝚄',V:'𝚅',W:'𝚆',X:'𝚇',Y:'𝚈',Z:'𝚉','0':'𝟶','1':'𝟷','2':'𝟸','3':'𝟹','4':'𝟺','5':'𝟻','6':'𝟼','7':'𝟽','8':'𝟾','9':'𝟿'}
-reply([...ftIn].map(c=>monoMap[c]||c).join(''))
+    try {
+        await X.sendMessage(m.chat, { react: { text: '𝙼', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
+    if (!ftIn) return reply(`Usage: ${prefix}mono [text]`)
+    const monoMap={a:'𝚊',b:'𝚋',c:'𝚌',d:'𝚍',e:'𝚎',f:'𝚏',g:'𝚐',h:'𝚑',i:'𝚒',j:'𝚓',k:'𝚔',l:'𝚕',m:'𝚖',n:'𝚗',o:'𝚘',p:'𝚙',q:'𝚚',r:'𝚛',s:'𝚜',t:'𝚝',u:'𝚞',v:'𝚟',w:'𝚠',x:'𝚡',y:'𝚢',z:'𝚣',A:'𝙰',B:'𝙱',C:'𝙲',D:'𝙳',E:'𝙴',F:'𝙵',G:'𝙶',H:'𝙷',I:'𝙸',J:'𝙹',K:'𝙺',L:'𝙻',M:'𝙼',N:'𝙽',O:'𝙾',P:'𝙿',Q:'𝚀',R:'𝚁',S:'𝚂',T:'𝚃',U:'𝚄',V:'𝚅',W:'𝚆',X:'𝚇',Y:'𝚈',Z:'𝚉','0':'𝟶','1':'𝟷','2':'𝟸','3':'𝟹','4':'𝟺','5':'𝟻','6':'𝟼','7':'𝟽','8':'𝟾','9':'𝟿'}
+    reply([...ftIn].map(c=>monoMap[c]||c).join(''))
+    } catch(e) {
+        console.error('[mono]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'serif': {
-    await X.sendMessage(m.chat, { react: { text: '𝐒', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}serif [text]`)
-const serifMap={a:'𝐚',b:'𝐛',c:'𝐜',d:'𝐝',e:'𝐞',f:'𝐟',g:'𝐠',h:'𝐡',i:'𝐢',j:'𝐣',k:'𝐤',l:'𝐥',m:'𝐦',n:'𝐧',o:'𝐨',p:'𝐩',q:'𝐪',r:'𝐫',s:'𝐬',t:'𝐭',u:'𝐮',v:'𝐯',w:'𝐰',x:'𝐱',y:'𝐲',z:'𝐳',A:'𝐀',B:'𝐁',C:'𝐂',D:'𝐃',E:'𝐄',F:'𝐅',G:'𝐆',H:'𝐇',I:'𝐈',J:'𝐉',K:'𝐊',L:'𝐋',M:'𝐌',N:'𝐍',O:'𝐎',P:'𝐏',Q:'𝐐',R:'𝐑',S:'𝐒',T:'𝐓',U:'𝐔',V:'𝐕',W:'𝐖',X:'𝐗',Y:'𝐘',Z:'𝐙','0':'𝟎','1':'𝟏','2':'𝟐','3':'𝟑','4':'𝟒','5':'𝟓','6':'𝟔','7':'𝟕','8':'𝟖','9':'𝟗'}
-reply([...ftIn].map(c=>serifMap[c]||c).join(''))
+    try {
+        await X.sendMessage(m.chat, { react: { text: '𝐒', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
+    if (!ftIn) return reply(`Usage: ${prefix}serif [text]`)
+    const serifMap={a:'𝐚',b:'𝐛',c:'𝐜',d:'𝐝',e:'𝐞',f:'𝐟',g:'𝐠',h:'𝐡',i:'𝐢',j:'𝐣',k:'𝐤',l:'𝐥',m:'𝐦',n:'𝐧',o:'𝐨',p:'𝐩',q:'𝐪',r:'𝐫',s:'𝐬',t:'𝐭',u:'𝐮',v:'𝐯',w:'𝐰',x:'𝐱',y:'𝐲',z:'𝐳',A:'𝐀',B:'𝐁',C:'𝐂',D:'𝐃',E:'𝐄',F:'𝐅',G:'𝐆',H:'𝐇',I:'𝐈',J:'𝐉',K:'𝐊',L:'𝐋',M:'𝐌',N:'𝐍',O:'𝐎',P:'𝐏',Q:'𝐐',R:'𝐑',S:'𝐒',T:'𝐓',U:'𝐔',V:'𝐕',W:'𝐖',X:'𝐗',Y:'𝐘',Z:'𝐙','0':'𝟎','1':'𝟏','2':'𝟐','3':'𝟑','4':'𝟒','5':'𝟓','6':'𝟔','7':'𝟕','8':'𝟖','9':'𝟗'}
+    reply([...ftIn].map(c=>serifMap[c]||c).join(''))
+    } catch(e) {
+        console.error('[serif]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'serifbold': {
-    await X.sendMessage(m.chat, { react: { text: '𝐒', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}serifbold [text]`)
-const sbMap={a:'𝐚',b:'𝐛',c:'𝐜',d:'𝐝',e:'𝐞',f:'𝐟',g:'𝐠',h:'𝐡',i:'𝐢',j:'𝐣',k:'𝐤',l:'𝐥',m:'𝐦',n:'𝐧',o:'𝐨',p:'𝐩',q:'𝐪',r:'𝐫',s:'𝐬',t:'𝐭',u:'𝐮',v:'𝐯',w:'𝐰',x:'𝐱',y:'𝐲',z:'𝐳',A:'𝐀',B:'𝐁',C:'𝐂',D:'𝐃',E:'𝐄',F:'𝐅',G:'𝐆',H:'𝐇',I:'𝐈',J:'𝐉',K:'𝐊',L:'𝐋',M:'𝐌',N:'𝐍',O:'𝐎',P:'𝐏',Q:'𝐐',R:'𝐑',S:'𝐒',T:'𝐓',U:'𝐔',V:'𝐕',W:'𝐖',X:'𝐗',Y:'𝐘',Z:'𝐙'}
-reply([...ftIn].map(c=>sbMap[c]||c).join(''))
+    try {
+        await X.sendMessage(m.chat, { react: { text: '𝐒', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
+    if (!ftIn) return reply(`Usage: ${prefix}serifbold [text]`)
+    const sbMap={a:'𝐚',b:'𝐛',c:'𝐜',d:'𝐝',e:'𝐞',f:'𝐟',g:'𝐠',h:'𝐡',i:'𝐢',j:'𝐣',k:'𝐤',l:'𝐥',m:'𝐦',n:'𝐧',o:'𝐨',p:'𝐩',q:'𝐪',r:'𝐫',s:'𝐬',t:'𝐭',u:'𝐮',v:'𝐯',w:'𝐰',x:'𝐱',y:'𝐲',z:'𝐳',A:'𝐀',B:'𝐁',C:'𝐂',D:'𝐃',E:'𝐄',F:'𝐅',G:'𝐆',H:'𝐇',I:'𝐈',J:'𝐉',K:'𝐊',L:'𝐋',M:'𝐌',N:'𝐍',O:'𝐎',P:'𝐏',Q:'𝐐',R:'𝐑',S:'𝐒',T:'𝐓',U:'𝐔',V:'𝐕',W:'𝐖',X:'𝐗',Y:'𝐘',Z:'𝐙'}
+    reply([...ftIn].map(c=>sbMap[c]||c).join(''))
+    } catch(e) {
+        console.error('[serifbold]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'serifitalic': {
-    await X.sendMessage(m.chat, { react: { text: '𝑆', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}serifitalic [text]`)
-const siMap={a:'𝑎',b:'𝑏',c:'𝑐',d:'𝑑',e:'𝑒',f:'𝑓',g:'𝑔',h:'ℎ',i:'𝑖',j:'𝑗',k:'𝑘',l:'𝑙',m:'𝑚',n:'𝑛',o:'𝑜',p:'𝑝',q:'𝑞',r:'𝑟',s:'𝑠',t:'𝑡',u:'𝑢',v:'𝑣',w:'𝑤',x:'𝑥',y:'𝑦',z:'𝑧',A:'𝐴',B:'𝐵',C:'𝐶',D:'𝐷',E:'𝐸',F:'𝐹',G:'𝐺',H:'𝐻',I:'𝐼',J:'𝐽',K:'𝐾',L:'𝐿',M:'𝑀',N:'𝑁',O:'𝑂',P:'𝑃',Q:'𝑄',R:'𝑅',S:'𝑆',T:'𝑇',U:'𝑈',V:'𝑉',W:'𝑊',X:'𝑋',Y:'𝑌',Z:'𝑍'}
-reply([...ftIn].map(c=>siMap[c]||c).join(''))
+    try {
+        await X.sendMessage(m.chat, { react: { text: '𝑆', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
+    if (!ftIn) return reply(`Usage: ${prefix}serifitalic [text]`)
+    const siMap={a:'𝑎',b:'𝑏',c:'𝑐',d:'𝑑',e:'𝑒',f:'𝑓',g:'𝑔',h:'ℎ',i:'𝑖',j:'𝑗',k:'𝑘',l:'𝑙',m:'𝑚',n:'𝑛',o:'𝑜',p:'𝑝',q:'𝑞',r:'𝑟',s:'𝑠',t:'𝑡',u:'𝑢',v:'𝑣',w:'𝑤',x:'𝑥',y:'𝑦',z:'𝑧',A:'𝐴',B:'𝐵',C:'𝐶',D:'𝐷',E:'𝐸',F:'𝐹',G:'𝐺',H:'𝐻',I:'𝐼',J:'𝐽',K:'𝐾',L:'𝐿',M:'𝑀',N:'𝑁',O:'𝑂',P:'𝑃',Q:'𝑄',R:'𝑅',S:'𝑆',T:'𝑇',U:'𝑈',V:'𝑉',W:'𝑊',X:'𝑋',Y:'𝑌',Z:'𝑍'}
+    reply([...ftIn].map(c=>siMap[c]||c).join(''))
+    } catch(e) {
+        console.error('[serifitalic]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'scriptfont': {
-    await X.sendMessage(m.chat, { react: { text: '𝒮', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}scriptfont [text]`)
-const scriptMap={a:'𝒶',b:'𝒷',c:'𝒸',d:'𝒹',e:'𝑒',f:'𝒻',g:'𝑔',h:'𝒽',i:'𝒾',j:'𝒿',k:'𝓀',l:'𝓁',m:'𝓂',n:'𝓃',o:'𝑜',p:'𝓅',q:'𝓆',r:'𝓇',s:'𝓈',t:'𝓉',u:'𝓊',v:'𝓋',w:'𝓌',x:'𝓍',y:'𝓎',z:'𝓏',A:'𝒜',B:'ℬ',C:'𝒞',D:'𝒟',E:'ℰ',F:'ℱ',G:'𝒢',H:'ℋ',I:'ℐ',J:'𝒥',K:'𝒦',L:'ℒ',M:'ℳ',N:'𝒩',O:'𝒪',P:'𝒫',Q:'𝒬',R:'ℛ',S:'𝒮',T:'𝒯',U:'𝒰',V:'𝒱',W:'𝒲',X:'𝒳',Y:'𝒴',Z:'𝒵'}
-reply([...ftIn].map(c=>scriptMap[c]||c).join(''))
+    try {
+        await X.sendMessage(m.chat, { react: { text: '𝒮', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
+    if (!ftIn) return reply(`Usage: ${prefix}scriptfont [text]`)
+    const scriptMap={a:'𝒶',b:'𝒷',c:'𝒸',d:'𝒹',e:'𝑒',f:'𝒻',g:'𝑔',h:'𝒽',i:'𝒾',j:'𝒿',k:'𝓀',l:'𝓁',m:'𝓂',n:'𝓃',o:'𝑜',p:'𝓅',q:'𝓆',r:'𝓇',s:'𝓈',t:'𝓉',u:'𝓊',v:'𝓋',w:'𝓌',x:'𝓍',y:'𝓎',z:'𝓏',A:'𝒜',B:'ℬ',C:'𝒞',D:'𝒟',E:'ℰ',F:'ℱ',G:'𝒢',H:'ℋ',I:'ℐ',J:'𝒥',K:'𝒦',L:'ℒ',M:'ℳ',N:'𝒩',O:'𝒪',P:'𝒫',Q:'𝒬',R:'ℛ',S:'𝒮',T:'𝒯',U:'𝒰',V:'𝒱',W:'𝒲',X:'𝒳',Y:'𝒴',Z:'𝒵'}
+    reply([...ftIn].map(c=>scriptMap[c]||c).join(''))
+    } catch(e) {
+        console.error('[scriptfont]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'scriptbold': {
-    await X.sendMessage(m.chat, { react: { text: '𝓢', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}scriptbold [text]`)
-const scbMap={a:'𝓪',b:'𝓫',c:'𝓬',d:'𝓭',e:'𝓮',f:'𝓯',g:'𝓰',h:'𝓱',i:'𝓲',j:'𝓳',k:'𝓴',l:'𝓵',m:'𝓶',n:'𝓷',o:'𝓸',p:'𝓹',q:'𝓺',r:'𝓻',s:'𝓼',t:'𝓽',u:'𝓾',v:'𝓿',w:'𝔀',x:'𝔁',y:'𝔂',z:'𝔃',A:'𝓐',B:'𝓑',C:'𝓒',D:'𝓓',E:'𝓔',F:'𝓕',G:'𝓖',H:'𝓗',I:'𝓘',J:'𝓙',K:'𝓚',L:'𝓛',M:'𝓜',N:'𝓝',O:'𝓞',P:'𝓟',Q:'𝓠',R:'𝓡',S:'𝓢',T:'𝓣',U:'𝓤',V:'𝓥',W:'𝓦',X:'𝓧',Y:'𝓨',Z:'𝓩'}
-reply([...ftIn].map(c=>scbMap[c]||c).join(''))
+    try {
+        await X.sendMessage(m.chat, { react: { text: '𝓢', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
+    if (!ftIn) return reply(`Usage: ${prefix}scriptbold [text]`)
+    const scbMap={a:'𝓪',b:'𝓫',c:'𝓬',d:'𝓭',e:'𝓮',f:'𝓯',g:'𝓰',h:'𝓱',i:'𝓲',j:'𝓳',k:'𝓴',l:'𝓵',m:'𝓶',n:'𝓷',o:'𝓸',p:'𝓹',q:'𝓺',r:'𝓻',s:'𝓼',t:'𝓽',u:'𝓾',v:'𝓿',w:'𝔀',x:'𝔁',y:'𝔂',z:'𝔃',A:'𝓐',B:'𝓑',C:'𝓒',D:'𝓓',E:'𝓔',F:'𝓕',G:'𝓖',H:'𝓗',I:'𝓘',J:'𝓙',K:'𝓚',L:'𝓛',M:'𝓜',N:'𝓝',O:'𝓞',P:'𝓟',Q:'𝓠',R:'𝓡',S:'𝓢',T:'𝓣',U:'𝓤',V:'𝓥',W:'𝓦',X:'𝓧',Y:'𝓨',Z:'𝓩'}
+    reply([...ftIn].map(c=>scbMap[c]||c).join(''))
+    } catch(e) {
+        console.error('[scriptbold]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'fraktur': {
-    await X.sendMessage(m.chat, { react: { text: '𝔉', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}fraktur [text]`)
-const frakMap={a:'𝔞',b:'𝔟',c:'𝔠',d:'𝔡',e:'𝔢',f:'𝔣',g:'𝔤',h:'𝔥',i:'𝔦',j:'𝔧',k:'𝔨',l:'𝔩',m:'𝔪',n:'𝔫',o:'𝔬',p:'𝔭',q:'𝔮',r:'𝔯',s:'𝔰',t:'𝔱',u:'𝔲',v:'𝔳',w:'𝔴',x:'𝔵',y:'𝔶',z:'𝔷',A:'𝔄',B:'𝔅',C:'ℭ',D:'𝔇',E:'𝔈',F:'𝔉',G:'𝔊',H:'ℌ',I:'ℑ',J:'𝔍',K:'𝔎',L:'𝔏',M:'𝔐',N:'𝔑',O:'𝔒',P:'𝔓',Q:'𝔔',R:'ℜ',S:'𝔖',T:'𝔗',U:'𝔘',V:'𝔙',W:'𝔚',X:'𝔛',Y:'𝔜',Z:'ℨ'}
-reply([...ftIn].map(c=>frakMap[c]||c).join(''))
+    try {
+        await X.sendMessage(m.chat, { react: { text: '𝔉', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
+    if (!ftIn) return reply(`Usage: ${prefix}fraktur [text]`)
+    const frakMap={a:'𝔞',b:'𝔟',c:'𝔠',d:'𝔡',e:'𝔢',f:'𝔣',g:'𝔤',h:'𝔥',i:'𝔦',j:'𝔧',k:'𝔨',l:'𝔩',m:'𝔪',n:'𝔫',o:'𝔬',p:'𝔭',q:'𝔮',r:'𝔯',s:'𝔰',t:'𝔱',u:'𝔲',v:'𝔳',w:'𝔴',x:'𝔵',y:'𝔶',z:'𝔷',A:'𝔄',B:'𝔅',C:'ℭ',D:'𝔇',E:'𝔈',F:'𝔉',G:'𝔊',H:'ℌ',I:'ℑ',J:'𝔍',K:'𝔎',L:'𝔏',M:'𝔐',N:'𝔑',O:'𝔒',P:'𝔓',Q:'𝔔',R:'ℜ',S:'𝔖',T:'𝔗',U:'𝔘',V:'𝔙',W:'𝔚',X:'𝔛',Y:'𝔜',Z:'ℨ'}
+    reply([...ftIn].map(c=>frakMap[c]||c).join(''))
+    } catch(e) {
+        console.error('[fraktur]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'frakturbold': {
-    await X.sendMessage(m.chat, { react: { text: '𝕱', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}frakturbold [text]`)
-const fbMap={a:'𝖆',b:'𝖇',c:'𝖈',d:'𝖉',e:'𝖊',f:'𝖋',g:'𝖌',h:'𝖍',i:'𝖎',j:'𝖏',k:'𝖐',l:'𝖑',m:'𝖒',n:'𝖓',o:'𝖔',p:'𝖕',q:'𝖖',r:'𝖗',s:'𝖘',t:'𝖙',u:'𝖚',v:'𝖛',w:'𝖜',x:'𝖝',y:'𝖞',z:'𝖟',A:'𝕬',B:'𝕭',C:'𝕮',D:'𝕯',E:'𝕰',F:'𝕱',G:'𝕲',H:'𝕳',I:'𝕴',J:'𝕵',K:'𝕶',L:'𝕷',M:'𝕸',N:'𝕹',O:'𝕺',P:'𝕻',Q:'𝕼',R:'𝕽',S:'𝕾',T:'𝕿',U:'𝖀',V:'𝖁',W:'𝖂',X:'𝖃',Y:'𝖄',Z:'𝖅'}
-reply([...ftIn].map(c=>fbMap[c]||c).join(''))
+    try {
+        await X.sendMessage(m.chat, { react: { text: '𝕱', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
+    if (!ftIn) return reply(`Usage: ${prefix}frakturbold [text]`)
+    const fbMap={a:'𝖆',b:'𝖇',c:'𝖈',d:'𝖉',e:'𝖊',f:'𝖋',g:'𝖌',h:'𝖍',i:'𝖎',j:'𝖏',k:'𝖐',l:'𝖑',m:'𝖒',n:'𝖓',o:'𝖔',p:'𝖕',q:'𝖖',r:'𝖗',s:'𝖘',t:'𝖙',u:'𝖚',v:'𝖛',w:'𝖜',x:'𝖝',y:'𝖞',z:'𝖟',A:'𝕬',B:'𝕭',C:'𝕮',D:'𝕯',E:'𝕰',F:'𝕱',G:'𝕲',H:'𝕳',I:'𝕴',J:'𝕵',K:'𝕶',L:'𝕷',M:'𝕸',N:'𝕹',O:'𝕺',P:'𝕻',Q:'𝕼',R:'𝕽',S:'𝕾',T:'𝕿',U:'𝖀',V:'𝖁',W:'𝖂',X:'𝖃',Y:'𝖄',Z:'𝖅'}
+    reply([...ftIn].map(c=>fbMap[c]||c).join(''))
+    } catch(e) {
+        console.error('[frakturbold]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'doublestruck': {
-    await X.sendMessage(m.chat, { react: { text: '𝔻', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}doublestruck [text]`)
-const dsMap={a:'𝕒',b:'𝕓',c:'𝕔',d:'𝕕',e:'𝕖',f:'𝕗',g:'𝕘',h:'𝕙',i:'𝕚',j:'𝕛',k:'𝕜',l:'𝕝',m:'𝕞',n:'𝕟',o:'𝕠',p:'𝕡',q:'𝕢',r:'𝕣',s:'𝕤',t:'𝕥',u:'𝕦',v:'𝕧',w:'𝕨',x:'𝕩',y:'𝕪',z:'𝕫',A:'𝔸',B:'𝔹',C:'ℂ',D:'𝔻',E:'𝔼',F:'𝔽',G:'𝔾',H:'ℍ',I:'𝕀',J:'𝕁',K:'𝕂',L:'𝕃',M:'𝕄',N:'ℕ',O:'𝕆',P:'ℙ',Q:'ℚ',R:'ℝ',S:'𝕊',T:'𝕋',U:'𝕌',V:'𝕍',W:'𝕎',X:'𝕏',Y:'𝕐',Z:'ℤ','0':'𝟘','1':'𝟙','2':'𝟚','3':'𝟛','4':'𝟜','5':'𝟝','6':'𝟞','7':'𝟟','8':'𝟠','9':'𝟡'}
-reply([...ftIn].map(c=>dsMap[c]||c).join(''))
+    try {
+        await X.sendMessage(m.chat, { react: { text: '𝔻', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
+    if (!ftIn) return reply(`Usage: ${prefix}doublestruck [text]`)
+    const dsMap={a:'𝕒',b:'𝕓',c:'𝕔',d:'𝕕',e:'𝕖',f:'𝕗',g:'𝕘',h:'𝕙',i:'𝕚',j:'𝕛',k:'𝕜',l:'𝕝',m:'𝕞',n:'𝕟',o:'𝕠',p:'𝕡',q:'𝕢',r:'𝕣',s:'𝕤',t:'𝕥',u:'𝕦',v:'𝕧',w:'𝕨',x:'𝕩',y:'𝕪',z:'𝕫',A:'𝔸',B:'𝔹',C:'ℂ',D:'𝔻',E:'𝔼',F:'𝔽',G:'𝔾',H:'ℍ',I:'𝕀',J:'𝕁',K:'𝕂',L:'𝕃',M:'𝕄',N:'ℕ',O:'𝕆',P:'ℙ',Q:'ℚ',R:'ℝ',S:'𝕊',T:'𝕋',U:'𝕌',V:'𝕍',W:'𝕎',X:'𝕏',Y:'𝕐',Z:'ℤ','0':'𝟘','1':'𝟙','2':'𝟚','3':'𝟛','4':'𝟜','5':'𝟝','6':'𝟞','7':'𝟟','8':'𝟠','9':'𝟡'}
+    reply([...ftIn].map(c=>dsMap[c]||c).join(''))
+    } catch(e) {
+        console.error('[doublestruck]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'smallcaps': {
-    await X.sendMessage(m.chat, { react: { text: 'ꜱ', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}smallcaps [text]`)
-const scMap={a:'ᴀ',b:'ʙ',c:'ᴄ',d:'ᴅ',e:'ᴇ',f:'ꜰ',g:'ɢ',h:'ʜ',i:'ɪ',j:'ᴊ',k:'ᴋ',l:'ʟ',m:'ᴍ',n:'ɴ',o:'ᴏ',p:'ᴘ',q:'Q',r:'ʀ',s:'ꜱ',t:'ᴛ',u:'ᴜ',v:'ᴠ',w:'ᴡ',x:'x',y:'ʏ',z:'ᴢ',A:'ᴀ',B:'ʙ',C:'ᴄ',D:'ᴅ',E:'ᴇ',F:'ꜰ',G:'ɢ',H:'ʜ',I:'ɪ',J:'ᴊ',K:'ᴋ',L:'ʟ',M:'ᴍ',N:'ɴ',O:'ᴏ',P:'ᴘ',Q:'Q',R:'ʀ',S:'ꜱ',T:'ᴛ',U:'ᴜ',V:'ᴠ',W:'ᴡ',X:'x',Y:'ʏ',Z:'ᴢ'}
-reply([...ftIn].map(c=>scMap[c]||c).join(''))
+    try {
+        await X.sendMessage(m.chat, { react: { text: 'ꜱ', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
+    if (!ftIn) return reply(`Usage: ${prefix}smallcaps [text]`)
+    const scMap={a:'ᴀ',b:'ʙ',c:'ᴄ',d:'ᴅ',e:'ᴇ',f:'ꜰ',g:'ɢ',h:'ʜ',i:'ɪ',j:'ᴊ',k:'ᴋ',l:'ʟ',m:'ᴍ',n:'ɴ',o:'ᴏ',p:'ᴘ',q:'Q',r:'ʀ',s:'ꜱ',t:'ᴛ',u:'ᴜ',v:'ᴠ',w:'ᴡ',x:'x',y:'ʏ',z:'ᴢ',A:'ᴀ',B:'ʙ',C:'ᴄ',D:'ᴅ',E:'ᴇ',F:'ꜰ',G:'ɢ',H:'ʜ',I:'ɪ',J:'ᴊ',K:'ᴋ',L:'ʟ',M:'ᴍ',N:'ɴ',O:'ᴏ',P:'ᴘ',Q:'Q',R:'ʀ',S:'ꜱ',T:'ᴛ',U:'ᴜ',V:'ᴠ',W:'ᴡ',X:'x',Y:'ʏ',Z:'ᴢ'}
+    reply([...ftIn].map(c=>scMap[c]||c).join(''))
+    } catch(e) {
+        console.error('[smallcaps]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'bubble': {
-    await X.sendMessage(m.chat, { react: { text: '🔵', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}bubble [text]`)
-const bubMap={a:'ⓐ',b:'ⓑ',c:'ⓒ',d:'ⓓ',e:'ⓔ',f:'ⓕ',g:'ⓖ',h:'ⓗ',i:'ⓘ',j:'ⓙ',k:'ⓚ',l:'ⓛ',m:'ⓜ',n:'ⓝ',o:'ⓞ',p:'ⓟ',q:'ⓠ',r:'ⓡ',s:'ⓢ',t:'ⓣ',u:'ⓤ',v:'ⓥ',w:'ⓦ',x:'ⓧ',y:'ⓨ',z:'ⓩ',A:'Ⓐ',B:'Ⓑ',C:'Ⓒ',D:'Ⓓ',E:'Ⓔ',F:'Ⓕ',G:'Ⓖ',H:'Ⓗ',I:'Ⓘ',J:'Ⓙ',K:'Ⓚ',L:'Ⓛ',M:'Ⓜ',N:'Ⓝ',O:'Ⓞ',P:'Ⓟ',Q:'Ⓠ',R:'Ⓡ',S:'Ⓢ',T:'Ⓣ',U:'Ⓤ',V:'Ⓥ',W:'Ⓦ',X:'Ⓧ',Y:'Ⓨ',Z:'Ⓩ','0':'⓪','1':'①','2':'②','3':'③','4':'④','5':'⑤','6':'⑥','7':'⑦','8':'⑧','9':'⑨'}
-reply([...ftIn].map(c=>bubMap[c]||c).join(''))
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🔵', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
+    if (!ftIn) return reply(`Usage: ${prefix}bubble [text]`)
+    const bubMap={a:'ⓐ',b:'ⓑ',c:'ⓒ',d:'ⓓ',e:'ⓔ',f:'ⓕ',g:'ⓖ',h:'ⓗ',i:'ⓘ',j:'ⓙ',k:'ⓚ',l:'ⓛ',m:'ⓜ',n:'ⓝ',o:'ⓞ',p:'ⓟ',q:'ⓠ',r:'ⓡ',s:'ⓢ',t:'ⓣ',u:'ⓤ',v:'ⓥ',w:'ⓦ',x:'ⓧ',y:'ⓨ',z:'ⓩ',A:'Ⓐ',B:'Ⓑ',C:'Ⓒ',D:'Ⓓ',E:'Ⓔ',F:'Ⓕ',G:'Ⓖ',H:'Ⓗ',I:'Ⓘ',J:'Ⓙ',K:'Ⓚ',L:'Ⓛ',M:'Ⓜ',N:'Ⓝ',O:'Ⓞ',P:'Ⓟ',Q:'Ⓠ',R:'Ⓡ',S:'Ⓢ',T:'Ⓣ',U:'Ⓤ',V:'Ⓥ',W:'Ⓦ',X:'Ⓧ',Y:'Ⓨ',Z:'Ⓩ','0':'⓪','1':'①','2':'②','3':'③','4':'④','5':'⑤','6':'⑥','7':'⑦','8':'⑧','9':'⑨'}
+    reply([...ftIn].map(c=>bubMap[c]||c).join(''))
+    } catch(e) {
+        console.error('[bubble]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'bubblebold': {
-    await X.sendMessage(m.chat, { react: { text: '🟦', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}bubblebold [text]`)
-const bbbMap={a:'🅐',b:'🅑',c:'🅒',d:'🅓',e:'🅔',f:'🅕',g:'🅖',h:'🅗',i:'🅘',j:'🅙',k:'🅚',l:'🅛',m:'🅜',n:'🅝',o:'🅞',p:'🅟',q:'🅠',r:'🅡',s:'🅢',t:'🅣',u:'🅤',v:'🅥',w:'🅦',x:'🅧',y:'🅨',z:'🅩',A:'🅐',B:'🅑',C:'🅒',D:'🅓',E:'🅔',F:'🅕',G:'🅖',H:'🅗',I:'🅘',J:'🅙',K:'🅚',L:'🅛',M:'🅜',N:'🅝',O:'🅞',P:'🅟',Q:'🅠',R:'🅡',S:'🅢',T:'🅣',U:'🅤',V:'🅥',W:'🅦',X:'🅧',Y:'🅨',Z:'🅩'}
-reply([...ftIn].map(c=>bbbMap[c]||c).join(''))
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🟦', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
+    if (!ftIn) return reply(`Usage: ${prefix}bubblebold [text]`)
+    const bbbMap={a:'🅐',b:'🅑',c:'🅒',d:'🅓',e:'🅔',f:'🅕',g:'🅖',h:'🅗',i:'🅘',j:'🅙',k:'🅚',l:'🅛',m:'🅜',n:'🅝',o:'🅞',p:'🅟',q:'🅠',r:'🅡',s:'🅢',t:'🅣',u:'🅤',v:'🅥',w:'🅦',x:'🅧',y:'🅨',z:'🅩',A:'🅐',B:'🅑',C:'🅒',D:'🅓',E:'🅔',F:'🅕',G:'🅖',H:'🅗',I:'🅘',J:'🅙',K:'🅚',L:'🅛',M:'🅜',N:'🅝',O:'🅞',P:'🅟',Q:'🅠',R:'🅡',S:'🅢',T:'🅣',U:'🅤',V:'🅥',W:'🅦',X:'🅧',Y:'🅨',Z:'🅩'}
+    reply([...ftIn].map(c=>bbbMap[c]||c).join(''))
+    } catch(e) {
+        console.error('[bubblebold]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'square': {
-    await X.sendMessage(m.chat, { react: { text: '🟥', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}square [text]`)
-const sqMap={a:'🄰',b:'🄱',c:'🄲',d:'🄳',e:'🄴',f:'🄵',g:'🄶',h:'🄷',i:'🄸',j:'🄹',k:'🄺',l:'🄻',m:'🄼',n:'🄽',o:'🄾',p:'🄿',q:'🅀',r:'🅁',s:'🅂',t:'🅃',u:'🅄',v:'🅅',w:'🅆',x:'🅇',y:'🅈',z:'🅉',A:'🄰',B:'🄱',C:'🄲',D:'🄳',E:'🄴',F:'🄵',G:'🄶',H:'🄷',I:'🄸',J:'🄹',K:'🄺',L:'🄻',M:'🄼',N:'🄽',O:'🄾',P:'🄿',Q:'🅀',R:'🅁',S:'🅂',T:'🅃',U:'🅄',V:'🅅',W:'🅆',X:'🅇',Y:'🅈',Z:'🅉'}
-reply([...ftIn].map(c=>sqMap[c]||c).join(''))
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🟥', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
+    if (!ftIn) return reply(`Usage: ${prefix}square [text]`)
+    const sqMap={a:'🄰',b:'🄱',c:'🄲',d:'🄳',e:'🄴',f:'🄵',g:'🄶',h:'🄷',i:'🄸',j:'🄹',k:'🄺',l:'🄻',m:'🄼',n:'🄽',o:'🄾',p:'🄿',q:'🅀',r:'🅁',s:'🅂',t:'🅃',u:'🅄',v:'🅅',w:'🅆',x:'🅇',y:'🅈',z:'🅉',A:'🄰',B:'🄱',C:'🄲',D:'🄳',E:'🄴',F:'🄵',G:'🄶',H:'🄷',I:'🄸',J:'🄹',K:'🄺',L:'🄻',M:'🄼',N:'🄽',O:'🄾',P:'🄿',Q:'🅀',R:'🅁',S:'🅂',T:'🅃',U:'🅄',V:'🅅',W:'🅆',X:'🅇',Y:'🅈',Z:'🅉'}
+    reply([...ftIn].map(c=>sqMap[c]||c).join(''))
+    } catch(e) {
+        console.error('[square]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'squarebold': {
-    await X.sendMessage(m.chat, { react: { text: '🟥', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}squarebold [text]`)
-const sqbMap={a:'🅰',b:'🅱',c:'🅲',d:'🅳',e:'🅴',f:'🅵',g:'🅶',h:'🅷',i:'🅸',j:'🅹',k:'🅺',l:'🅻',m:'🅼',n:'🅽',o:'🅾',p:'🅿',q:'🆀',r:'🆁',s:'🆂',t:'🆃',u:'🆄',v:'🆅',w:'🆆',x:'🆇',y:'🆈',z:'🆉',A:'🅰',B:'🅱',C:'🅲',D:'🅳',E:'🅴',F:'🅵',G:'🅶',H:'🅷',I:'🅸',J:'🅹',K:'🅺',L:'🅻',M:'🅼',N:'🅽',O:'🅾',P:'🅿',Q:'🆀',R:'🆁',S:'🆂',T:'🆃',U:'🆄',V:'🆅',W:'🆆',X:'🆇',Y:'🆈',Z:'🆉'}
-reply([...ftIn].map(c=>sqbMap[c]||c).join(''))
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🟥', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
+    if (!ftIn) return reply(`Usage: ${prefix}squarebold [text]`)
+    const sqbMap={a:'🅰',b:'🅱',c:'🅲',d:'🅳',e:'🅴',f:'🅵',g:'🅶',h:'🅷',i:'🅸',j:'🅹',k:'🅺',l:'🅻',m:'🅼',n:'🅽',o:'🅾',p:'🅿',q:'🆀',r:'🆁',s:'🆂',t:'🆃',u:'🆄',v:'🆅',w:'🆆',x:'🆇',y:'🆈',z:'🆉',A:'🅰',B:'🅱',C:'🅲',D:'🅳',E:'🅴',F:'🅵',G:'🅶',H:'🅷',I:'🅸',J:'🅹',K:'🅺',L:'🅻',M:'🅼',N:'🅽',O:'🅾',P:'🅿',Q:'🆀',R:'🆁',S:'🆂',T:'🆃',U:'🆄',V:'🆅',W:'🆆',X:'🆇',Y:'🆈',Z:'🆉'}
+    reply([...ftIn].map(c=>sqbMap[c]||c).join(''))
+    } catch(e) {
+        console.error('[squarebold]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'wide': {
-    await X.sendMessage(m.chat, { react: { text: '🔡', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}wide [text]`)
-reply([...ftIn].map(c=>{let code=c.charCodeAt(0);return (code>=33&&code<=126)?String.fromCharCode(code+65248):c==' '?'　':c}).join(''))
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🔡', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
+    if (!ftIn) return reply(`Usage: ${prefix}wide [text]`)
+    reply([...ftIn].map(c=>{let code=c.charCodeAt(0);return (code>=33&&code<=126)?String.fromCharCode(code+65248):c==' '?'　':c}).join(''))
+    } catch(e) {
+        console.error('[wide]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'upsidedown': {
-    await X.sendMessage(m.chat, { react: { text: '🙃', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}upsidedown [text]`)
-const udMap={a:'ɐ',b:'q',c:'ɔ',d:'p',e:'ǝ',f:'ɟ',g:'ƃ',h:'ɥ',i:'ᴉ',j:'ɾ',k:'ʞ',l:'l',m:'ɯ',n:'u',o:'o',p:'d',q:'b',r:'ɹ',s:'s',t:'ʇ',u:'n',v:'ʌ',w:'ʍ',x:'x',y:'ʎ',z:'z',A:'∀',B:'𐐒',C:'Ɔ',D:'ᗡ',E:'Ǝ',F:'Ⅎ',G:'פ',H:'H',I:'I',J:'ſ',K:'ʞ',L:'˥',M:'W',N:'N',O:'O',P:'Ԁ',Q:'Q',R:'ɹ',S:'S',T:'┴',U:'∩',V:'Λ',W:'M',X:'X',Y:'⅄',Z:'Z','0':'0','1':'Ɩ','2':'ᄅ','3':'Ɛ','4':'ㄣ','5':'ϛ','6':'9','7':'L','8':'8','9':'6',',':'\'','\'':',','.':'˙','?':'¿','!':'¡','(':')',')':'(','[':']',']':'[','{':'}','}':'{','<':'>','>':'<','&':'⅋',_:'‾'}
-reply([...ftIn].map(c=>udMap[c]||c).join('').split('').reverse().join(''))
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🙃', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
+    if (!ftIn) return reply(`Usage: ${prefix}upsidedown [text]`)
+    const udMap={a:'ɐ',b:'q',c:'ɔ',d:'p',e:'ǝ',f:'ɟ',g:'ƃ',h:'ɥ',i:'ᴉ',j:'ɾ',k:'ʞ',l:'l',m:'ɯ',n:'u',o:'o',p:'d',q:'b',r:'ɹ',s:'s',t:'ʇ',u:'n',v:'ʌ',w:'ʍ',x:'x',y:'ʎ',z:'z',A:'∀',B:'𐐒',C:'Ɔ',D:'ᗡ',E:'Ǝ',F:'Ⅎ',G:'פ',H:'H',I:'I',J:'ſ',K:'ʞ',L:'˥',M:'W',N:'N',O:'O',P:'Ԁ',Q:'Q',R:'ɹ',S:'S',T:'┴',U:'∩',V:'Λ',W:'M',X:'X',Y:'⅄',Z:'Z','0':'0','1':'Ɩ','2':'ᄅ','3':'Ɛ','4':'ㄣ','5':'ϛ','6':'9','7':'L','8':'8','9':'6',',':'\'','\'':',','.':'˙','?':'¿','!':'¡','(':')',')':'(','[':']',']':'[','{':'}','}':'{','<':'>','>':'<','&':'⅋',_:'‾'}
+    reply([...ftIn].map(c=>udMap[c]||c).join('').split('').reverse().join(''))
+    } catch(e) {
+        console.error('[upsidedown]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'strikethrough': {
-    await X.sendMessage(m.chat, { react: { text: '~~', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}strikethrough [text]`)
-reply([...ftIn].map(c=>c+'\u0336').join(''))
+    try {
+        await X.sendMessage(m.chat, { react: { text: '~~', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
+    if (!ftIn) return reply(`Usage: ${prefix}strikethrough [text]`)
+    reply([...ftIn].map(c=>c+'\u0336').join(''))
+    } catch(e) {
+        console.error('[strikethrough]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'underline': {
-    await X.sendMessage(m.chat, { react: { text: '📏', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}underline [text]`)
-reply([...ftIn].map(c=>c+'\u0332').join(''))
+    try {
+        await X.sendMessage(m.chat, { react: { text: '📏', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
+    if (!ftIn) return reply(`Usage: ${prefix}underline [text]`)
+    reply([...ftIn].map(c=>c+'\u0332').join(''))
+    } catch(e) {
+        console.error('[underline]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'superscript': {
-    await X.sendMessage(m.chat, { react: { text: '⁰', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}superscript [text]`)
-const sspMap={a:'ᵃ',b:'ᵇ',c:'ᶜ',d:'ᵈ',e:'ᵉ',f:'ᶠ',g:'ᵍ',h:'ʰ',i:'ⁱ',j:'ʲ',k:'ᵏ',l:'ˡ',m:'ᵐ',n:'ⁿ',o:'ᵒ',p:'ᵖ',q:'q',r:'ʳ',s:'ˢ',t:'ᵗ',u:'ᵘ',v:'ᵛ',w:'ʷ',x:'ˣ',y:'ʸ',z:'ᶻ',A:'ᴬ',B:'ᴮ',C:'ᶜ',D:'ᴰ',E:'ᴱ',F:'ᶠ',G:'ᴳ',H:'ᴴ',I:'ᴵ',J:'ᴶ',K:'ᴷ',L:'ᴸ',M:'ᴹ',N:'ᴺ',O:'ᴼ',P:'ᴾ',Q:'Q',R:'ᴿ',S:'ˢ',T:'ᵀ',U:'ᵁ',V:'ᵛ',W:'ᵂ',X:'ˣ',Y:'ʸ',Z:'ᶻ','0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹'}
-reply([...ftIn].map(c=>sspMap[c]||c).join(''))
+    try {
+        await X.sendMessage(m.chat, { react: { text: '⁰', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
+    if (!ftIn) return reply(`Usage: ${prefix}superscript [text]`)
+    const sspMap={a:'ᵃ',b:'ᵇ',c:'ᶜ',d:'ᵈ',e:'ᵉ',f:'ᶠ',g:'ᵍ',h:'ʰ',i:'ⁱ',j:'ʲ',k:'ᵏ',l:'ˡ',m:'ᵐ',n:'ⁿ',o:'ᵒ',p:'ᵖ',q:'q',r:'ʳ',s:'ˢ',t:'ᵗ',u:'ᵘ',v:'ᵛ',w:'ʷ',x:'ˣ',y:'ʸ',z:'ᶻ',A:'ᴬ',B:'ᴮ',C:'ᶜ',D:'ᴰ',E:'ᴱ',F:'ᶠ',G:'ᴳ',H:'ᴴ',I:'ᴵ',J:'ᴶ',K:'ᴷ',L:'ᴸ',M:'ᴹ',N:'ᴺ',O:'ᴼ',P:'ᴾ',Q:'Q',R:'ᴿ',S:'ˢ',T:'ᵀ',U:'ᵁ',V:'ᵛ',W:'ᵂ',X:'ˣ',Y:'ʸ',Z:'ᶻ','0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹'}
+    reply([...ftIn].map(c=>sspMap[c]||c).join(''))
+    } catch(e) {
+        console.error('[superscript]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'subscript': {
-    await X.sendMessage(m.chat, { react: { text: '₀', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}subscript [text]`)
-const subMap={a:'ₐ',b:'b',c:'c',d:'d',e:'ₑ',f:'f',g:'g',h:'ₕ',i:'ᵢ',j:'ⱼ',k:'ₖ',l:'ₗ',m:'ₘ',n:'ₙ',o:'ₒ',p:'ₚ',q:'q',r:'ᵣ',s:'ₛ',t:'ₜ',u:'ᵤ',v:'ᵥ',w:'w',x:'ₓ',y:'y',z:'z',A:'A',B:'B',C:'C',D:'D',E:'E',F:'F',G:'G',H:'H',I:'I',J:'J',K:'K',L:'L',M:'M',N:'N',O:'O',P:'P',Q:'Q',R:'R',S:'S',T:'T',U:'U',V:'V',W:'W',X:'X',Y:'Y',Z:'Z','0':'₀','1':'₁','2':'₂','3':'₃','4':'₄','5':'₅','6':'₆','7':'₇','8':'₈','9':'₉'}
-reply([...ftIn].map(c=>subMap[c]||c).join(''))
+    try {
+        await X.sendMessage(m.chat, { react: { text: '₀', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
+    if (!ftIn) return reply(`Usage: ${prefix}subscript [text]`)
+    const subMap={a:'ₐ',b:'b',c:'c',d:'d',e:'ₑ',f:'f',g:'g',h:'ₕ',i:'ᵢ',j:'ⱼ',k:'ₖ',l:'ₗ',m:'ₘ',n:'ₙ',o:'ₒ',p:'ₚ',q:'q',r:'ᵣ',s:'ₛ',t:'ₜ',u:'ᵤ',v:'ᵥ',w:'w',x:'ₓ',y:'y',z:'z',A:'A',B:'B',C:'C',D:'D',E:'E',F:'F',G:'G',H:'H',I:'I',J:'J',K:'K',L:'L',M:'M',N:'N',O:'O',P:'P',Q:'Q',R:'R',S:'S',T:'T',U:'U',V:'V',W:'W',X:'X',Y:'Y',Z:'Z','0':'₀','1':'₁','2':'₂','3':'₃','4':'₄','5':'₅','6':'₆','7':'₇','8':'₈','9':'₉'}
+    reply([...ftIn].map(c=>subMap[c]||c).join(''))
+    } catch(e) {
+        console.error('[subscript]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'medieval': {
-    await X.sendMessage(m.chat, { react: { text: '🏰', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}medieval [text]`)
-const medMap={a:'𝔞',b:'𝔟',c:'𝔠',d:'𝔡',e:'𝔢',f:'𝔣',g:'𝔤',h:'𝔥',i:'𝔦',j:'𝔧',k:'𝔨',l:'𝔩',m:'𝔪',n:'𝔫',o:'𝔬',p:'𝔭',q:'𝔮',r:'𝔯',s:'𝔰',t:'𝔱',u:'𝔲',v:'𝔳',w:'𝔴',x:'𝔵',y:'𝔶',z:'𝔷',A:'𝕬',B:'𝕭',C:'𝕮',D:'𝕯',E:'𝕰',F:'𝕱',G:'𝕲',H:'𝕳',I:'𝕴',J:'𝕵',K:'𝕶',L:'𝕷',M:'𝕸',N:'𝕹',O:'𝕺',P:'𝕻',Q:'𝕼',R:'𝕽',S:'𝕾',T:'𝕿',U:'𝖀',V:'𝖁',W:'𝖂',X:'𝖃',Y:'𝖄',Z:'𝖅'}
-reply([...ftIn].map(c=>medMap[c]||c).join(''))
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🏰', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
+    if (!ftIn) return reply(`Usage: ${prefix}medieval [text]`)
+    const medMap={a:'𝔞',b:'𝔟',c:'𝔠',d:'𝔡',e:'𝔢',f:'𝔣',g:'𝔤',h:'𝔥',i:'𝔦',j:'𝔧',k:'𝔨',l:'𝔩',m:'𝔪',n:'𝔫',o:'𝔬',p:'𝔭',q:'𝔮',r:'𝔯',s:'𝔰',t:'𝔱',u:'𝔲',v:'𝔳',w:'𝔴',x:'𝔵',y:'𝔶',z:'𝔷',A:'𝕬',B:'𝕭',C:'𝕮',D:'𝕯',E:'𝕰',F:'𝕱',G:'𝕲',H:'𝕳',I:'𝕴',J:'𝕵',K:'𝕶',L:'𝕷',M:'𝕸',N:'𝕹',O:'𝕺',P:'𝕻',Q:'𝕼',R:'𝕽',S:'𝕾',T:'𝕿',U:'𝖀',V:'𝖁',W:'𝖂',X:'𝖃',Y:'𝖄',Z:'𝖅'}
+    reply([...ftIn].map(c=>medMap[c]||c).join(''))
+    } catch(e) {
+        console.error('[medieval]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'circled': {
-    await X.sendMessage(m.chat, { react: { text: '⭕', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}circled [text]`)
-const cirMap={a:'ⓐ',b:'ⓑ',c:'ⓒ',d:'ⓓ',e:'ⓔ',f:'ⓕ',g:'ⓖ',h:'ⓗ',i:'ⓘ',j:'ⓙ',k:'ⓚ',l:'ⓛ',m:'ⓜ',n:'ⓝ',o:'ⓞ',p:'ⓟ',q:'ⓠ',r:'ⓡ',s:'ⓢ',t:'ⓣ',u:'ⓤ',v:'ⓥ',w:'ⓦ',x:'ⓧ',y:'ⓨ',z:'ⓩ',A:'Ⓐ',B:'Ⓑ',C:'Ⓒ',D:'Ⓓ',E:'Ⓔ',F:'Ⓕ',G:'Ⓖ',H:'Ⓗ',I:'Ⓘ',J:'Ⓙ',K:'Ⓚ',L:'Ⓛ',M:'Ⓜ',N:'Ⓝ',O:'Ⓞ',P:'Ⓟ',Q:'Ⓠ',R:'Ⓡ',S:'Ⓢ',T:'Ⓣ',U:'Ⓤ',V:'Ⓥ',W:'Ⓦ',X:'Ⓧ',Y:'Ⓨ',Z:'Ⓩ','0':'⓪','1':'①','2':'②','3':'③','4':'④','5':'⑤','6':'⑥','7':'⑦','8':'⑧','9':'⑨'}
-reply([...ftIn].map(c=>cirMap[c]||c).join(''))
+    try {
+        await X.sendMessage(m.chat, { react: { text: '⭕', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
+    if (!ftIn) return reply(`Usage: ${prefix}circled [text]`)
+    const cirMap={a:'ⓐ',b:'ⓑ',c:'ⓒ',d:'ⓓ',e:'ⓔ',f:'ⓕ',g:'ⓖ',h:'ⓗ',i:'ⓘ',j:'ⓙ',k:'ⓚ',l:'ⓛ',m:'ⓜ',n:'ⓝ',o:'ⓞ',p:'ⓟ',q:'ⓠ',r:'ⓡ',s:'ⓢ',t:'ⓣ',u:'ⓤ',v:'ⓥ',w:'ⓦ',x:'ⓧ',y:'ⓨ',z:'ⓩ',A:'Ⓐ',B:'Ⓑ',C:'Ⓒ',D:'Ⓓ',E:'Ⓔ',F:'Ⓕ',G:'Ⓖ',H:'Ⓗ',I:'Ⓘ',J:'Ⓙ',K:'Ⓚ',L:'Ⓛ',M:'Ⓜ',N:'Ⓝ',O:'Ⓞ',P:'Ⓟ',Q:'Ⓠ',R:'Ⓡ',S:'Ⓢ',T:'Ⓣ',U:'Ⓤ',V:'Ⓥ',W:'Ⓦ',X:'Ⓧ',Y:'Ⓨ',Z:'Ⓩ','0':'⓪','1':'①','2':'②','3':'③','4':'④','5':'⑤','6':'⑥','7':'⑦','8':'⑧','9':'⑨'}
+    reply([...ftIn].map(c=>cirMap[c]||c).join(''))
+    } catch(e) {
+        console.error('[circled]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'negative': {
-    await X.sendMessage(m.chat, { react: { text: '🔲', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}negative [text]`)
-const negMap={a:'🅐',b:'🅑',c:'🅒',d:'🅓',e:'🅔',f:'🅕',g:'🅖',h:'🅗',i:'🅘',j:'🅙',k:'🅚',l:'🅛',m:'🅜',n:'🅝',o:'🅞',p:'🅟',q:'🅠',r:'🅡',s:'🅢',t:'🅣',u:'🅤',v:'🅥',w:'🅦',x:'🅧',y:'🅨',z:'🅩',A:'🅐',B:'🅑',C:'🅒',D:'🅓',E:'🅔',F:'🅕',G:'🅖',H:'🅗',I:'🅘',J:'🅙',K:'🅚',L:'🅛',M:'🅜',N:'🅝',O:'🅞',P:'🅟',Q:'🅠',R:'🅡',S:'🅢',T:'🅣',U:'🅤',V:'🅥',W:'🅦',X:'🅧',Y:'🅨',Z:'🅩'}
-reply([...ftIn].map(c=>negMap[c]||c).join(''))
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🔲', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
+    if (!ftIn) return reply(`Usage: ${prefix}negative [text]`)
+    const negMap={a:'🅐',b:'🅑',c:'🅒',d:'🅓',e:'🅔',f:'🅕',g:'🅖',h:'🅗',i:'🅘',j:'🅙',k:'🅚',l:'🅛',m:'🅜',n:'🅝',o:'🅞',p:'🅟',q:'🅠',r:'🅡',s:'🅢',t:'🅣',u:'🅤',v:'🅥',w:'🅦',x:'🅧',y:'🅨',z:'🅩',A:'🅐',B:'🅑',C:'🅒',D:'🅓',E:'🅔',F:'🅕',G:'🅖',H:'🅗',I:'🅘',J:'🅙',K:'🅚',L:'🅛',M:'🅜',N:'🅝',O:'🅞',P:'🅟',Q:'🅠',R:'🅡',S:'🅢',T:'🅣',U:'🅤',V:'🅥',W:'🅦',X:'🅧',Y:'🅨',Z:'🅩'}
+    reply([...ftIn].map(c=>negMap[c]||c).join(''))
+    } catch(e) {
+        console.error('[negative]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'parenthesized': {
-    await X.sendMessage(m.chat, { react: { text: '〔〕', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}parenthesized [text]`)
-const parMap={a:'⒜',b:'⒝',c:'⒞',d:'⒟',e:'⒠',f:'⒡',g:'⒢',h:'⒣',i:'⒤',j:'⒥',k:'⒦',l:'⒧',m:'⒨',n:'⒩',o:'⒪',p:'⒫',q:'⒬',r:'⒭',s:'⒮',t:'⒯',u:'⒰',v:'⒱',w:'⒲',x:'⒳',y:'⒴',z:'⒵',A:'⒜',B:'⒝',C:'⒞',D:'⒟',E:'⒠',F:'⒡',G:'⒢',H:'⒣',I:'⒤',J:'⒥',K:'⒦',L:'⒧',M:'⒨',N:'⒩',O:'⒪',P:'⒫',Q:'⒬',R:'⒭',S:'⒮',T:'⒯',U:'⒰',V:'⒱',W:'⒲',X:'⒳',Y:'⒴',Z:'⒵'}
-reply([...ftIn].map(c=>parMap[c]||c).join(''))
+    try {
+        await X.sendMessage(m.chat, { react: { text: '〔〕', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
+    if (!ftIn) return reply(`Usage: ${prefix}parenthesized [text]`)
+    const parMap={a:'⒜',b:'⒝',c:'⒞',d:'⒟',e:'⒠',f:'⒡',g:'⒢',h:'⒣',i:'⒤',j:'⒥',k:'⒦',l:'⒧',m:'⒨',n:'⒩',o:'⒪',p:'⒫',q:'⒬',r:'⒭',s:'⒮',t:'⒯',u:'⒰',v:'⒱',w:'⒲',x:'⒳',y:'⒴',z:'⒵',A:'⒜',B:'⒝',C:'⒞',D:'⒟',E:'⒠',F:'⒡',G:'⒢',H:'⒣',I:'⒤',J:'⒥',K:'⒦',L:'⒧',M:'⒨',N:'⒩',O:'⒪',P:'⒫',Q:'⒬',R:'⒭',S:'⒮',T:'⒯',U:'⒰',V:'⒱',W:'⒲',X:'⒳',Y:'⒴',Z:'⒵'}
+    reply([...ftIn].map(c=>parMap[c]||c).join(''))
+    } catch(e) {
+        console.error('[parenthesized]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'gothic': {
-    await X.sendMessage(m.chat, { react: { text: '🦇', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}gothic [text]`)
-const gotMap={a:'𝖆',b:'𝖇',c:'𝖈',d:'𝖉',e:'𝖊',f:'𝖋',g:'𝖌',h:'𝖍',i:'𝖎',j:'𝖏',k:'𝖐',l:'𝖑',m:'𝖒',n:'𝖓',o:'𝖔',p:'𝖕',q:'𝖖',r:'𝖗',s:'𝖘',t:'𝖙',u:'𝖚',v:'𝖛',w:'𝖜',x:'𝖝',y:'𝖞',z:'𝖟',A:'𝔄',B:'𝔅',C:'ℭ',D:'𝔇',E:'𝔈',F:'𝔉',G:'𝔊',H:'ℌ',I:'ℑ',J:'𝔍',K:'𝔎',L:'𝔏',M:'𝔐',N:'𝔑',O:'𝔒',P:'𝔓',Q:'𝔔',R:'ℜ',S:'𝔖',T:'𝔗',U:'𝔘',V:'𝔙',W:'𝔚',X:'𝔛',Y:'𝔜',Z:'ℨ'}
-reply([...ftIn].map(c=>gotMap[c]||c).join(''))
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🦇', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
+    if (!ftIn) return reply(`Usage: ${prefix}gothic [text]`)
+    const gotMap={a:'𝖆',b:'𝖇',c:'𝖈',d:'𝖉',e:'𝖊',f:'𝖋',g:'𝖌',h:'𝖍',i:'𝖎',j:'𝖏',k:'𝖐',l:'𝖑',m:'𝖒',n:'𝖓',o:'𝖔',p:'𝖕',q:'𝖖',r:'𝖗',s:'𝖘',t:'𝖙',u:'𝖚',v:'𝖛',w:'𝖜',x:'𝖝',y:'𝖞',z:'𝖟',A:'𝔄',B:'𝔅',C:'ℭ',D:'𝔇',E:'𝔈',F:'𝔉',G:'𝔊',H:'ℌ',I:'ℑ',J:'𝔍',K:'𝔎',L:'𝔏',M:'𝔐',N:'𝔑',O:'𝔒',P:'𝔓',Q:'𝔔',R:'ℜ',S:'𝔖',T:'𝔗',U:'𝔘',V:'𝔙',W:'𝔚',X:'𝔛',Y:'𝔜',Z:'ℨ'}
+    reply([...ftIn].map(c=>gotMap[c]||c).join(''))
+    } catch(e) {
+        console.error('[gothic]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'cursive': {
-    await X.sendMessage(m.chat, { react: { text: '✒️', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}cursive [text]`)
-const crvMap={a:'𝓪',b:'𝓫',c:'𝓬',d:'𝓭',e:'𝓮',f:'𝓯',g:'𝓰',h:'𝓱',i:'𝓲',j:'𝓳',k:'𝓴',l:'𝓵',m:'𝓶',n:'𝓷',o:'𝓸',p:'𝓹',q:'𝓺',r:'𝓻',s:'𝓼',t:'𝓽',u:'𝓾',v:'𝓿',w:'𝔀',x:'𝔁',y:'𝔂',z:'𝔃',A:'𝓐',B:'𝓑',C:'𝓒',D:'𝓓',E:'𝓔',F:'𝓕',G:'𝓖',H:'𝓗',I:'𝓘',J:'𝓙',K:'𝓚',L:'𝓛',M:'𝓜',N:'𝓝',O:'𝓞',P:'𝓟',Q:'𝓠',R:'𝓡',S:'𝓢',T:'𝓣',U:'𝓤',V:'𝓥',W:'𝓦',X:'𝓧',Y:'𝓨',Z:'𝓩'}
-reply([...ftIn].map(c=>crvMap[c]||c).join(''))
+    try {
+        await X.sendMessage(m.chat, { react: { text: '✒️', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
+    if (!ftIn) return reply(`Usage: ${prefix}cursive [text]`)
+    const crvMap={a:'𝓪',b:'𝓫',c:'𝓬',d:'𝓭',e:'𝓮',f:'𝓯',g:'𝓰',h:'𝓱',i:'𝓲',j:'𝓳',k:'𝓴',l:'𝓵',m:'𝓶',n:'𝓷',o:'𝓸',p:'𝓹',q:'𝓺',r:'𝓻',s:'𝓼',t:'𝓽',u:'𝓾',v:'𝓿',w:'𝔀',x:'𝔁',y:'𝔂',z:'𝔃',A:'𝓐',B:'𝓑',C:'𝓒',D:'𝓓',E:'𝓔',F:'𝓕',G:'𝓖',H:'𝓗',I:'𝓘',J:'𝓙',K:'𝓚',L:'𝓛',M:'𝓜',N:'𝓝',O:'𝓞',P:'𝓟',Q:'𝓠',R:'𝓡',S:'𝓢',T:'𝓣',U:'𝓤',V:'𝓥',W:'𝓦',X:'𝓧',Y:'𝓨',Z:'𝓩'}
+    reply([...ftIn].map(c=>crvMap[c]||c).join(''))
+    } catch(e) {
+        console.error('[cursive]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'aesthetic': {
-    await X.sendMessage(m.chat, { react: { text: '✨', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}aesthetic [text]`)
-const aesMap={a:'ａ',b:'ｂ',c:'ｃ',d:'ｄ',e:'ｅ',f:'ｆ',g:'ｇ',h:'ｈ',i:'ｉ',j:'ｊ',k:'ｋ',l:'ｌ',m:'ｍ',n:'ｎ',o:'ｏ',p:'ｐ',q:'ｑ',r:'ｒ',s:'ｓ',t:'ｔ',u:'ｕ',v:'ｖ',w:'ｗ',x:'ｘ',y:'ｙ',z:'ｚ',A:'Ａ',B:'Ｂ',C:'Ｃ',D:'Ｄ',E:'Ｅ',F:'Ｆ',G:'Ｇ',H:'Ｈ',I:'Ｉ',J:'Ｊ',K:'Ｋ',L:'Ｌ',M:'Ｍ',N:'Ｎ',O:'Ｏ',P:'Ｐ',Q:'Ｑ',R:'Ｒ',S:'Ｓ',T:'Ｔ',U:'Ｕ',V:'Ｖ',W:'Ｗ',X:'Ｘ',Y:'Ｙ',Z:'Ｚ','0':'０','1':'１','2':'２','3':'３','4':'４','5':'５','6':'６','7':'７','8':'８','9':'９'}
-reply([...ftIn].map(c=>aesMap[c]||c).join(''))
+    try {
+        await X.sendMessage(m.chat, { react: { text: '✨', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
+    if (!ftIn) return reply(`Usage: ${prefix}aesthetic [text]`)
+    const aesMap={a:'ａ',b:'ｂ',c:'ｃ',d:'ｄ',e:'ｅ',f:'ｆ',g:'ｇ',h:'ｈ',i:'ｉ',j:'ｊ',k:'ｋ',l:'ｌ',m:'ｍ',n:'ｎ',o:'ｏ',p:'ｐ',q:'ｑ',r:'ｒ',s:'ｓ',t:'ｔ',u:'ｕ',v:'ｖ',w:'ｗ',x:'ｘ',y:'ｙ',z:'ｚ',A:'Ａ',B:'Ｂ',C:'Ｃ',D:'Ｄ',E:'Ｅ',F:'Ｆ',G:'Ｇ',H:'Ｈ',I:'Ｉ',J:'Ｊ',K:'Ｋ',L:'Ｌ',M:'Ｍ',N:'Ｎ',O:'Ｏ',P:'Ｐ',Q:'Ｑ',R:'Ｒ',S:'Ｓ',T:'Ｔ',U:'Ｕ',V:'Ｖ',W:'Ｗ',X:'Ｘ',Y:'Ｙ',Z:'Ｚ','0':'０','1':'１','2':'２','3':'３','4':'４','5':'５','6':'６','7':'７','8':'８','9':'９'}
+    reply([...ftIn].map(c=>aesMap[c]||c).join(''))
+    } catch(e) {
+        console.error('[aesthetic]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'tiny': {
-    await X.sendMessage(m.chat, { react: { text: '🔹', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}tiny [text]`)
-const tnyMap={a:'ᵃ',b:'ᵇ',c:'ᶜ',d:'ᵈ',e:'ᵉ',f:'ᶠ',g:'ᵍ',h:'ʰ',i:'ⁱ',j:'ʲ',k:'ᵏ',l:'ˡ',m:'ᵐ',n:'ⁿ',o:'ᵒ',p:'ᵖ',q:'q',r:'ʳ',s:'ˢ',t:'ᵗ',u:'ᵘ',v:'ᵛ',w:'ʷ',x:'ˣ',y:'ʸ',z:'ᶻ',A:'ᴬ',B:'ᴮ',C:'ᶜ',D:'ᴰ',E:'ᴱ',F:'ᶠ',G:'ᴳ',H:'ᴴ',I:'ᴵ',J:'ᴶ',K:'ᴷ',L:'ᴸ',M:'ᴹ',N:'ᴺ',O:'ᴼ',P:'ᴾ',Q:'Q',R:'ᴿ',S:'ˢ',T:'ᵀ',U:'ᵁ',V:'ᵛ',W:'ᵂ',X:'ˣ',Y:'ʸ',Z:'ᶻ'}
-reply([...ftIn].map(c=>tnyMap[c]||c).join(''))
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🔹', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
+    if (!ftIn) return reply(`Usage: ${prefix}tiny [text]`)
+    const tnyMap={a:'ᵃ',b:'ᵇ',c:'ᶜ',d:'ᵈ',e:'ᵉ',f:'ᶠ',g:'ᵍ',h:'ʰ',i:'ⁱ',j:'ʲ',k:'ᵏ',l:'ˡ',m:'ᵐ',n:'ⁿ',o:'ᵒ',p:'ᵖ',q:'q',r:'ʳ',s:'ˢ',t:'ᵗ',u:'ᵘ',v:'ᵛ',w:'ʷ',x:'ˣ',y:'ʸ',z:'ᶻ',A:'ᴬ',B:'ᴮ',C:'ᶜ',D:'ᴰ',E:'ᴱ',F:'ᶠ',G:'ᴳ',H:'ᴴ',I:'ᴵ',J:'ᴶ',K:'ᴷ',L:'ᴸ',M:'ᴹ',N:'ᴺ',O:'ᴼ',P:'ᴾ',Q:'Q',R:'ᴿ',S:'ˢ',T:'ᵀ',U:'ᵁ',V:'ᵛ',W:'ᵂ',X:'ˣ',Y:'ʸ',Z:'ᶻ'}
+    reply([...ftIn].map(c=>tnyMap[c]||c).join(''))
+    } catch(e) {
+        console.error('[tiny]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'inverted': {
-    await X.sendMessage(m.chat, { react: { text: '🔄', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}inverted [text]`)
-const invMap={a:'ɐ',b:'q',c:'ɔ',d:'p',e:'ǝ',f:'ɟ',g:'ƃ',h:'ɥ',i:'ᴉ',j:'ɾ',k:'ʞ',l:'l',m:'ɯ',n:'u',o:'o',p:'d',q:'b',r:'ɹ',s:'s',t:'ʇ',u:'n',v:'ʌ',w:'ʍ',x:'x',y:'ʎ',z:'z',A:'∀',B:'q',C:'Ɔ',D:'p',E:'Ǝ',F:'Ⅎ',G:'פ',H:'H',I:'I',J:'ɾ',K:'ʞ',L:'˥',M:'W',N:'N',O:'O',P:'Ԁ',Q:'Q',R:'ɹ',S:'S',T:'┴',U:'∩',V:'Λ',W:'M',X:'X',Y:'ʎ',Z:'Z'}
-reply([...ftIn].map(c=>invMap[c]||c).join('').split('').reverse().join(''))
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🔄', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
+    if (!ftIn) return reply(`Usage: ${prefix}inverted [text]`)
+    const invMap={a:'ɐ',b:'q',c:'ɔ',d:'p',e:'ǝ',f:'ɟ',g:'ƃ',h:'ɥ',i:'ᴉ',j:'ɾ',k:'ʞ',l:'l',m:'ɯ',n:'u',o:'o',p:'d',q:'b',r:'ɹ',s:'s',t:'ʇ',u:'n',v:'ʌ',w:'ʍ',x:'x',y:'ʎ',z:'z',A:'∀',B:'q',C:'Ɔ',D:'p',E:'Ǝ',F:'Ⅎ',G:'פ',H:'H',I:'I',J:'ɾ',K:'ʞ',L:'˥',M:'W',N:'N',O:'O',P:'Ԁ',Q:'Q',R:'ɹ',S:'S',T:'┴',U:'∩',V:'Λ',W:'M',X:'X',Y:'ʎ',Z:'Z'}
+    reply([...ftIn].map(c=>invMap[c]||c).join('').split('').reverse().join(''))
+    } catch(e) {
+        console.error('[inverted]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'mirror': {
-    await X.sendMessage(m.chat, { react: { text: '🔁', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}mirror [text]`)
-const mirMap={a:'ɒ',b:'d',c:'ɔ',d:'b',e:'ɘ',f:'ʇ',g:'ϱ',h:'ʜ',i:'i',j:'ᴉ',k:'ʞ',l:'l',m:'m',n:'n',o:'o',p:'q',q:'p',r:'ɿ',s:'ƨ',t:'ƚ',u:'u',v:'v',w:'w',x:'x',y:'y',z:'z',A:'A',B:'ᗺ',C:'Ɔ',D:'ᗡ',E:'Ǝ',F:'ꟻ',G:'Ꭾ',H:'H',I:'I',J:'Ꮈ',K:'ꓘ',L:'⅃',M:'M',N:'И',O:'O',P:'ꟼ',Q:'Ọ',R:'Я',S:'Ƨ',T:'T',U:'U',V:'V',W:'W',X:'X',Y:'Y',Z:'Z'}
-reply([...ftIn].map(c=>mirMap[c]||c).join('').split('').reverse().join(''))
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🔁', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
+    if (!ftIn) return reply(`Usage: ${prefix}mirror [text]`)
+    const mirMap={a:'ɒ',b:'d',c:'ɔ',d:'b',e:'ɘ',f:'ʇ',g:'ϱ',h:'ʜ',i:'i',j:'ᴉ',k:'ʞ',l:'l',m:'m',n:'n',o:'o',p:'q',q:'p',r:'ɿ',s:'ƨ',t:'ƚ',u:'u',v:'v',w:'w',x:'x',y:'y',z:'z',A:'A',B:'ᗺ',C:'Ɔ',D:'ᗡ',E:'Ǝ',F:'ꟻ',G:'Ꭾ',H:'H',I:'I',J:'Ꮈ',K:'ꓘ',L:'⅃',M:'M',N:'И',O:'O',P:'ꟼ',Q:'Ọ',R:'Я',S:'Ƨ',T:'T',U:'U',V:'V',W:'W',X:'X',Y:'Y',Z:'Z'}
+    reply([...ftIn].map(c=>mirMap[c]||c).join('').split('').reverse().join(''))
+    } catch(e) {
+        console.error('[mirror]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'currency': {
-    await X.sendMessage(m.chat, { react: { text: '💱', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}currency [text]`)
-const curMap={a:'₳',b:'฿',c:'₵',d:'₫',e:'€',f:'₣',g:'₲',h:'♄',i:'ł',j:'ʝ',k:'₭',l:'₤',m:'₥',n:'₦',o:'ø',p:'₱',q:'q',r:'®',s:'$',t:'₮',u:'µ',v:'√',w:'₩',x:'×',y:'¥',z:'z',A:'₳',B:'฿',C:'₵',D:'₫',E:'€',F:'₣',G:'₲',H:'♄',I:'ł',J:'ʝ',K:'₭',L:'₤',M:'₥',N:'₦',O:'ø',P:'₱',Q:'Q',R:'®',S:'$',T:'₮',U:'µ',V:'√',W:'₩',X:'×',Y:'¥',Z:'Z'}
-reply([...ftIn].map(c=>curMap[c]||c).join(''))
+    try {
+        await X.sendMessage(m.chat, { react: { text: '💱', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
+    if (!ftIn) return reply(`Usage: ${prefix}currency [text]`)
+    const curMap={a:'₳',b:'฿',c:'₵',d:'₫',e:'€',f:'₣',g:'₲',h:'♄',i:'ł',j:'ʝ',k:'₭',l:'₤',m:'₥',n:'₦',o:'ø',p:'₱',q:'q',r:'®',s:'$',t:'₮',u:'µ',v:'√',w:'₩',x:'×',y:'¥',z:'z',A:'₳',B:'฿',C:'₵',D:'₫',E:'€',F:'₣',G:'₲',H:'♄',I:'ł',J:'ʝ',K:'₭',L:'₤',M:'₥',N:'₦',O:'ø',P:'₱',Q:'Q',R:'®',S:'$',T:'₮',U:'µ',V:'√',W:'₩',X:'×',Y:'¥',Z:'Z'}
+    reply([...ftIn].map(c=>curMap[c]||c).join(''))
+    } catch(e) {
+        console.error('[currency]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'dotted': {
-    await X.sendMessage(m.chat, { react: { text: '·', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}dotted [text]`)
-const dotMap={a:'ȧ',b:'ḃ',c:'ċ',d:'ḋ',e:'ė',f:'ḟ',g:'ġ',h:'ḣ',i:'ı',j:'j',k:'k',l:'l',m:'ṁ',n:'ṅ',o:'ȯ',p:'ṗ',q:'q',r:'ṙ',s:'ṡ',t:'ṫ',u:'u',v:'v',w:'ẇ',x:'ẋ',y:'ẏ',z:'ż',A:'Ȧ',B:'Ḃ',C:'Ċ',D:'Ḋ',E:'Ė',F:'Ḟ',G:'Ġ',H:'Ḣ',I:'İ',J:'J',K:'K',L:'L',M:'Ṁ',N:'Ṅ',O:'Ȯ',P:'Ṗ',Q:'Q',R:'Ṙ',S:'Ṡ',T:'Ṫ',U:'U',V:'V',W:'Ẇ',X:'Ẋ',Y:'Ẏ',Z:'Ż'}
-reply([...ftIn].map(c=>dotMap[c]||c).join(''))
+    try {
+        await X.sendMessage(m.chat, { react: { text: '·', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
+    if (!ftIn) return reply(`Usage: ${prefix}dotted [text]`)
+    const dotMap={a:'ȧ',b:'ḃ',c:'ċ',d:'ḋ',e:'ė',f:'ḟ',g:'ġ',h:'ḣ',i:'ı',j:'j',k:'k',l:'l',m:'ṁ',n:'ṅ',o:'ȯ',p:'ṗ',q:'q',r:'ṙ',s:'ṡ',t:'ṫ',u:'u',v:'v',w:'ẇ',x:'ẋ',y:'ẏ',z:'ż',A:'Ȧ',B:'Ḃ',C:'Ċ',D:'Ḋ',E:'Ė',F:'Ḟ',G:'Ġ',H:'Ḣ',I:'İ',J:'J',K:'K',L:'L',M:'Ṁ',N:'Ṅ',O:'Ȯ',P:'Ṗ',Q:'Q',R:'Ṙ',S:'Ṡ',T:'Ṫ',U:'U',V:'V',W:'Ẇ',X:'Ẋ',Y:'Ẏ',Z:'Ż'}
+    reply([...ftIn].map(c=>dotMap[c]||c).join(''))
+    } catch(e) {
+        console.error('[dotted]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'oldeng': {
-    await X.sendMessage(m.chat, { react: { text: '📜', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}oldeng [text]`)
-const oengMap={a:'𝒶',b:'𝒷',c:'𝒸',d:'𝒹',e:'𝑒',f:'𝒻',g:'𝑔',h:'𝒽',i:'𝒾',j:'𝒿',k:'𝓀',l:'𝓁',m:'𝓂',n:'𝓃',o:'𝑜',p:'𝓅',q:'𝓆',r:'𝓇',s:'𝓈',t:'𝓉',u:'𝓊',v:'𝓋',w:'𝓌',x:'𝓍',y:'𝓎',z:'𝓏',A:'𝒜',B:'ℬ',C:'𝒞',D:'𝒟',E:'ℰ',F:'ℱ',G:'𝒢',H:'ℋ',I:'ℐ',J:'𝒥',K:'𝒦',L:'ℒ',M:'ℳ',N:'𝒩',O:'𝒪',P:'𝒫',Q:'𝒬',R:'ℛ',S:'𝒮',T:'𝒯',U:'𝒰',V:'𝒱',W:'𝒲',X:'𝒳',Y:'𝒴',Z:'𝒵'}
-reply([...ftIn].map(c=>oengMap[c]||c).join(''))
+    try {
+        await X.sendMessage(m.chat, { react: { text: '📜', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
+    if (!ftIn) return reply(`Usage: ${prefix}oldeng [text]`)
+    const oengMap={a:'𝒶',b:'𝒷',c:'𝒸',d:'𝒹',e:'𝑒',f:'𝒻',g:'𝑔',h:'𝒽',i:'𝒾',j:'𝒿',k:'𝓀',l:'𝓁',m:'𝓂',n:'𝓃',o:'𝑜',p:'𝓅',q:'𝓆',r:'𝓇',s:'𝓈',t:'𝓉',u:'𝓊',v:'𝓋',w:'𝓌',x:'𝓍',y:'𝓎',z:'𝓏',A:'𝒜',B:'ℬ',C:'𝒞',D:'𝒟',E:'ℰ',F:'ℱ',G:'𝒢',H:'ℋ',I:'ℐ',J:'𝒥',K:'𝒦',L:'ℒ',M:'ℳ',N:'𝒩',O:'𝒪',P:'𝒫',Q:'𝒬',R:'ℛ',S:'𝒮',T:'𝒯',U:'𝒰',V:'𝒱',W:'𝒲',X:'𝒳',Y:'𝒴',Z:'𝒵'}
+    reply([...ftIn].map(c=>oengMap[c]||c).join(''))
+    } catch(e) {
+        console.error('[oldeng]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'allfonts': {
-    await X.sendMessage(m.chat, { react: { text: '🔤', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
-if (!ftIn) return reply(`Usage: ${prefix}allfonts [text]`)
-const maps = {
-  'Bold Sans':       {a:'𝗮',b:'𝗯',c:'𝗰',d:'𝗱',e:'𝗲',f:'𝗳',g:'𝗴',h:'𝗵',i:'𝗶',j:'𝗷',k:'𝗸',l:'𝗹',m:'𝗺',n:'𝗻',o:'𝗼',p:'𝗽',q:'𝗾',r:'𝗿',s:'𝘀',t:'𝘁',u:'𝘂',v:'𝘃',w:'𝘄',x:'𝘅',y:'𝘆',z:'𝘇',A:'𝗔',B:'𝗕',C:'𝗖',D:'𝗗',E:'𝗘',F:'𝗙',G:'𝗚',H:'𝗛',I:'𝗜',J:'𝗝',K:'𝗞',L:'𝗟',M:'𝗠',N:'𝗡',O:'𝗢',P:'𝗣',Q:'𝗤',R:'𝗥',S:'𝗦',T:'𝗧',U:'𝗨',V:'𝗩',W:'𝗪',X:'𝗫',Y:'𝗬',Z:'𝗭'},
-  'Italic Sans':     {a:'𝘢',b:'𝘣',c:'𝘤',d:'𝘥',e:'𝘦',f:'𝘧',g:'𝘨',h:'𝘩',i:'𝘪',j:'𝘫',k:'𝘬',l:'𝘭',m:'𝘮',n:'𝘯',o:'𝘰',p:'𝘱',q:'𝘲',r:'𝘳',s:'𝘴',t:'𝘵',u:'𝘶',v:'𝘷',w:'𝘸',x:'𝘹',y:'𝘺',z:'𝘻',A:'𝘈',B:'𝘉',C:'𝘊',D:'𝘋',E:'𝘌',F:'𝘍',G:'𝘎',H:'𝘏',I:'𝘐',J:'𝘑',K:'𝘒',L:'𝘓',M:'𝘔',N:'𝘕',O:'𝘖',P:'𝘗',Q:'𝘘',R:'𝘙',S:'𝘚',T:'𝘛',U:'𝘜',V:'𝘝',W:'𝘞',X:'𝘟',Y:'𝘠',Z:'𝘡'},
-  'Bold Italic':     {a:'𝙖',b:'𝙗',c:'𝙘',d:'𝙙',e:'𝙚',f:'𝙛',g:'𝙜',h:'𝙝',i:'𝙞',j:'𝙟',k:'𝙠',l:'𝙡',m:'𝙢',n:'𝙣',o:'𝙤',p:'𝙥',q:'𝙦',r:'𝙧',s:'𝙨',t:'𝙩',u:'𝙪',v:'𝙫',w:'𝙬',x:'𝙭',y:'𝙮',z:'𝙯',A:'𝘼',B:'𝘽',C:'𝘾',D:'𝘿',E:'𝙀',F:'𝙁',G:'𝙂',H:'𝙃',I:'𝙄',J:'𝙅',K:'𝙆',L:'𝙇',M:'𝙈',N:'𝙉',O:'𝙊',P:'𝙋',Q:'𝙌',R:'𝙍',S:'𝙎',T:'𝙏',U:'𝙐',V:'𝙑',W:'𝙒',X:'𝙓',Y:'𝙔',Z:'𝙕'},
-  'Mono':            {a:'𝚊',b:'𝚋',c:'𝚌',d:'𝚍',e:'𝚎',f:'𝚏',g:'𝚐',h:'𝚑',i:'𝚒',j:'𝚓',k:'𝚔',l:'𝚕',m:'𝚖',n:'𝚗',o:'𝚘',p:'𝚙',q:'𝚚',r:'𝚛',s:'𝚜',t:'𝚝',u:'𝚞',v:'𝚟',w:'𝚠',x:'𝚡',y:'𝚢',z:'𝚣',A:'𝙰',B:'𝙱',C:'𝙲',D:'𝙳',E:'𝙴',F:'𝙵',G:'𝙶',H:'𝙷',I:'𝙸',J:'𝙹',K:'𝙺',L:'𝙻',M:'𝙼',N:'𝙽',O:'𝙾',P:'𝙿',Q:'𝚀',R:'𝚁',S:'𝚂',T:'𝚃',U:'𝚄',V:'𝚅',W:'𝚆',X:'𝚇',Y:'𝚈',Z:'𝚉'},
-  'Script':          {a:'𝒶',b:'𝒷',c:'𝒸',d:'𝒹',e:'𝑒',f:'𝒻',g:'𝑔',h:'𝒽',i:'𝒾',j:'𝒿',k:'𝓀',l:'𝓁',m:'𝓂',n:'𝓃',o:'𝑜',p:'𝓅',q:'𝓆',r:'𝓇',s:'𝓈',t:'𝓉',u:'𝓊',v:'𝓋',w:'𝓌',x:'𝓍',y:'𝓎',z:'𝓏',A:'𝒜',B:'ℬ',C:'𝒞',D:'𝒟',E:'ℰ',F:'ℱ',G:'𝒢',H:'ℋ',I:'ℐ',J:'𝒥',K:'𝒦',L:'ℒ',M:'ℳ',N:'𝒩',O:'𝒪',P:'𝒫',Q:'𝒬',R:'ℛ',S:'𝒮',T:'𝒯',U:'𝒰',V:'𝒱',W:'𝒲',X:'𝒳',Y:'𝒴',Z:'𝒵'},
-  'Bold Script':     {a:'𝓪',b:'𝓫',c:'𝓬',d:'𝓭',e:'𝓮',f:'𝓯',g:'𝓰',h:'𝓱',i:'𝓲',j:'𝓳',k:'𝓴',l:'𝓵',m:'𝓶',n:'𝓷',o:'𝓸',p:'𝓹',q:'𝓺',r:'𝓻',s:'𝓼',t:'𝓽',u:'𝓾',v:'𝓿',w:'𝔀',x:'𝔁',y:'𝔂',z:'𝔃',A:'𝓐',B:'𝓑',C:'𝓒',D:'𝓓',E:'𝓔',F:'𝓕',G:'𝓖',H:'𝓗',I:'𝓘',J:'𝓙',K:'𝓚',L:'𝓛',M:'𝓜',N:'𝓝',O:'𝓞',P:'𝓟',Q:'𝓠',R:'𝓡',S:'𝓢',T:'𝓣',U:'𝓤',V:'𝓥',W:'𝓦',X:'𝓧',Y:'𝓨',Z:'𝓩'},
-  'Fraktur':         {a:'𝔞',b:'𝔟',c:'𝔠',d:'𝔡',e:'𝔢',f:'𝔣',g:'𝔤',h:'𝔥',i:'𝔦',j:'𝔧',k:'𝔨',l:'𝔩',m:'𝔪',n:'𝔫',o:'𝔬',p:'𝔭',q:'𝔮',r:'𝔯',s:'𝔰',t:'𝔱',u:'𝔲',v:'𝔳',w:'𝔴',x:'𝔵',y:'𝔶',z:'𝔷',A:'𝔄',B:'𝔅',C:'ℭ',D:'𝔇',E:'𝔈',F:'𝔉',G:'𝔊',H:'ℌ',I:'ℑ',J:'𝔍',K:'𝔎',L:'𝔏',M:'𝔐',N:'𝔑',O:'𝔒',P:'𝔓',Q:'𝔔',R:'ℜ',S:'𝔖',T:'𝔗',U:'𝔘',V:'𝔙',W:'𝔚',X:'𝔛',Y:'𝔜',Z:'ℨ'},
-  'Bold Fraktur':    {a:'𝖆',b:'𝖇',c:'𝖈',d:'𝖉',e:'𝖊',f:'𝖋',g:'𝖌',h:'𝖍',i:'𝖎',j:'𝖏',k:'𝖐',l:'𝖑',m:'𝖒',n:'𝖓',o:'𝖔',p:'𝖕',q:'𝖖',r:'𝖗',s:'𝖘',t:'𝖙',u:'𝖚',v:'𝖛',w:'𝖜',x:'𝖝',y:'𝖞',z:'𝖟',A:'𝕬',B:'𝕭',C:'𝕮',D:'𝕯',E:'𝕰',F:'𝕱',G:'𝕲',H:'𝕳',I:'𝕴',J:'𝕵',K:'𝕶',L:'𝕷',M:'𝕸',N:'𝕹',O:'𝕺',P:'𝕻',Q:'𝕼',R:'𝕽',S:'𝕾',T:'𝕿',U:'𝖀',V:'𝖁',W:'𝖂',X:'𝖃',Y:'𝖄',Z:'𝖅'},
-  'Double Struck':   {a:'𝕒',b:'𝕓',c:'𝕔',d:'𝕕',e:'𝕖',f:'𝕗',g:'𝕘',h:'𝕙',i:'𝕚',j:'𝕛',k:'𝕜',l:'𝕝',m:'𝕞',n:'𝕟',o:'𝕠',p:'𝕡',q:'𝕢',r:'𝕣',s:'𝕤',t:'𝕥',u:'𝕦',v:'𝕧',w:'𝕨',x:'𝕩',y:'𝕪',z:'𝕫',A:'𝔸',B:'𝔹',C:'ℂ',D:'𝔻',E:'𝔼',F:'𝔽',G:'𝔾',H:'ℍ',I:'𝕀',J:'𝕁',K:'𝕂',L:'𝕃',M:'𝕄',N:'ℕ',O:'𝕆',P:'ℙ',Q:'ℚ',R:'ℝ',S:'𝕊',T:'𝕋',U:'𝕌',V:'𝕍',W:'𝕎',X:'𝕏',Y:'𝕐',Z:'ℤ'},
-  'Small Caps':      {a:'ᴀ',b:'ʙ',c:'ᴄ',d:'ᴅ',e:'ᴇ',f:'ꜰ',g:'ɢ',h:'ʜ',i:'ɪ',j:'ᴊ',k:'ᴋ',l:'ʟ',m:'ᴍ',n:'ɴ',o:'ᴏ',p:'ᴘ',q:'Q',r:'ʀ',s:'ꜱ',t:'ᴛ',u:'ᴜ',v:'ᴠ',w:'ᴡ',x:'x',y:'ʏ',z:'ᴢ',A:'ᴀ',B:'ʙ',C:'ᴄ',D:'ᴅ',E:'ᴇ',F:'ꜰ',G:'ɢ',H:'ʜ',I:'ɪ',J:'ᴊ',K:'ᴋ',L:'ʟ',M:'ᴍ',N:'ɴ',O:'ᴏ',P:'ᴘ',Q:'Q',R:'ʀ',S:'ꜱ',T:'ᴛ',U:'ᴜ',V:'ᴠ',W:'ᴡ',X:'x',Y:'ʏ',Z:'ᴢ'},
-  'Bubble':          {a:'ⓐ',b:'ⓑ',c:'ⓒ',d:'ⓓ',e:'ⓔ',f:'ⓕ',g:'ⓖ',h:'ⓗ',i:'ⓘ',j:'ⓙ',k:'ⓚ',l:'ⓛ',m:'ⓜ',n:'ⓝ',o:'ⓞ',p:'ⓟ',q:'ⓠ',r:'ⓡ',s:'ⓢ',t:'ⓣ',u:'ⓤ',v:'ⓥ',w:'ⓦ',x:'ⓧ',y:'ⓨ',z:'ⓩ',A:'Ⓐ',B:'Ⓑ',C:'Ⓒ',D:'Ⓓ',E:'Ⓔ',F:'Ⓕ',G:'Ⓖ',H:'Ⓗ',I:'Ⓘ',J:'Ⓙ',K:'Ⓚ',L:'Ⓛ',M:'Ⓜ',N:'Ⓝ',O:'Ⓞ',P:'Ⓟ',Q:'Ⓠ',R:'Ⓡ',S:'Ⓢ',T:'Ⓣ',U:'Ⓤ',V:'Ⓥ',W:'Ⓦ',X:'Ⓧ',Y:'Ⓨ',Z:'Ⓩ'},
-  'Wide':            {},
-  'Medieval':        {a:'\u{1D51E}',b:'\u{1D51F}',c:'\u{1D520}',d:'\u{1D521}',e:'\u{1D522}',f:'\u{1D523}',g:'\u{1D524}',h:'\u{1D525}',i:'\u{1D526}',j:'\u{1D527}',k:'\u{1D528}',l:'\u{1D529}',m:'\u{1D52A}',n:'\u{1D52B}',o:'\u{1D52C}',p:'\u{1D52D}',q:'\u{1D52E}',r:'\u{1D52F}',s:'\u{1D530}',t:'\u{1D531}',u:'\u{1D532}',v:'\u{1D533}',w:'\u{1D534}',x:'\u{1D535}',y:'\u{1D536}',z:'\u{1D537}',A:'\u{1D504}',B:'\u{1D505}',C:'\u212D',D:'\u{1D507}',E:'\u{1D508}',F:'\u{1D509}',G:'\u{1D50A}',H:'\u210C',I:'\u2111',J:'\u{1D50D}',K:'\u{1D50E}',L:'\u{1D50F}',M:'\u{1D510}',N:'\u{1D511}',O:'\u{1D512}',P:'\u{1D513}',Q:'\u{1D514}',R:'\u211C',S:'\u{1D516}',T:'\u{1D517}',U:'\u{1D518}',V:'\u{1D519}',W:'\u{1D51A}',X:'\u{1D51B}',Y:'\u{1D51C}',Z:'\u2128'},
-  'Cursive':         {a:'\u{1D4EA}',b:'\u{1D4EB}',c:'\u{1D4EC}',d:'\u{1D4ED}',e:'\u{1D4EE}',f:'\u{1D4EF}',g:'\u{1D4F0}',h:'\u{1D4F1}',i:'\u{1D4F2}',j:'\u{1D4F3}',k:'\u{1D4F4}',l:'\u{1D4F5}',m:'\u{1D4F6}',n:'\u{1D4F7}',o:'\u{1D4F8}',p:'\u{1D4F9}',q:'\u{1D4FA}',r:'\u{1D4FB}',s:'\u{1D4FC}',t:'\u{1D4FD}',u:'\u{1D4FE}',v:'\u{1D4FF}',w:'\u{1D500}',x:'\u{1D501}',y:'\u{1D502}',z:'\u{1D503}',A:'\u{1D4D0}',B:'\u{1D4D1}',C:'\u{1D4D2}',D:'\u{1D4D3}',E:'\u{1D4D4}',F:'\u{1D4D5}',G:'\u{1D4D6}',H:'\u{1D4D7}',I:'\u{1D4D8}',J:'\u{1D4D9}',K:'\u{1D4DA}',L:'\u{1D4DB}',M:'\u{1D4DC}',N:'\u{1D4DD}',O:'\u{1D4DE}',P:'\u{1D4DF}',Q:'\u{1D4E0}',R:'\u{1D4E1}',S:'\u{1D4E2}',T:'\u{1D4E3}',U:'\u{1D4E4}',V:'\u{1D4E5}',W:'\u{1D4E6}',X:'\u{1D4E7}',Y:'\u{1D4E8}',Z:'\u{1D4E9}'},
-  'Aesthetic':       {a:'ａ',b:'ｂ',c:'ｃ',d:'ｄ',e:'ｅ',f:'ｆ',g:'ｇ',h:'ｈ',i:'ｉ',j:'ｊ',k:'ｋ',l:'ｌ',m:'ｍ',n:'ｎ',o:'ｏ',p:'ｐ',q:'ｑ',r:'ｒ',s:'ｓ',t:'ｔ',u:'ｕ',v:'ｖ',w:'ｗ',x:'ｘ',y:'ｙ',z:'ｚ',A:'Ａ',B:'Ｂ',C:'Ｃ',D:'Ｄ',E:'Ｅ',F:'Ｆ',G:'Ｇ',H:'Ｈ',I:'Ｉ',J:'Ｊ',K:'Ｋ',L:'Ｌ',M:'Ｍ',N:'Ｎ',O:'Ｏ',P:'Ｐ',Q:'Ｑ',R:'Ｒ',S:'Ｓ',T:'Ｔ',U:'Ｕ',V:'Ｖ',W:'Ｗ',X:'Ｘ',Y:'Ｙ',Z:'Ｚ'},
-  'Tiny':            {a:'ᵃ',b:'ᵇ',c:'ᶜ',d:'ᵈ',e:'ᵉ',f:'ᶠ',g:'ᵍ',h:'ʰ',i:'ⁱ',j:'ʲ',k:'ᵏ',l:'ˡ',m:'ᵐ',n:'ⁿ',o:'ᵒ',p:'ᵖ',q:'q',r:'ʳ',s:'ˢ',t:'ᵗ',u:'ᵘ',v:'ᵛ',w:'ʷ',x:'ˣ',y:'ʸ',z:'ᶻ',A:'ᴬ',B:'ᴮ',C:'ᶜ',D:'ᴰ',E:'ᴱ',F:'ᶠ',G:'ᴳ',H:'ᴴ',I:'ᴵ',J:'ᴶ',K:'ᴷ',L:'ᴸ',M:'ᴹ',N:'ᴺ',O:'ᴼ',P:'ᴾ',Q:'Q',R:'ᴿ',S:'ˢ',T:'ᵀ',U:'ᵁ',V:'ᵛ',W:'ᵂ',X:'ˣ',Y:'ʸ',Z:'ᶻ'},
-  'Inverted':        {a:'ɐ',b:'q',c:'ɔ',d:'p',e:'ǝ',f:'ɟ',g:'ƃ',h:'ɥ',i:'ᴉ',j:'ɾ',k:'ʞ',l:'l',m:'ɯ',n:'u',o:'o',p:'d',q:'b',r:'ɹ',s:'s',t:'ʇ',u:'n',v:'ʌ',w:'ʍ',x:'x',y:'ʎ',z:'z',A:'∀',B:'q',C:'Ɔ',D:'p',E:'Ǝ',F:'Ⅎ',G:'פ',H:'H',I:'I',J:'ɾ',K:'ʞ',L:'˥',M:'W',N:'N',O:'O',P:'Ԁ',Q:'Q',R:'ɹ',S:'S',T:'┴',U:'∩',V:'Λ',W:'M',X:'X',Y:'ʎ',Z:'Z'},
-  'Mirror':          {a:'ɒ',b:'d',c:'ɔ',d:'b',e:'ɘ',f:'ʇ',g:'ϱ',h:'ʜ',i:'i',j:'ᴉ',k:'ʞ',l:'l',m:'m',n:'n',o:'o',p:'q',q:'p',r:'ɿ',s:'ƨ',t:'ƚ',u:'u',v:'v',w:'w',x:'x',y:'y',z:'z',A:'A',B:'ᗺ',C:'Ɔ',D:'ᗡ',E:'Ǝ',F:'ꟻ',G:'Ꭾ',H:'H',I:'I',J:'Ꮈ',K:'ꓘ',L:'⅃',M:'M',N:'И',O:'O',P:'ꟼ',Q:'Ọ',R:'Я',S:'Ƨ',T:'T',U:'U',V:'V',W:'W',X:'X',Y:'Y',Z:'Z'},
-  'Currency':        {a:'₳',b:'฿',c:'₵',d:'₫',e:'€',f:'₣',g:'₲',h:'♄',i:'ł',j:'ʝ',k:'₭',l:'₤',m:'₥',n:'₦',o:'ø',p:'₱',q:'q',r:'®',s:'$',t:'₮',u:'µ',v:'√',w:'₩',x:'×',y:'¥',z:'z',A:'₳',B:'฿',C:'₵',D:'₫',E:'€',F:'₣',G:'₲',H:'♄',I:'ł',J:'ʝ',K:'₭',L:'₤',M:'₥',N:'₦',O:'ø',P:'₱',Q:'Q',R:'®',S:'$',T:'₮',U:'µ',V:'√',W:'₩',X:'×',Y:'¥',Z:'Z'},
-  'Dotted':          {a:'ȧ',b:'ḃ',c:'ċ',d:'ḋ',e:'ė',f:'ḟ',g:'ġ',h:'ḣ',i:'ı',j:'j',k:'k',l:'l',m:'ṁ',n:'ṅ',o:'ȯ',p:'ṗ',q:'q',r:'ṙ',s:'ṡ',t:'ṫ',u:'u',v:'v',w:'ẇ',x:'ẋ',y:'ẏ',z:'ż',A:'Ȧ',B:'Ḃ',C:'Ċ',D:'Ḋ',E:'Ė',F:'Ḟ',G:'Ġ',H:'Ḣ',I:'İ',J:'J',K:'K',L:'L',M:'Ṁ',N:'Ṅ',O:'Ȯ',P:'Ṗ',Q:'Q',R:'Ṙ',S:'Ṡ',T:'Ṫ',U:'U',V:'V',W:'Ẇ',X:'Ẋ',Y:'Ẏ',Z:'Ż'},
-  'Old English':     {a:'𝒶',b:'𝒷',c:'𝒸',d:'𝒹',e:'𝑒',f:'𝒻',g:'𝑔',h:'𝒽',i:'𝒾',j:'𝒿',k:'𝓀',l:'𝓁',m:'𝓂',n:'𝓃',o:'𝑜',p:'𝓅',q:'𝓆',r:'𝓇',s:'𝓈',t:'𝓉',u:'𝓊',v:'𝓋',w:'𝓌',x:'𝓍',y:'𝓎',z:'𝓏',A:'𝒜',B:'ℬ',C:'𝒞',D:'𝒟',E:'ℰ',F:'ℱ',G:'𝒢',H:'ℋ',I:'ℐ',J:'𝒥',K:'𝒦',L:'ℒ',M:'ℳ',N:'𝒩',O:'𝒪',P:'𝒫',Q:'𝒬',R:'ℛ',S:'𝒮',T:'𝒯',U:'𝒰',V:'𝒱',W:'𝒲',X:'𝒳',Y:'𝒴',Z:'𝒵'},
-  'Parenthesis':    {a:'⒜',b:'⒝',c:'⒞',d:'⒟',e:'⒠',f:'⒡',g:'⒢',h:'⒣',i:'⒤',j:'⒥',k:'⒦',l:'⒧',m:'⒨',n:'⒩',o:'⒪',p:'⒫',q:'⒬',r:'⒭',s:'⒮',t:'⒯',u:'⒰',v:'⒱',w:'⒲',x:'⒳',y:'⒴',z:'⒵',A:'⒜',B:'⒝',C:'⒞',D:'⒟',E:'⒠',F:'⒡',G:'⒢',H:'⒣',I:'⒤',J:'⒥',K:'⒦',L:'⒧',M:'⒨',N:'⒩',O:'⒪',P:'⒫',Q:'⒬',R:'⒭',S:'⒮',T:'⒯',U:'⒰',V:'⒱',W:'⒲',X:'⒳',Y:'⒴',Z:'⒵'},
-  'Flags':          {a:'🇦',b:'🇧',c:'🇨',d:'🇩',e:'🇪',f:'🇫',g:'🇬',h:'🇭',i:'🇮',j:'🇯',k:'🇰',l:'🇱',m:'🇲',n:'🇳',o:'🇴',p:'🇵',q:'🇶',r:'🇷',s:'🇸',t:'🇹',u:'🇺',v:'🇻',w:'🇼',x:'🇽',y:'🇾',z:'🇿',A:'🇦',B:'🇧',C:'🇨',D:'🇩',E:'🇪',F:'🇫',G:'🇬',H:'🇭',I:'🇮',J:'🇯',K:'🇰',L:'🇱',M:'🇲',N:'🇳',O:'🇴',P:'🇵',Q:'🇶',R:'🇷',S:'🇸',T:'🇹',U:'🇺',V:'🇻',W:'🇼',X:'🇽',Y:'🇾',Z:'🇿'}
-}
-let out = ''
-for (let [name, map] of Object.entries(maps)) {
-  if (name === 'Wide') {
-    let w = [...ftIn].map(c=>{let code=c.charCodeAt(0);return (code>=33&&code<=126)?String.fromCharCode(code+65248):c==' '?'　':c}).join('')
-    out += `*${name}:*\n${w}\n\n`
-  } else if (Object.keys(map).length === 0) {
-    out += ''
-  } else {
-    out += `*${name}:*\n${[...ftIn].map(c=>map[c]||c).join('')}\n\n`
-  }
-}
-reply(out.trim())
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🔤', key: m.key } })
+    if (!isOwner) return reply(mess.OnlyOwner)
+    let ftIn = text || (m.quoted && (m.quoted.text || m.quoted.body || m.quoted.caption || '').trim()) || ''
+    if (!ftIn) return reply(`Usage: ${prefix}allfonts [text]`)
+    const maps = {
+      'Bold Sans':       {a:'𝗮',b:'𝗯',c:'𝗰',d:'𝗱',e:'𝗲',f:'𝗳',g:'𝗴',h:'𝗵',i:'𝗶',j:'𝗷',k:'𝗸',l:'𝗹',m:'𝗺',n:'𝗻',o:'𝗼',p:'𝗽',q:'𝗾',r:'𝗿',s:'𝘀',t:'𝘁',u:'𝘂',v:'𝘃',w:'𝘄',x:'𝘅',y:'𝘆',z:'𝘇',A:'𝗔',B:'𝗕',C:'𝗖',D:'𝗗',E:'𝗘',F:'𝗙',G:'𝗚',H:'𝗛',I:'𝗜',J:'𝗝',K:'𝗞',L:'𝗟',M:'𝗠',N:'𝗡',O:'𝗢',P:'𝗣',Q:'𝗤',R:'𝗥',S:'𝗦',T:'𝗧',U:'𝗨',V:'𝗩',W:'𝗪',X:'𝗫',Y:'𝗬',Z:'𝗭'},
+      'Italic Sans':     {a:'𝘢',b:'𝘣',c:'𝘤',d:'𝘥',e:'𝘦',f:'𝘧',g:'𝘨',h:'𝘩',i:'𝘪',j:'𝘫',k:'𝘬',l:'𝘭',m:'𝘮',n:'𝘯',o:'𝘰',p:'𝘱',q:'𝘲',r:'𝘳',s:'𝘴',t:'𝘵',u:'𝘶',v:'𝘷',w:'𝘸',x:'𝘹',y:'𝘺',z:'𝘻',A:'𝘈',B:'𝘉',C:'𝘊',D:'𝘋',E:'𝘌',F:'𝘍',G:'𝘎',H:'𝘏',I:'𝘐',J:'𝘑',K:'𝘒',L:'𝘓',M:'𝘔',N:'𝘕',O:'𝘖',P:'𝘗',Q:'𝘘',R:'𝘙',S:'𝘚',T:'𝘛',U:'𝘜',V:'𝘝',W:'𝘞',X:'𝘟',Y:'𝘠',Z:'𝘡'},
+      'Bold Italic':     {a:'𝙖',b:'𝙗',c:'𝙘',d:'𝙙',e:'𝙚',f:'𝙛',g:'𝙜',h:'𝙝',i:'𝙞',j:'𝙟',k:'𝙠',l:'𝙡',m:'𝙢',n:'𝙣',o:'𝙤',p:'𝙥',q:'𝙦',r:'𝙧',s:'𝙨',t:'𝙩',u:'𝙪',v:'𝙫',w:'𝙬',x:'𝙭',y:'𝙮',z:'𝙯',A:'𝘼',B:'𝘽',C:'𝘾',D:'𝘿',E:'𝙀',F:'𝙁',G:'𝙂',H:'𝙃',I:'𝙄',J:'𝙅',K:'𝙆',L:'𝙇',M:'𝙈',N:'𝙉',O:'𝙊',P:'𝙋',Q:'𝙌',R:'𝙍',S:'𝙎',T:'𝙏',U:'𝙐',V:'𝙑',W:'𝙒',X:'𝙓',Y:'𝙔',Z:'𝙕'},
+      'Mono':            {a:'𝚊',b:'𝚋',c:'𝚌',d:'𝚍',e:'𝚎',f:'𝚏',g:'𝚐',h:'𝚑',i:'𝚒',j:'𝚓',k:'𝚔',l:'𝚕',m:'𝚖',n:'𝚗',o:'𝚘',p:'𝚙',q:'𝚚',r:'𝚛',s:'𝚜',t:'𝚝',u:'𝚞',v:'𝚟',w:'𝚠',x:'𝚡',y:'𝚢',z:'𝚣',A:'𝙰',B:'𝙱',C:'𝙲',D:'𝙳',E:'𝙴',F:'𝙵',G:'𝙶',H:'𝙷',I:'𝙸',J:'𝙹',K:'𝙺',L:'𝙻',M:'𝙼',N:'𝙽',O:'𝙾',P:'𝙿',Q:'𝚀',R:'𝚁',S:'𝚂',T:'𝚃',U:'𝚄',V:'𝚅',W:'𝚆',X:'𝚇',Y:'𝚈',Z:'𝚉'},
+      'Script':          {a:'𝒶',b:'𝒷',c:'𝒸',d:'𝒹',e:'𝑒',f:'𝒻',g:'𝑔',h:'𝒽',i:'𝒾',j:'𝒿',k:'𝓀',l:'𝓁',m:'𝓂',n:'𝓃',o:'𝑜',p:'𝓅',q:'𝓆',r:'𝓇',s:'𝓈',t:'𝓉',u:'𝓊',v:'𝓋',w:'𝓌',x:'𝓍',y:'𝓎',z:'𝓏',A:'𝒜',B:'ℬ',C:'𝒞',D:'𝒟',E:'ℰ',F:'ℱ',G:'𝒢',H:'ℋ',I:'ℐ',J:'𝒥',K:'𝒦',L:'ℒ',M:'ℳ',N:'𝒩',O:'𝒪',P:'𝒫',Q:'𝒬',R:'ℛ',S:'𝒮',T:'𝒯',U:'𝒰',V:'𝒱',W:'𝒲',X:'𝒳',Y:'𝒴',Z:'𝒵'},
+      'Bold Script':     {a:'𝓪',b:'𝓫',c:'𝓬',d:'𝓭',e:'𝓮',f:'𝓯',g:'𝓰',h:'𝓱',i:'𝓲',j:'𝓳',k:'𝓴',l:'𝓵',m:'𝓶',n:'𝓷',o:'𝓸',p:'𝓹',q:'𝓺',r:'𝓻',s:'𝓼',t:'𝓽',u:'𝓾',v:'𝓿',w:'𝔀',x:'𝔁',y:'𝔂',z:'𝔃',A:'𝓐',B:'𝓑',C:'𝓒',D:'𝓓',E:'𝓔',F:'𝓕',G:'𝓖',H:'𝓗',I:'𝓘',J:'𝓙',K:'𝓚',L:'𝓛',M:'𝓜',N:'𝓝',O:'𝓞',P:'𝓟',Q:'𝓠',R:'𝓡',S:'𝓢',T:'𝓣',U:'𝓤',V:'𝓥',W:'𝓦',X:'𝓧',Y:'𝓨',Z:'𝓩'},
+      'Fraktur':         {a:'𝔞',b:'𝔟',c:'𝔠',d:'𝔡',e:'𝔢',f:'𝔣',g:'𝔤',h:'𝔥',i:'𝔦',j:'𝔧',k:'𝔨',l:'𝔩',m:'𝔪',n:'𝔫',o:'𝔬',p:'𝔭',q:'𝔮',r:'𝔯',s:'𝔰',t:'𝔱',u:'𝔲',v:'𝔳',w:'𝔴',x:'𝔵',y:'𝔶',z:'𝔷',A:'𝔄',B:'𝔅',C:'ℭ',D:'𝔇',E:'𝔈',F:'𝔉',G:'𝔊',H:'ℌ',I:'ℑ',J:'𝔍',K:'𝔎',L:'𝔏',M:'𝔐',N:'𝔑',O:'𝔒',P:'𝔓',Q:'𝔔',R:'ℜ',S:'𝔖',T:'𝔗',U:'𝔘',V:'𝔙',W:'𝔚',X:'𝔛',Y:'𝔜',Z:'ℨ'},
+      'Bold Fraktur':    {a:'𝖆',b:'𝖇',c:'𝖈',d:'𝖉',e:'𝖊',f:'𝖋',g:'𝖌',h:'𝖍',i:'𝖎',j:'𝖏',k:'𝖐',l:'𝖑',m:'𝖒',n:'𝖓',o:'𝖔',p:'𝖕',q:'𝖖',r:'𝖗',s:'𝖘',t:'𝖙',u:'𝖚',v:'𝖛',w:'𝖜',x:'𝖝',y:'𝖞',z:'𝖟',A:'𝕬',B:'𝕭',C:'𝕮',D:'𝕯',E:'𝕰',F:'𝕱',G:'𝕲',H:'𝕳',I:'𝕴',J:'𝕵',K:'𝕶',L:'𝕷',M:'𝕸',N:'𝕹',O:'𝕺',P:'𝕻',Q:'𝕼',R:'𝕽',S:'𝕾',T:'𝕿',U:'𝖀',V:'𝖁',W:'𝖂',X:'𝖃',Y:'𝖄',Z:'𝖅'},
+      'Double Struck':   {a:'𝕒',b:'𝕓',c:'𝕔',d:'𝕕',e:'𝕖',f:'𝕗',g:'𝕘',h:'𝕙',i:'𝕚',j:'𝕛',k:'𝕜',l:'𝕝',m:'𝕞',n:'𝕟',o:'𝕠',p:'𝕡',q:'𝕢',r:'𝕣',s:'𝕤',t:'𝕥',u:'𝕦',v:'𝕧',w:'𝕨',x:'𝕩',y:'𝕪',z:'𝕫',A:'𝔸',B:'𝔹',C:'ℂ',D:'𝔻',E:'𝔼',F:'𝔽',G:'𝔾',H:'ℍ',I:'𝕀',J:'𝕁',K:'𝕂',L:'𝕃',M:'𝕄',N:'ℕ',O:'𝕆',P:'ℙ',Q:'ℚ',R:'ℝ',S:'𝕊',T:'𝕋',U:'𝕌',V:'𝕍',W:'𝕎',X:'𝕏',Y:'𝕐',Z:'ℤ'},
+      'Small Caps':      {a:'ᴀ',b:'ʙ',c:'ᴄ',d:'ᴅ',e:'ᴇ',f:'ꜰ',g:'ɢ',h:'ʜ',i:'ɪ',j:'ᴊ',k:'ᴋ',l:'ʟ',m:'ᴍ',n:'ɴ',o:'ᴏ',p:'ᴘ',q:'Q',r:'ʀ',s:'ꜱ',t:'ᴛ',u:'ᴜ',v:'ᴠ',w:'ᴡ',x:'x',y:'ʏ',z:'ᴢ',A:'ᴀ',B:'ʙ',C:'ᴄ',D:'ᴅ',E:'ᴇ',F:'ꜰ',G:'ɢ',H:'ʜ',I:'ɪ',J:'ᴊ',K:'ᴋ',L:'ʟ',M:'ᴍ',N:'ɴ',O:'ᴏ',P:'ᴘ',Q:'Q',R:'ʀ',S:'ꜱ',T:'ᴛ',U:'ᴜ',V:'ᴠ',W:'ᴡ',X:'x',Y:'ʏ',Z:'ᴢ'},
+      'Bubble':          {a:'ⓐ',b:'ⓑ',c:'ⓒ',d:'ⓓ',e:'ⓔ',f:'ⓕ',g:'ⓖ',h:'ⓗ',i:'ⓘ',j:'ⓙ',k:'ⓚ',l:'ⓛ',m:'ⓜ',n:'ⓝ',o:'ⓞ',p:'ⓟ',q:'ⓠ',r:'ⓡ',s:'ⓢ',t:'ⓣ',u:'ⓤ',v:'ⓥ',w:'ⓦ',x:'ⓧ',y:'ⓨ',z:'ⓩ',A:'Ⓐ',B:'Ⓑ',C:'Ⓒ',D:'Ⓓ',E:'Ⓔ',F:'Ⓕ',G:'Ⓖ',H:'Ⓗ',I:'Ⓘ',J:'Ⓙ',K:'Ⓚ',L:'Ⓛ',M:'Ⓜ',N:'Ⓝ',O:'Ⓞ',P:'Ⓟ',Q:'Ⓠ',R:'Ⓡ',S:'Ⓢ',T:'Ⓣ',U:'Ⓤ',V:'Ⓥ',W:'Ⓦ',X:'Ⓧ',Y:'Ⓨ',Z:'Ⓩ'},
+      'Wide':            {},
+      'Medieval':        {a:'\u{1D51E}',b:'\u{1D51F}',c:'\u{1D520}',d:'\u{1D521}',e:'\u{1D522}',f:'\u{1D523}',g:'\u{1D524}',h:'\u{1D525}',i:'\u{1D526}',j:'\u{1D527}',k:'\u{1D528}',l:'\u{1D529}',m:'\u{1D52A}',n:'\u{1D52B}',o:'\u{1D52C}',p:'\u{1D52D}',q:'\u{1D52E}',r:'\u{1D52F}',s:'\u{1D530}',t:'\u{1D531}',u:'\u{1D532}',v:'\u{1D533}',w:'\u{1D534}',x:'\u{1D535}',y:'\u{1D536}',z:'\u{1D537}',A:'\u{1D504}',B:'\u{1D505}',C:'\u212D',D:'\u{1D507}',E:'\u{1D508}',F:'\u{1D509}',G:'\u{1D50A}',H:'\u210C',I:'\u2111',J:'\u{1D50D}',K:'\u{1D50E}',L:'\u{1D50F}',M:'\u{1D510}',N:'\u{1D511}',O:'\u{1D512}',P:'\u{1D513}',Q:'\u{1D514}',R:'\u211C',S:'\u{1D516}',T:'\u{1D517}',U:'\u{1D518}',V:'\u{1D519}',W:'\u{1D51A}',X:'\u{1D51B}',Y:'\u{1D51C}',Z:'\u2128'},
+      'Cursive':         {a:'\u{1D4EA}',b:'\u{1D4EB}',c:'\u{1D4EC}',d:'\u{1D4ED}',e:'\u{1D4EE}',f:'\u{1D4EF}',g:'\u{1D4F0}',h:'\u{1D4F1}',i:'\u{1D4F2}',j:'\u{1D4F3}',k:'\u{1D4F4}',l:'\u{1D4F5}',m:'\u{1D4F6}',n:'\u{1D4F7}',o:'\u{1D4F8}',p:'\u{1D4F9}',q:'\u{1D4FA}',r:'\u{1D4FB}',s:'\u{1D4FC}',t:'\u{1D4FD}',u:'\u{1D4FE}',v:'\u{1D4FF}',w:'\u{1D500}',x:'\u{1D501}',y:'\u{1D502}',z:'\u{1D503}',A:'\u{1D4D0}',B:'\u{1D4D1}',C:'\u{1D4D2}',D:'\u{1D4D3}',E:'\u{1D4D4}',F:'\u{1D4D5}',G:'\u{1D4D6}',H:'\u{1D4D7}',I:'\u{1D4D8}',J:'\u{1D4D9}',K:'\u{1D4DA}',L:'\u{1D4DB}',M:'\u{1D4DC}',N:'\u{1D4DD}',O:'\u{1D4DE}',P:'\u{1D4DF}',Q:'\u{1D4E0}',R:'\u{1D4E1}',S:'\u{1D4E2}',T:'\u{1D4E3}',U:'\u{1D4E4}',V:'\u{1D4E5}',W:'\u{1D4E6}',X:'\u{1D4E7}',Y:'\u{1D4E8}',Z:'\u{1D4E9}'},
+      'Aesthetic':       {a:'ａ',b:'ｂ',c:'ｃ',d:'ｄ',e:'ｅ',f:'ｆ',g:'ｇ',h:'ｈ',i:'ｉ',j:'ｊ',k:'ｋ',l:'ｌ',m:'ｍ',n:'ｎ',o:'ｏ',p:'ｐ',q:'ｑ',r:'ｒ',s:'ｓ',t:'ｔ',u:'ｕ',v:'ｖ',w:'ｗ',x:'ｘ',y:'ｙ',z:'ｚ',A:'Ａ',B:'Ｂ',C:'Ｃ',D:'Ｄ',E:'Ｅ',F:'Ｆ',G:'Ｇ',H:'Ｈ',I:'Ｉ',J:'Ｊ',K:'Ｋ',L:'Ｌ',M:'Ｍ',N:'Ｎ',O:'Ｏ',P:'Ｐ',Q:'Ｑ',R:'Ｒ',S:'Ｓ',T:'Ｔ',U:'Ｕ',V:'Ｖ',W:'Ｗ',X:'Ｘ',Y:'Ｙ',Z:'Ｚ'},
+      'Tiny':            {a:'ᵃ',b:'ᵇ',c:'ᶜ',d:'ᵈ',e:'ᵉ',f:'ᶠ',g:'ᵍ',h:'ʰ',i:'ⁱ',j:'ʲ',k:'ᵏ',l:'ˡ',m:'ᵐ',n:'ⁿ',o:'ᵒ',p:'ᵖ',q:'q',r:'ʳ',s:'ˢ',t:'ᵗ',u:'ᵘ',v:'ᵛ',w:'ʷ',x:'ˣ',y:'ʸ',z:'ᶻ',A:'ᴬ',B:'ᴮ',C:'ᶜ',D:'ᴰ',E:'ᴱ',F:'ᶠ',G:'ᴳ',H:'ᴴ',I:'ᴵ',J:'ᴶ',K:'ᴷ',L:'ᴸ',M:'ᴹ',N:'ᴺ',O:'ᴼ',P:'ᴾ',Q:'Q',R:'ᴿ',S:'ˢ',T:'ᵀ',U:'ᵁ',V:'ᵛ',W:'ᵂ',X:'ˣ',Y:'ʸ',Z:'ᶻ'},
+      'Inverted':        {a:'ɐ',b:'q',c:'ɔ',d:'p',e:'ǝ',f:'ɟ',g:'ƃ',h:'ɥ',i:'ᴉ',j:'ɾ',k:'ʞ',l:'l',m:'ɯ',n:'u',o:'o',p:'d',q:'b',r:'ɹ',s:'s',t:'ʇ',u:'n',v:'ʌ',w:'ʍ',x:'x',y:'ʎ',z:'z',A:'∀',B:'q',C:'Ɔ',D:'p',E:'Ǝ',F:'Ⅎ',G:'פ',H:'H',I:'I',J:'ɾ',K:'ʞ',L:'˥',M:'W',N:'N',O:'O',P:'Ԁ',Q:'Q',R:'ɹ',S:'S',T:'┴',U:'∩',V:'Λ',W:'M',X:'X',Y:'ʎ',Z:'Z'},
+      'Mirror':          {a:'ɒ',b:'d',c:'ɔ',d:'b',e:'ɘ',f:'ʇ',g:'ϱ',h:'ʜ',i:'i',j:'ᴉ',k:'ʞ',l:'l',m:'m',n:'n',o:'o',p:'q',q:'p',r:'ɿ',s:'ƨ',t:'ƚ',u:'u',v:'v',w:'w',x:'x',y:'y',z:'z',A:'A',B:'ᗺ',C:'Ɔ',D:'ᗡ',E:'Ǝ',F:'ꟻ',G:'Ꭾ',H:'H',I:'I',J:'Ꮈ',K:'ꓘ',L:'⅃',M:'M',N:'И',O:'O',P:'ꟼ',Q:'Ọ',R:'Я',S:'Ƨ',T:'T',U:'U',V:'V',W:'W',X:'X',Y:'Y',Z:'Z'},
+      'Currency':        {a:'₳',b:'฿',c:'₵',d:'₫',e:'€',f:'₣',g:'₲',h:'♄',i:'ł',j:'ʝ',k:'₭',l:'₤',m:'₥',n:'₦',o:'ø',p:'₱',q:'q',r:'®',s:'$',t:'₮',u:'µ',v:'√',w:'₩',x:'×',y:'¥',z:'z',A:'₳',B:'฿',C:'₵',D:'₫',E:'€',F:'₣',G:'₲',H:'♄',I:'ł',J:'ʝ',K:'₭',L:'₤',M:'₥',N:'₦',O:'ø',P:'₱',Q:'Q',R:'®',S:'$',T:'₮',U:'µ',V:'√',W:'₩',X:'×',Y:'¥',Z:'Z'},
+      'Dotted':          {a:'ȧ',b:'ḃ',c:'ċ',d:'ḋ',e:'ė',f:'ḟ',g:'ġ',h:'ḣ',i:'ı',j:'j',k:'k',l:'l',m:'ṁ',n:'ṅ',o:'ȯ',p:'ṗ',q:'q',r:'ṙ',s:'ṡ',t:'ṫ',u:'u',v:'v',w:'ẇ',x:'ẋ',y:'ẏ',z:'ż',A:'Ȧ',B:'Ḃ',C:'Ċ',D:'Ḋ',E:'Ė',F:'Ḟ',G:'Ġ',H:'Ḣ',I:'İ',J:'J',K:'K',L:'L',M:'Ṁ',N:'Ṅ',O:'Ȯ',P:'Ṗ',Q:'Q',R:'Ṙ',S:'Ṡ',T:'Ṫ',U:'U',V:'V',W:'Ẇ',X:'Ẋ',Y:'Ẏ',Z:'Ż'},
+      'Old English':     {a:'𝒶',b:'𝒷',c:'𝒸',d:'𝒹',e:'𝑒',f:'𝒻',g:'𝑔',h:'𝒽',i:'𝒾',j:'𝒿',k:'𝓀',l:'𝓁',m:'𝓂',n:'𝓃',o:'𝑜',p:'𝓅',q:'𝓆',r:'𝓇',s:'𝓈',t:'𝓉',u:'𝓊',v:'𝓋',w:'𝓌',x:'𝓍',y:'𝓎',z:'𝓏',A:'𝒜',B:'ℬ',C:'𝒞',D:'𝒟',E:'ℰ',F:'ℱ',G:'𝒢',H:'ℋ',I:'ℐ',J:'𝒥',K:'𝒦',L:'ℒ',M:'ℳ',N:'𝒩',O:'𝒪',P:'𝒫',Q:'𝒬',R:'ℛ',S:'𝒮',T:'𝒯',U:'𝒰',V:'𝒱',W:'𝒲',X:'𝒳',Y:'𝒴',Z:'𝒵'},
+      'Parenthesis':    {a:'⒜',b:'⒝',c:'⒞',d:'⒟',e:'⒠',f:'⒡',g:'⒢',h:'⒣',i:'⒤',j:'⒥',k:'⒦',l:'⒧',m:'⒨',n:'⒩',o:'⒪',p:'⒫',q:'⒬',r:'⒭',s:'⒮',t:'⒯',u:'⒰',v:'⒱',w:'⒲',x:'⒳',y:'⒴',z:'⒵',A:'⒜',B:'⒝',C:'⒞',D:'⒟',E:'⒠',F:'⒡',G:'⒢',H:'⒣',I:'⒤',J:'⒥',K:'⒦',L:'⒧',M:'⒨',N:'⒩',O:'⒪',P:'⒫',Q:'⒬',R:'⒭',S:'⒮',T:'⒯',U:'⒰',V:'⒱',W:'⒲',X:'⒳',Y:'⒴',Z:'⒵'},
+      'Flags':          {a:'🇦',b:'🇧',c:'🇨',d:'🇩',e:'🇪',f:'🇫',g:'🇬',h:'🇭',i:'🇮',j:'🇯',k:'🇰',l:'🇱',m:'🇲',n:'🇳',o:'🇴',p:'🇵',q:'🇶',r:'🇷',s:'🇸',t:'🇹',u:'🇺',v:'🇻',w:'🇼',x:'🇽',y:'🇾',z:'🇿',A:'🇦',B:'🇧',C:'🇨',D:'🇩',E:'🇪',F:'🇫',G:'🇬',H:'🇭',I:'🇮',J:'🇯',K:'🇰',L:'🇱',M:'🇲',N:'🇳',O:'🇴',P:'🇵',Q:'🇶',R:'🇷',S:'🇸',T:'🇹',U:'🇺',V:'🇻',W:'🇼',X:'🇽',Y:'🇾',Z:'🇿'}
+    }
+    let out = ''
+    for (let [name, map] of Object.entries(maps)) {
+      if (name === 'Wide') {
+        let w = [...ftIn].map(c=>{let code=c.charCodeAt(0);return (code>=33&&code<=126)?String.fromCharCode(code+65248):c==' '?'　':c}).join('')
+        out += `*${name}:*\n${w}\n\n`
+      } else if (Object.keys(map).length === 0) {
+        out += ''
+      } else {
+        out += `*${name}:*\n${[...ftIn].map(c=>map[c]||c).join('')}\n\n`
+      }
+    }
+    reply(out.trim())
+    } catch(e) {
+        console.error('[allfonts]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 
@@ -7429,20 +8016,30 @@ await new Promise((resolve) => {
 //━━━━━━━━━━━━━━━━━━━━━━━━//
 // Image Edit Commands
 case 'heart': {
-    await X.sendMessage(m.chat, { react: { text: '❤️', key: m.key } })
-if (!m.quoted || !/image/.test(m.quoted.mimetype || '')) {
-let heartTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : sender
-X.sendMessage(from, { text: `*💕 ${pushname} sends love to @${heartTarget.split('@')[0]}! 💕*`, mentions: [heartTarget] }, { quoted: m })
-} else { reply('*Heart effect applied!* 💕') }
+    try {
+        await X.sendMessage(m.chat, { react: { text: '❤️', key: m.key } })
+    if (!m.quoted || !/image/.test(m.quoted.mimetype || '')) {
+    let heartTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : sender
+    X.sendMessage(from, { text: `*💕 ${pushname} sends love to @${heartTarget.split('@')[0]}! 💕*`, mentions: [heartTarget] }, { quoted: m })
+    } else { reply('*Heart effect applied!* 💕') }
+    } catch(e) {
+        console.error('[heart]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'rizz': {
-    await X.sendMessage(m.chat, { react: { text: '😎', key: m.key } })
-    if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*`)
-let rizzTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : sender
-let rizzLevel = Math.floor(Math.random() * 101)
-const rizzMsg = rizzLevel > 80 ? 'Unmatched rizz! 😎🔥' : rizzLevel > 50 ? 'Solid rizz game 💪' : rizzLevel > 30 ? 'Rizz needs work 😅' : 'No rizz detected 💀'
-X.sendMessage(from, { text: `╔══════════════════════════╗\n║  😎 *RIZZ METER*\n╚══════════════════════════╝\n\n  👤 @${rizzTarget.split('@')[0]}\n\n  ${'🔥'.repeat(Math.floor(rizzLevel/10))}${'⬜'.repeat(10 - Math.floor(rizzLevel/10))} *${rizzLevel}%*\n\n  _${rizzMsg}_`, mentions: [rizzTarget] }, { quoted: m })
+    try {
+        await X.sendMessage(m.chat, { react: { text: '😎', key: m.key } })
+        if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*`)
+    let rizzTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : sender
+    let rizzLevel = Math.floor(Math.random() * 101)
+    const rizzMsg = rizzLevel > 80 ? 'Unmatched rizz! 😎🔥' : rizzLevel > 50 ? 'Solid rizz game 💪' : rizzLevel > 30 ? 'Rizz needs work 😅' : 'No rizz detected 💀'
+    X.sendMessage(from, { text: `╔══════════════════════════╗\n║  😎 *RIZZ METER*\n╚══════════════════════════╝\n\n  👤 @${rizzTarget.split('@')[0]}\n\n  ${'🔥'.repeat(Math.floor(rizzLevel/10))}${'⬜'.repeat(10 - Math.floor(rizzLevel/10))} *${rizzLevel}%*\n\n  _${rizzMsg}_`, mentions: [rizzTarget] }, { quoted: m })
+    } catch(e) {
+        console.error('[rizz]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'circle': {
@@ -7455,78 +8052,133 @@ await X.sendMessage(m.chat, { sticker: buf }, { quoted: m })
 } break
 
 case 'lgbt': {
-    await X.sendMessage(m.chat, { react: { text: '🌈', key: m.key } })
-    if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*`)
-let lgbtTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : sender
-X.sendMessage(from, { text: `*🏳️‍🌈 @${lgbtTarget.split('@')[0]} supports LGBTQ+! 🏳️‍🌈*\n🌈 Love is Love 🌈`, mentions: [lgbtTarget] }, { quoted: m })
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🌈', key: m.key } })
+        if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*`)
+    let lgbtTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : sender
+    X.sendMessage(from, { text: `*🏳️‍🌈 @${lgbtTarget.split('@')[0]} supports LGBTQ+! 🏳️‍🌈*\n🌈 Love is Love 🌈`, mentions: [lgbtTarget] }, { quoted: m })
+    } catch(e) {
+        console.error('[lgbt]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'lolice':
 case 'police': {
-    await X.sendMessage(m.chat, { react: { text: '🚔', key: m.key } })
-    if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*`)
-let policeTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : sender
-const policeReasons = ['Being too awesome 😂', 'Excessive good vibes ✨', 'Stealing hearts 💘', 'Being suspiciously cool 😎', 'Causing too much fun 🎉']
-const reason = policeReasons[Math.floor(Math.random() * policeReasons.length)]
-X.sendMessage(from, { text: `╔══════════════════════════╗\n║  🚔 *POLICE ALERT!*\n╚══════════════════════════╝\n\n  🚨 @${policeTarget.split('@')[0]} has been arrested!\n\n  ├ 📋 *Crime* › ${reason}\n  └ ⚖️  *Sentence* › Life of fun 🎉`, mentions: [policeTarget] }, { quoted: m })
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🚔', key: m.key } })
+        if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*`)
+    let policeTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : sender
+    const policeReasons = ['Being too awesome 😂', 'Excessive good vibes ✨', 'Stealing hearts 💘', 'Being suspiciously cool 😎', 'Causing too much fun 🎉']
+    const reason = policeReasons[Math.floor(Math.random() * policeReasons.length)]
+    X.sendMessage(from, { text: `╔══════════════════════════╗\n║  🚔 *POLICE ALERT!*\n╚══════════════════════════╝\n\n  🚨 @${policeTarget.split('@')[0]} has been arrested!\n\n  ├ 📋 *Crime* › ${reason}\n  └ ⚖️  *Sentence* › Life of fun 🎉`, mentions: [policeTarget] }, { quoted: m })
+    } catch(e) {
+        console.error('[police]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'namecard': {
-    await X.sendMessage(m.chat, { react: { text: '🪪', key: m.key } })
-let ncName = text || pushname
-reply(`╔══════════════╗\n   *${ncName}*\n   ${global.botname}\n╚══════════════╝`)
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🪪', key: m.key } })
+    let ncName = text || pushname
+    reply(`╔══════════════╗\n   *${ncName}*\n   ${global.botname}\n╚══════════════╝`)
+    } catch(e) {
+        console.error('[namecard]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'tweet': {
-    await X.sendMessage(m.chat, { react: { text: '🐦', key: m.key } })
-if (!text) return reply(`Example: ${prefix}tweet I love coding!`)
-reply(`╔══════════════════════════╗\n║  🐦 *TWEET*\n╚══════════════════════════╝\n\n  👤 *@${pushname}*\n  ${text}\n\n  ❤️ ${Math.floor(Math.random() * 10000)}  🔁 ${Math.floor(Math.random() * 5000)}  💬 ${Math.floor(Math.random() * 1000)}`)
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🐦', key: m.key } })
+    if (!text) return reply(`Example: ${prefix}tweet I love coding!`)
+    reply(`╔══════════════════════════╗\n║  🐦 *TWEET*\n╚══════════════════════════╝\n\n  👤 *@${pushname}*\n  ${text}\n\n  ❤️ ${Math.floor(Math.random() * 10000)}  🔁 ${Math.floor(Math.random() * 5000)}  💬 ${Math.floor(Math.random() * 1000)}`)
+    } catch(e) {
+        console.error('[tweet]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'ytcomment': {
-    await X.sendMessage(m.chat, { react: { text: '💬', key: m.key } })
-if (!text) return reply(`Example: ${prefix}ytcomment This video is amazing!`)
-reply(`╔══════════════════════════╗\n║  ▶️  *YOUTUBE COMMENT*\n╚══════════════════════════╝\n\n  👤 *${pushname}*\n  ${text}\n\n  👍 ${Math.floor(Math.random() * 5000)}  👎  💬 ${Math.floor(Math.random() * 200)} replies`)
+    try {
+        await X.sendMessage(m.chat, { react: { text: '💬', key: m.key } })
+    if (!text) return reply(`Example: ${prefix}ytcomment This video is amazing!`)
+    reply(`╔══════════════════════════╗\n║  ▶️  *YOUTUBE COMMENT*\n╚══════════════════════════╝\n\n  👤 *${pushname}*\n  ${text}\n\n  👍 ${Math.floor(Math.random() * 5000)}  👎  💬 ${Math.floor(Math.random() * 200)} replies`)
+    } catch(e) {
+        console.error('[ytcomment]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'comrade': {
-    await X.sendMessage(m.chat, { react: { text: '☭', key: m.key } })
-    if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*`)
-let comradeTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : sender
-X.sendMessage(from, { text: `*☭ Our Comrade @${comradeTarget.split('@')[0]}! ☭*\nServing the motherland with honor!`, mentions: [comradeTarget] }, { quoted: m })
+    try {
+        await X.sendMessage(m.chat, { react: { text: '☭', key: m.key } })
+        if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*`)
+    let comradeTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : sender
+    X.sendMessage(from, { text: `*☭ Our Comrade @${comradeTarget.split('@')[0]}! ☭*\nServing the motherland with honor!`, mentions: [comradeTarget] }, { quoted: m })
+    } catch(e) {
+        console.error('[comrade]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'vibe': {
-    await X.sendMessage(m.chat, { react: { text: '✨', key: m.key } })
-    if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*\n\nUse *${prefix}antisocialgames off* to re-enable.`)
-let vibeTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : sender
-let vibeLevel = Math.floor(Math.random() * 101)
-const vibeMsg = vibeLevel > 80 ? 'Absolutely radiating! 🔥' : vibeLevel > 50 ? 'Good vibes only ✨' : vibeLevel > 30 ? 'Vibes loading... 😌' : 'Needs a coffee first ☕'
-X.sendMessage(from, { text: `╔══════════════════════════╗\n║  ✨ *VIBE CHECK*\n╚══════════════════════════╝\n\n  👤 @${vibeTarget.split('@')[0]}\n\n  ${'✨'.repeat(Math.floor(vibeLevel/10))}${'⬜'.repeat(10 - Math.floor(vibeLevel/10))} *${vibeLevel}%*\n\n  _${vibeMsg}_`, mentions: [vibeTarget] }, { quoted: m })
+    try {
+        await X.sendMessage(m.chat, { react: { text: '✨', key: m.key } })
+        if (m.isGroup && global.antiSocialGames && global.antiSocialGames[m.chat]) return reply(`❌ *Social games are disabled in this group.*\n\nUse *${prefix}antisocialgames off* to re-enable.`)
+    let vibeTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : sender
+    let vibeLevel = Math.floor(Math.random() * 101)
+    const vibeMsg = vibeLevel > 80 ? 'Absolutely radiating! 🔥' : vibeLevel > 50 ? 'Good vibes only ✨' : vibeLevel > 30 ? 'Vibes loading... 😌' : 'Needs a coffee first ☕'
+    X.sendMessage(from, { text: `╔══════════════════════════╗\n║  ✨ *VIBE CHECK*\n╚══════════════════════════╝\n\n  👤 @${vibeTarget.split('@')[0]}\n\n  ${'✨'.repeat(Math.floor(vibeLevel/10))}${'⬜'.repeat(10 - Math.floor(vibeLevel/10))} *${vibeLevel}%*\n\n  _${vibeMsg}_`, mentions: [vibeTarget] }, { quoted: m })
+    } catch(e) {
+        console.error('[vibe]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'glass': {
-    await X.sendMessage(m.chat, { react: { text: '🕶️', key: m.key } })
-if (!m.quoted || !/image/.test(m.quoted.mimetype || '')) return reply(`Reply to an image with ${prefix}glass`)
-reply('*Glass effect applied!* 🪟')
+    try {
+        await X.sendMessage(m.chat, { react: { text: '🕶️', key: m.key } })
+    if (!m.quoted || !/image/.test(m.quoted.mimetype || '')) return reply(`Reply to an image with ${prefix}glass`)
+    reply('*Glass effect applied!* 🪟')
+    } catch(e) {
+        console.error('[glass]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'jail': {
-    await X.sendMessage(m.chat, { react: { text: '⛓️', key: m.key } })
-let jailTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : sender
-X.sendMessage(from, { text: `*🔒 @${jailTarget.split('@')[0]} has been jailed! 🔒*\nCrime: Being too awesome\nSentence: Life 😂`, mentions: [jailTarget] }, { quoted: m })
+    try {
+        await X.sendMessage(m.chat, { react: { text: '⛓️', key: m.key } })
+    let jailTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : sender
+    X.sendMessage(from, { text: `*🔒 @${jailTarget.split('@')[0]} has been jailed! 🔒*\nCrime: Being too awesome\nSentence: Life 😂`, mentions: [jailTarget] }, { quoted: m })
+    } catch(e) {
+        console.error('[jail]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'passed': {
-    await X.sendMessage(m.chat, { react: { text: '✅', key: m.key } })
-let passedTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : sender
-X.sendMessage(from, { text: `*✅ @${passedTarget.split('@')[0]} has PASSED! ✅*\nCongratulations! 🎉`, mentions: [passedTarget] }, { quoted: m })
+    try {
+        await X.sendMessage(m.chat, { react: { text: '✅', key: m.key } })
+    let passedTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : sender
+    X.sendMessage(from, { text: `*✅ @${passedTarget.split('@')[0]} has PASSED! ✅*\nCongratulations! 🎉`, mentions: [passedTarget] }, { quoted: m })
+    } catch(e) {
+        console.error('[passed]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'triggered': {
-    await X.sendMessage(m.chat, { react: { text: '😡', key: m.key } })
-let triggeredTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : sender
-X.sendMessage(from, { text: `*⚡ @${triggeredTarget.split('@')[0]} is TRIGGERED! ⚡*\n😤😤😤`, mentions: [triggeredTarget] }, { quoted: m })
+    try {
+        await X.sendMessage(m.chat, { react: { text: '😡', key: m.key } })
+    let triggeredTarget = (m.mentionedJid && m.mentionedJid[0]) ? m.mentionedJid[0] : sender
+    X.sendMessage(from, { text: `*⚡ @${triggeredTarget.split('@')[0]} is TRIGGERED! ⚡*\n😤😤😤`, mentions: [triggeredTarget] }, { quoted: m })
+    } catch(e) {
+        console.error('[triggered]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 //━━━━━━━━━━━━━━━━━━━━━━━━//
@@ -7605,22 +8257,27 @@ reply(repoInfo)
 case 'sc':
 case 'script':
 case 'source': {
-    await X.sendMessage(m.chat, { react: { text: '📜', key: m.key } })
-let scText = `╔══════════════════════════╗
-║  📂 *SOURCE CODE*
-╚══════════════════════════╝
+    try {
+        await X.sendMessage(m.chat, { react: { text: '📜', key: m.key } })
+    let scText = `╔══════════════════════════╗
+    ║  📂 *SOURCE CODE*
+    ╚══════════════════════════╝
 
-  🤖 *${global.botname}*
+      🤖 *${global.botname}*
 
-  ├ 🔗 *GitHub*
-  │  github.com/TOOSII102/TOOSII-XD-ULTRA
-  ├ 🍴 *Fork it*
-  │  github.com/TOOSII102/TOOSII-XD-ULTRA/fork
-  ├ 👨‍💻 *Dev*     › ${global.ownername}
-  └ 📞 *Contact* › ${global.ownerNumber}
+      ├ 🔗 *GitHub*
+      │  github.com/TOOSII102/TOOSII-XD-ULTRA
+      ├ 🍴 *Fork it*
+      │  github.com/TOOSII102/TOOSII-XD-ULTRA/fork
+      ├ 👨‍💻 *Dev*     › ${global.ownername}
+      └ 📞 *Contact* › ${global.ownerNumber}
 
-_© ${global.ownername} — All Rights Reserved_`
-reply(scText)
+    _© ${global.ownername} — All Rights Reserved_`
+    reply(scText)
+    } catch(e) {
+        console.error('[source]', e.message || e)
+        reply('❌ *Error* — ' + (e.message || 'Something went wrong. Please try again.'))
+    }
 } break
 
 case 'clone': {

@@ -695,13 +695,13 @@ var waktuucapan = 'Midnight'
 // Plugin Connector
 const loadPlugins = (directory) => {
     let plugins = []
-    const folders = fs.readdirSync(directory)
-    folders.forEach(folder => {
-        const folderPath = path.join(directory, folder)
-        if (fs.lstatSync(folderPath).isDirectory()) {
-            const files = fs.readdirSync(folderPath)
+    const entries = fs.readdirSync(directory)
+    entries.forEach(entry => {
+        const entryPath = path.join(directory, entry)
+        if (fs.lstatSync(entryPath).isDirectory()) {
+            const files = fs.readdirSync(entryPath)
             files.forEach(file => {
-                const filePath = path.join(folderPath, file)
+                const filePath = path.join(entryPath, file)
                 if (filePath.endsWith(".js")) {
                     try {
                         delete require.cache[require.resolve(filePath)]
@@ -713,6 +713,15 @@ const loadPlugins = (directory) => {
                     }
                 }
             })
+        } else if (entryPath.endsWith(".js")) {
+            try {
+                delete require.cache[require.resolve(entryPath)]
+                const plugin = require(entryPath)
+                plugin.filePath = entryPath
+                plugins.push(plugin)
+            } catch (error) {
+                console.error(`Error loading plugin at ${entryPath}:`, error)
+            }
         }
     })
     return plugins
@@ -1553,12 +1562,6 @@ _👇 Tap the contact card below to chat with owner_`)
         }
     }), { userJid: m.chat, quoted: m })
     X.relayMessage(m.chat, contact.message, { messageId: contact.key.id })
-}
-break
-
-case 'sc': {
-    await X.sendMessage(m.chat, { react: { text: '📜', key: m.key } })
-reply(`╔══════════════════════════╗\n║  🤖 *${global.botname}*\n╚══════════════════════════╝\n\n  ├ 📞 *WhatsApp* › wa.me/254748340864\n  ├ ✈️  *Telegram* › t.me/toosiitech\n  └ 🔑 *Session*  › ${global.sessionUrl}\n\n_⚡ Powered by ${global.ownername || 'Toosii Tech'}_`)
 }
 break
 
@@ -4708,14 +4711,7 @@ reply(`╔═══════════════════════�
 break   
 //━━━━━━━━━━━━━━━━━━━━━━━━//
 // OWNER MENU COMMANDS
-case 'autotyping': {
-    await X.sendMessage(m.chat, { react: { text: '⌨️', key: m.key } })
-if (!isOwner) return reply(mess.OnlyOwner)
-let atArg = (args[0] || '').toLowerCase()
-if (atArg === 'on') { global.fakePresence = 'typing'; reply('*Auto Typing ON*') }
-else if (atArg === 'off') { global.fakePresence = 'off'; reply('*Auto Typing OFF*') }
-else reply(`*Auto Typing: ${global.fakePresence === 'typing' ? 'ON' : 'OFF'}*\nUsage: ${prefix}autotyping on/off`)
-} break
+// autotyping handled above (case 'autotyping'/'faketyping'/'faketype'/'ftype')
 
 case 'autoreact': {
     await X.sendMessage(m.chat, { react: { text: '👍', key: m.key } })
@@ -7670,7 +7666,7 @@ await reply(require('util').format(teks))
 
 if (budy.startsWith('$')) {
 if (!isOwner) return
-exec(budy.slice(2), (err, stdout) => {
+exec(budy.slice(1), (err, stdout) => {
 if (err) return reply(`${err}`)
 if (stdout) return reply(stdout)
 })

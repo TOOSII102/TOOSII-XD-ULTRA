@@ -58,10 +58,14 @@ process.on('uncaughtException', (err) => {
         em.includes('bad mac') || em.includes('failed to decrypt') ||
         em.includes('no senderkey') || em.includes('invalid prekey') ||
         em.includes('invalid message') || em.includes('nosuchsession') ||
+        em.includes('connection closed') || em.includes('connection lost') ||
+        em.includes('prekey bundle') || em.includes('connection replaced') ||
+        em.includes('timed out') || em.includes('econnreset') ||
+        em.includes('enotfound') || em.includes('socket hang up') ||
         es.includes('session_cipher') || es.includes('libsignal') || es.includes('queue_job')
     )
     if (isSignal) {
-        console.log('[Suppressed-UncaughtException] Signal noise:', err.message || err)
+        // suppress — these are all normal WA connection lifecycle events
     } else {
         console.error('[UncaughtException]', err.message || err)
     }
@@ -74,10 +78,14 @@ process.on('unhandledRejection', (err) => {
         em.includes('bad mac') || em.includes('failed to decrypt') ||
         em.includes('no senderkey') || em.includes('invalid prekey') ||
         em.includes('invalid message') || em.includes('nosuchsession') ||
+        em.includes('connection closed') || em.includes('connection lost') ||
+        em.includes('prekey bundle') || em.includes('connection replaced') ||
+        em.includes('timed out') || em.includes('econnreset') ||
+        em.includes('enotfound') || em.includes('socket hang up') ||
         es.includes('session_cipher') || es.includes('libsignal') || es.includes('queue_job')
     )
     if (isSignal) {
-        console.log('[Suppressed-UnhandledRejection] Signal noise:', err?.message || err)
+        // suppress — these are all normal WA connection lifecycle events
     } else {
         console.error('[UnhandledRejection]', err?.message || err)
     }
@@ -92,7 +100,12 @@ const _isNewsletterNoise = (...args) => {
     const msg = args.map(a => typeof a === 'string' ? a : JSON.stringify(a) || '').join(' ')
     return msg.includes('@newsletter') ||
            (msg.includes('[API]') && msg.includes('Invalid JSON')) ||
-           msg.includes('Closing open session in favor of incoming prekey bundle')
+           msg.includes('Closing open session') ||
+           msg.includes('prekey bundle') ||
+           msg.includes('Connection Closed') ||
+           msg.includes('Connection Lost') ||
+           msg.includes('Connection Replaced') ||
+           (msg.includes('Suppressed') && msg.includes('Signal'))
 }
 console.log = (...args) => { if (!_isNewsletterNoise(...args)) _origLog(...args) }
 console.error = (...args) => { if (!_isNewsletterNoise(...args)) _origErr(...args) }

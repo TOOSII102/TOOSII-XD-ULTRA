@@ -135,6 +135,15 @@ function _getPhone(phoneOrJid) {
 function _ps(phoneOrJid) {
     const _p = _getPhone(phoneOrJid)
     if (!global.phoneSettings[_p]) {
+        // Try loading from file first
+        try {
+            const _f = _stateFile(_p)
+            if (fs.existsSync(_f)) {
+                global.phoneSettings[_p] = JSON.parse(fs.readFileSync(_f, 'utf8'))
+                return global.phoneSettings[_p]
+            }
+        } catch {}
+        // No saved state — use defaults (autoLike + autoView ON for new numbers)
         global.phoneSettings[_p] = {
             autoViewStatus: true,
             autoLikeStatus: true,
@@ -191,8 +200,8 @@ function _savePhoneState(phoneOrJid) {
         const _f = _stateFile(_p)
         const _dir = path.dirname(_f)
         if (!fs.existsSync(_dir)) fs.mkdirSync(_dir, { recursive: true })
-        // Save current globals into this phone's state
-        global.phoneSettings[_p] = {
+        // Save current globals into this phone's per-phone settings AND file
+        const _state = {
             autoViewStatus: global.autoViewStatus,
             autoLikeStatus: global.autoLikeStatus,
             autoLikeEmoji:  global.autoLikeEmoji,
@@ -206,7 +215,10 @@ function _savePhoneState(phoneOrJid) {
             muslimPrayer:       global.muslimPrayer,
             christianDevotion:  global.christianDevotion,
         }
-        fs.writeFileSync(_f, JSON.stringify(global.phoneSettings[_p], null, 2))
+        // Update in-memory per-phone settings immediately
+        global.phoneSettings[_p] = _state
+        // Persist to file
+        fs.writeFileSync(_f, JSON.stringify(_state, null, 2))
     } catch(e) {
         console.log(`[saveState] error:`, e.message)
     }

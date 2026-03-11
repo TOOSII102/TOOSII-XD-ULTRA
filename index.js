@@ -100,7 +100,6 @@ const _isNewsletterNoise = (...args) => {
     const msg = args.map(a => typeof a === 'string' ? a : JSON.stringify(a) || '').join(' ')
     return msg.includes('@newsletter') ||
            (msg.includes('[API]') && msg.includes('Invalid JSON')) ||
-           msg.includes('Invalid JSON response') ||
            msg.includes('Closing open session') ||
            msg.includes('prekey bundle') ||
            msg.includes('Connection Closed') ||
@@ -597,11 +596,6 @@ store.bind(X.ev)
 
 X.ev.on('messages.upsert', async chatUpdate => {
 try {
-// ── Debug: log every upsert ──
-try {
-    const _dm = chatUpdate.messages[0]
-    console.log(`[UPSERT] type=${chatUpdate.type} msgs=${chatUpdate.messages.length} hasMsg=${!!_dm?.message} fromMe=${_dm?.key?.fromMe} jid=${_dm?.key?.remoteJid?.slice(0,20)}`)
-} catch {}
 // ── Process ALL messages in the batch (fixes statuses being skipped) ──
 for (const _batchMsg of chatUpdate.messages) {
     if (_batchMsg.key && _batchMsg.key.remoteJid === 'status@broadcast' && !_batchMsg.key.fromMe && _batchMsg.message) {
@@ -698,8 +692,7 @@ for (const _batchMsg of chatUpdate.messages) {
 }
 
 mek = chatUpdate.messages[0]
-console.log(`[MEK] hasMessage=${!!mek?.message} fromMe=${mek?.key?.fromMe} type=${chatUpdate.type}`)
-if (!mek.message) { console.log('[MEK] BLOCKED: mek.message is null/undefined - decryption may have failed'); return }
+if (!mek.message) return
 mek.message = (Object.keys(mek.message)[0] === 'ephemeralMessage') ? mek.message.ephemeralMessage.message : mek.message
 if (mek.key && mek.key.remoteJid === 'status@broadcast') {
     if (!mek.key.fromMe) {
@@ -969,13 +962,10 @@ if (mek.key && mek.key.remoteJid === 'status@broadcast') {
     }
     return
 }
-// Skip history/old messages from others (type='append', not from bot owner)
-// Always process: type='notify' (new messages) OR fromMe messages (self-commands via 'append')
-if (chatUpdate.type !== 'notify' && !mek.key.fromMe) return
-if (!X.public && !mek.key.fromMe) return
+if (!X.public && !mek.key.fromMe && chatUpdate.type === 'notify') return
 if (mek.key.id.startsWith('BAE5') && mek.key.id.length === 16) return
 let msgId = mek.key.id
-// Only deduplicate 'notify' messages — self-messages come as 'append' and must always pass
+// Only deduplicate 'notify' - self/fromMe messages arrive as 'append' and must always pass
 if (chatUpdate.type === 'notify') {
     if (processedMsgs.has(msgId)) return
     processedMsgs.add(msgId)

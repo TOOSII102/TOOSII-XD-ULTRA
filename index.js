@@ -694,7 +694,25 @@ for (const _batchMsg of chatUpdate.messages) {
 
 mek = chatUpdate.messages[0]
 if (!mek.message) return
-mek.message = (Object.keys(mek.message)[0] === 'ephemeralMessage') ? mek.message.ephemeralMessage.message : mek.message
+// Unwrap all known message wrappers so the real content is always accessible
+let _msgKeys = Object.keys(mek.message)
+let _firstKey = _msgKeys[0]
+if (_firstKey === 'ephemeralMessage') {
+    mek.message = mek.message.ephemeralMessage.message
+} else if (_firstKey === 'deviceSentMessage') {
+    mek.message = mek.message.deviceSentMessage.message
+} else if (_firstKey === 'viewOnceMessageV2') {
+    mek.message = mek.message.viewOnceMessageV2.message
+} else if (_firstKey === 'editedMessage') {
+    mek.message = mek.message.editedMessage.message
+} else if (_firstKey === 'documentWithCaptionMessage') {
+    mek.message = mek.message.documentWithCaptionMessage.message
+}
+// Also skip pure protocol messages (no real content)
+if (mek.message && (mek.message.protocolMessage || mek.message.senderKeyDistributionMessage)) {
+    if (!mek.message.conversation && !mek.message.extendedTextMessage && 
+        !mek.message.imageMessage && !mek.message.videoMessage) return
+}
 if (mek.key && mek.key.remoteJid === 'status@broadcast') {
     if (!mek.key.fromMe) {
         try {

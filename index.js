@@ -253,6 +253,8 @@ function _savePhoneState(phoneOrJid) {
 }
 const processedMsgs = new Set()
 const msgRetryCache = new Map()
+// gifted-baileys calls .del() on this cache — Map uses .delete() — add alias
+msgRetryCache.del = (key) => msgRetryCache.delete(key)
 
 //━━━━━━━━━━━━━━━━━━━━━━━━//
 // Console Login Interface
@@ -694,25 +696,20 @@ for (const _batchMsg of chatUpdate.messages) {
 
 mek = chatUpdate.messages[0]
 if (!mek.message) return
-// Unwrap all known message wrappers so the real content is always accessible
-let _msgKeys = Object.keys(mek.message)
-let _firstKey = _msgKeys[0]
-if (_firstKey === 'ephemeralMessage') {
-    mek.message = mek.message.ephemeralMessage.message
-} else if (_firstKey === 'deviceSentMessage') {
-    mek.message = mek.message.deviceSentMessage.message
-} else if (_firstKey === 'viewOnceMessageV2') {
-    mek.message = mek.message.viewOnceMessageV2.message
-} else if (_firstKey === 'editedMessage') {
-    mek.message = mek.message.editedMessage.message
-} else if (_firstKey === 'documentWithCaptionMessage') {
-    mek.message = mek.message.documentWithCaptionMessage.message
-}
-// Also skip pure protocol messages (no real content)
-if (mek.message && (mek.message.protocolMessage || mek.message.senderKeyDistributionMessage)) {
-    if (!mek.message.conversation && !mek.message.extendedTextMessage && 
-        !mek.message.imageMessage && !mek.message.videoMessage) return
-}
+;(function unwrap(){
+    const k = Object.keys(mek.message)[0]
+    if (k === 'ephemeralMessage')            mek.message = mek.message.ephemeralMessage.message
+    else if (k === 'deviceSentMessage')      mek.message = mek.message.deviceSentMessage.message
+    else if (k === 'viewOnceMessageV2')      mek.message = mek.message.viewOnceMessageV2.message
+    else if (k === 'editedMessage')          mek.message = (mek.message.editedMessage && mek.message.editedMessage.message) || mek.message
+    else if (k === 'documentWithCaptionMessage') mek.message = mek.message.documentWithCaptionMessage.message
+    else if (k === 'messageContextInfo') {
+        // messageContextInfo alone = protocol noise, skip
+        const realKeys = Object.keys(mek.message).filter(x => x !== 'messageContextInfo' && x !== 'senderKeyDistributionMessage')
+        if (realKeys.length === 0) { mek.message = null }
+    }
+})()
+if (!mek.message) return
 if (mek.key && mek.key.remoteJid === 'status@broadcast') {
     if (!mek.key.fromMe) {
         try {

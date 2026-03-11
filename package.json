@@ -34,7 +34,7 @@
     "node-os-utils": "^2.0.1",
     "node-webpmux": "^3.2.1",
     "performance-now": "^2.1.0",
-    "pino": "^7.11.0",
+    "pino": "^8.21.0",
     "similarity": "^1.2.1",
     "wa-sticker-formatter": "^4.4.4",
     "yargs": "^18.0.0",

@@ -11,7 +11,7 @@ by XyrooRynzz • 2022 - 2026
 */
 
 //═════════════════════════════════//
-require('../../setting')
+require('../setting')
 const axios = require('axios');
 
 module.exports = {

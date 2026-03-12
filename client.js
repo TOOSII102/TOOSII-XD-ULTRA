@@ -928,6 +928,7 @@ const textmakerMenu = require('./library/menulist/textmakermenu');
 
   let infoBot = `╔══════════════════════════╗
 ║   ⚡ *TOOSII-XD ULTRA*
+║   _WhatsApp Multi-Device Bot_
 ╚══════════════════════════╝
 
   👋 Hey *${pushname}*! ${waktuucapan}
@@ -1543,7 +1544,8 @@ case 'owner':
 case 'creator': {
     await X.sendMessage(m.chat, { react: { text: '👑', key: m.key } })
     await reply(`╔══════════════════════════╗
-║  👑 *BOT CREATOR*
+║   ⚡ *TOOSII-XD ULTRA*
+║   _WhatsApp Multi-Device Bot_
 ╚══════════════════════════╝
 
   ├ 🧑‍💻 *Name*     › ${global.ownername || 'Toosii Tech'}
@@ -1551,6 +1553,9 @@ case 'creator': {
   ├ ✈️  *Telegram* › @toosiitech
   ├ 🤖 *Bot*      › ${global.botname} v${global.botver}
   └ 🔑 *Session*  › ${global.sessionUrl}
+
+┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+_⚡ Powered by Toosii Tech — wa.me/254748340864_
 
 _👇 Tap the contact card below to chat with owner_`)
     const namaown = global.ownername || 'Toosii Tech'
@@ -1569,7 +1574,8 @@ case 'infobot':
 case 'botinfo': {
     await X.sendMessage(m.chat, { react: { text: '🤖', key: m.key } })
   const botInfo = `╔══════════════════════════╗
-║  🤖 *BOT INFO*
+║   ⚡ *TOOSII-XD ULTRA*
+║   _WhatsApp Multi-Device Bot_
 ╚══════════════════════════╝
 
   ├ 📛 *Name*     › ${botname}
@@ -1579,12 +1585,12 @@ case 'botinfo': {
   ├ ⏱️  *Uptime*   › ${runtime(process.uptime())}
   ├ 🔒 *Mode*     › ${X.public ? 'Public' : 'Private'}
   ├ 🔤 *Prefix*   › ${global.botPrefix || 'Multi-prefix'}
-
   ├ 📞 *Contact*  › ${global.ownerNumber}
   ├ ✈️  *Telegram* › @toosiitech
   └ 🔑 *Session*  › ${global.sessionUrl}
 
-_⚡ Powered by ${global.ownername || 'Toosii Tech'}_\``
+┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+_⚡ Powered by Toosii Tech — wa.me/254748340864_\``
   reply(botInfo)
 }
 break
@@ -7588,12 +7594,14 @@ const repoInfo =
   └ 🔄 *Updated*  › ${new Date(data.updated_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}
 
   🔗 ${data.html_url}
-  🔑 ${global.sessionUrl}
 
 ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
   💛 *Enjoyed the bot?*
   ⭐ Star & 🍴 Fork — every click counts!
-┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄`
+
+  🔑 *Session* › ${global.sessionUrl}
+┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+_⚡ Powered by Toosii Tech — wa.me/254748340864_`
 reply(repoInfo)
 } catch(e) { reply('❌ Error fetching repo: ' + e.message) }
 } break

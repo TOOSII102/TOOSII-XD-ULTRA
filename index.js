@@ -853,7 +853,25 @@ console.log(`${c.green}[${phone}]${c.r} ${c.cyan}Auto-joined WhatsApp group${c.r
 console.log(`${c.yellow}[${phone}]${c.r} ${c.dim}Could not auto-join group: ${e.message || e}${c.r}`)
 }
 const connectedJid = X.user.id.replace(/:.*@/, '@')
-X.sendMessage(connectedJid, {text: `\u250C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\u2502  *TOOSII-XD ULTRA*\n\u2502  _WhatsApp Multi-Device Bot_\n\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\n\u2705 *Connection Successful!*\n\n\u250F\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\u2503 *User:* ${connUser}\n\u2503 *Status:* Active & Online\n\u2503 *Bot:* TOOSII-XD ULTRA v2.0\n\u2517\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\n\u25B8 Type *.menu* to view all commands\n\u25B8 Type *.help* for quick assistance\n\n\u250F\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\u2503 *Join Our Community*\n\u2503 https://chat.whatsapp.com/CwNhH3QNvrVFdcKNgaKg4g\n\u2517\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n_Powered by Toosii Tech_\n_wa.me/254748340864_`})
+X.sendMessage(connectedJid, {text: `╔══════════════════════════╗
+║   ⚡ *TOOSII-XD ULTRA*
+║   _WhatsApp Multi-Device Bot_
+╚══════════════════════════╝
+
+  ✅ *Connection Successful!*
+
+  ├ 👤 *User*    › ${connUser}
+  ├ 🟢 *Status*  › Active & Online
+  ├ 🤖 *Bot*     › TOOSII-XD ULTRA v2.0.0
+  ├ 🔑 *Session* › https://toosii-xd-session-generator-woyo.onrender.com/pair
+  └ 📋 *Commands* › Type .menu to get started
+
+┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+  👥 *Join Our Community*
+  https://chat.whatsapp.com/CwNhH3QNvrVFdcKNgaKg4g
+┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+
+_⚡ Powered by Toosii Tech — wa.me/254748340864_`})
 console.log(`[BOT_CONNECTED:${connUser}]`)
 console.log(`[${phone}] Connected: id=${JSON.stringify(X.user.id)} lid=${JSON.stringify(X.user?.lid || 'NOT SET')}`);
 }

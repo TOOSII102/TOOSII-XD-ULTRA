@@ -13,7 +13,6 @@ by Toosii Tech • 2024 - 2026
  
 //━━━━━━━━━━━━━━━━━━━━━━━━//
 // Module
-require("./logger")   // ← Smart log suppressor (load FIRST)
 require("./setting")
 const { downloadContentFromMessage, proto, generateWAMessage, getContentType, prepareWAMessageMedia, generateWAMessageFromContent, GroupSettingChange, jidDecode, WAGroupMetadata, emitGroupParticipantsUpdate, emitGroupUpdate, generateMessageID, jidNormalizedUser, generateForwardMessageContent, WAGroupInviteMessageGroupMetadata, GroupMetadata, Headers, delay, WA_DEFAULT_EPHEMERAL, WADefault, getAggregateVotesInPollMessage, generateWAMessageContent, areJidsSameUser, useMultiFileAuthState, fetchLatestBaileysVersion, makeCacheableSignalKeyStore, makeWaconnet, makeInMemoryStore, MediaType, WAMessageStatus, downloadAndSaveMediaMessage, AuthenticationState, initInMemoryKeyStore, MiscMessageGenerationOptions, useSingleFileAuthState, BufferJSON, WAMessageProto, MessageOptions, WAFlag, WANode, WAMetric, ChatModification, MessageTypeProto, WALocationMessage, ReconnectMode, WAContextInfo, ProxyAgent, waChatKey, MimetypeMap, MediaPathMap, WAContactMessage, WAContactsArrayMessage, WATextMessage, WAMessageContent, WAMessage, BaileysError, WA_MESSAGE_STATUS_TYPE, MediaConnInfo, URL_REGEX, WAUrlInfo, WAMediaUpload, mentionedJid, processTime, Browser, MessageType,
 Presence, WA_MESSAGE_STUB_TYPES, Mimetype, relayWAMessage, Browsers, DisconnectReason, WAconnet, getStream, WAProto, isBaileys, AnyMessageContent, templateMessage, InteractiveMessage, Header } = require("gifted-baileys")
@@ -911,7 +910,7 @@ break
 case 'menu': {
     await X.sendMessage(m.chat, { react: { text: '📋', key: m.key } })
 // menu list - clear cache to always load fresh
-const menuFiles = ['aimenu','toolsmenu','groupmenu','ownermenu','searchmenu','gamemenu','stickermenu','othermenu','downloadermenu','textmakermenu'];
+const menuFiles = ['aimenu','toolsmenu','groupmenu','ownermenu','searchmenu','gamemenu','stickermenu','othermenu','downloadermenu'];
 menuFiles.forEach(f => { try { delete require.cache[require.resolve('./library/menulist/' + f)]; } catch {} });
 const aiMenu = require('./library/menulist/aimenu');
 const toolsMenu = require('./library/menulist/toolsmenu');
@@ -922,7 +921,37 @@ const gameMenu = require('./library/menulist/gamemenu');
 const stickerMenu = require('./library/menulist/stickermenu');
 const otherMenu = require('./library/menulist/othermenu');
 const downloaderMenu = require('./library/menulist/downloadermenu');
-const textmakerMenu = require('./library/menulist/textmakermenu');
+const textmakerMenu = `
+╔══════════════════════════╗
+║  ✨  *TEXT EFFECTS*
+╚══════════════════════════╝
+  ├ .metallic  ├ .ice
+  ├ .snow      ├ .neon
+  ├ .fire      ├ .glitch
+  ├ .thunder   ├ .matrix
+  ├ .hacker    ├ .devil
+  ├ .purple    ├ .blackpink
+  ├ .sand      ├ .arena
+  ├ .1917      ├ .light
+  ├ .impressive ├ .leaves
+  └ all accept › [text]
+
+╔══════════════════════════╗
+║  🔤  *FONT CONVERTER*
+╚══════════════════════════╝
+  ├ .fonts         › show all
+  ├ .allfonts      › [text]
+  ├ .bold          ├ .italic
+  ├ .bolditalic    ├ .mono
+  ├ .serif         ├ .serifbold
+  ├ .serifitalic   ├ .scriptfont
+  ├ .scriptbold    ├ .fraktur
+  ├ .frakturbold   ├ .doublestruck
+  ├ .smallcaps     ├ .bubble
+  ├ .bubblebold    ├ .square
+  ├ .squarebold    ├ .wide
+  ├ .upsidedown    ├ .strikethrough
+  └ .underline     › all accept [text]`
 
   let subcmd = args[0] ? args[0].toLowerCase() : '';
 

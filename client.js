@@ -136,14 +136,14 @@ module.exports = async (X, m, chatUpdate, store) => {
 try {
 const from = m.key.remoteJid
 var body = (m.mtype === 'interactiveResponseMessage') ? JSON.parse(m.message.interactiveResponseMessage.nativeFlowResponseMessage.paramsJson).id : (m.mtype === 'conversation') ? m.message.conversation : (m.mtype == 'imageMessage') ? m.message.imageMessage.caption : (m.mtype == 'videoMessage') ? m.message.videoMessage.caption : (m.mtype == 'extendedTextMessage') ? m.message.extendedTextMessage.text : (m.mtype == 'buttonsResponseMessage') ? m.message.buttonsResponseMessage.selectedButtonId : (m.mtype == 'listResponseMessage') ? m.message.listResponseMessage.singleSelectReply.selectedRowId : (m.mtype == 'templateButtonReplyMessage') ? m.message.templateButtonReplyMessage.selectedId : (m.mtype == 'messageContextInfo') ? (m.message.buttonsResponseMessage?.selectedButtonId || m.message.listResponseMessage?.singleSelectReply?.selectedRowId || m.text) : ""
-body = body || m.text || m.body || ""
+body = body || m.body || m.text || ""
 //━━━━━━━━━━━━━━━━━━━━━━━━//
 // library
 const { smsg, fetchJson, getBuffer, fetchBuffer, getGroupAdmins, TelegraPh, isUrl, hitungmundur, sleep, clockString, checkBandwidth, runtime, tanggal, getRandom } = require('./library/lib/myfunc')
 
 //━━━━━━━━━━━━━━━━━━━━━━━━//
 // Main Setting (Admin And Prefix ) 
-const budy = (typeof m.text === 'string' && m.text) ? m.text : body;
+const budy = body || (typeof m.text === 'string' ? m.text : '');
 const mess = global.mess || {};
 const prefixRegex = /^[°zZ#$@*+,.?=''():√%!¢£¥€π¤ΠΦ_&><`™©®Δ^βα~¦|/\\©^]/;
 const prefix = global.botPrefix ? global.botPrefix : (prefixRegex.test(budy) ? budy.match(prefixRegex)[0] : '.');
@@ -7813,7 +7813,7 @@ if (!isCmd && budy && !m.key.fromMe && !(global.chatBoAIChats && global.chatBoAI
   // Only report real unexpected errors to owner
   try {
     let shortStack = errStack.length > 1500 ? errStack.slice(0, 1500) + '\n...(truncated)' : errStack
-    await X.sendMessage(`${owner}@s.whatsapp.net`, {
+    await X.sendMessage(`${global.owner[0]}@s.whatsapp.net`, {
       text: `⚠️ *ERROR REPORT*\n\n📌 *Message:* ${err.message || '-'}\n📂 *Stack:*\n${shortStack}`,
       contextInfo: { forwardingScore: 9999999, isForwarded: true }
     }, { quoted: m })

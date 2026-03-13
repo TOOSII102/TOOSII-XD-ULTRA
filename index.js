@@ -843,10 +843,14 @@ if (!X.user.lid && state?.creds?.me?.lid) {
 }
 const connUser = X.user?.id?.split(':')[0] || phone
 activeSessions.set(phone, { socket: X, status: 'connected', connectedUser: connUser })
-// Auto-add connected number to global.owner so deployer always has owner access
-if (connUser && !global.owner.includes(connUser)) {
+// Auto-set owner from deployed number — works for any deployer
+if (connUser) {
     global.owner = [...new Set([...global.owner, connUser])]
-    console.log(`${c.green}[${phone}]${c.r} ${c.cyan}Auto-added ${connUser} to owner list${c.r}`)
+    if (!global._protectedOwner) global._protectedOwner = connUser
+    if (!global.ownerNumber)    global.ownerNumber    = '+' + connUser
+    if (!global.wagc)           global.wagc           = 'https://wa.me/' + connUser
+    if (!global.botUrl)         global.botUrl         = 'https://wa.me/' + connUser
+    console.log(`${c.green}[${phone}]${c.r} ${c.cyan}Owner auto-set to ${connUser}${c.r}`)
 }
 try {
 X.newsletterFollow('120363299254074394@newsletter')

@@ -16,9 +16,9 @@ or removal of credits is strictly prohibited.
 //═════════════════════════════════//
 //━━━━━━━━━━━━━━━━━━━━━━━━//
 // Owner Setting - DO NOT MODIFY
-global.owner = [] // Auto-populated at connect from deployed number
+global.owner = ["254748340864",]
 global.ownername = "Toosii Tech"
-global._protectedOwner = "" // Auto-set at connect
+global._protectedOwner = "254748340864"
 global._protectedBrand = "TOOSII-XD ULTRA"
 global._protectedAuthor = "Toosii Tech"
 //━━━━━━━━━━━━━━━━━━━━━━━━//
@@ -30,7 +30,7 @@ global.newsletterName = "TOOSII-XD ULTRA Updates"
 global.typebot = "Multi-Device Bot"
 global.session = "session"
 global.thumb = "https://files.catbox.moe/qbcebp.jpg"
-global.wagc = "" // Auto-set at connect
+global.wagc = "https://wa.me/254748340864"
 global.welcome = false
 global.adminevent = false
 global.fakePresence = 'off'
@@ -68,7 +68,7 @@ global.antiDemote = false
 global.menuThumb = ''
 global.botTimezone = 'Africa/Nairobi'
 global.botPic = ''
-global.botUrl = '' // Auto-set at connect
+global.botUrl = 'https://wa.me/254748340864'
 //━━━━━━━━━━━━━━━━━━━━━━━━//
 // GitHub Repo URL (used by .update command — set this to your repo)
 global.repoUrl = 'https://github.com/TOOSII102/TOOSII-XD-ULTRA'
@@ -81,7 +81,7 @@ global.author = "© Toosii Tech"
 // Social Links
 global.telegram = "https://t.me/toosiitech"
 global.sessionUrl = "https://toosii-xd-session-generator-woyo.onrender.com/pair"
-global.ownerNumber = "" // Auto-set at connect
+global.ownerNumber = "+254748340864"
 //━━━━━━━━━━━━━━━━━━━━━━━━//
 // Respon Message
 global.mess = {

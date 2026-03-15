@@ -1022,6 +1022,9 @@ const textmakerMenu = `
 
   let fullMenu = `${infoBot}\n${menu}`;
 
+  let _thumbBuf = null;
+  try { _thumbBuf = fs.readFileSync(path.join(__dirname, 'media', 'thumb.png')); } catch {}
+
   await X.sendMessage(
     m.chat,
     {
@@ -1033,8 +1036,8 @@ const textmakerMenu = `
         externalAdReply: {
           title: "TOOSII-XD ULTRA",
           body: "Toosii Tech",
-          thumbnail: fs.readFileSync('./media/thumb.png'),
-          sourceUrl: wagc,
+          thumbnail: _thumbBuf || undefined,
+          sourceUrl: global.wagc || global.sessionUrl || '',
           mediaType: 1,
           renderLargerThumbnail: true
         }

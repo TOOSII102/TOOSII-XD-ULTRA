@@ -100,8 +100,8 @@ Three ways to connect your bot:
 
 **`.env` quick setup:**
 ```env
-SESSION_ID=TOOSII~eyJub2lzZUtleS...
-PORT=3000
+SESSION_ID=TOOSII~eyJub2lzZUtleS...   # from Session Generator
+OWNER_NUMBER=254748340864               # your WhatsApp number (no + or spaces)
 ```
 
 ---
@@ -252,10 +252,18 @@ PORT=3000
 
 ## ⚙️ Configuration
 
-Edit `setting.js` to personalise your bot:
+Set these in your **`.env`** file — no code editing needed:
+
+```env
+SESSION_ID=TOOSII~eyJub2lzZUtleS...   # from Session Generator
+OWNER_NUMBER=254748340864               # your WhatsApp number (no + or spaces)
+```
+
+The bot reads your number on startup and grants you owner access automatically.
+
+To further customise display names, timezone, sticker info, etc., edit `setting.js`:
 
 ```javascript
-global.owner       = ["254748340864"]     // Your phone number
 global.botname     = "TOOSII-XD ULTRA"   // Bot display name
 global.ownername   = "Toosii Tech"       // Your name
 global.botTimezone = "Africa/Nairobi"    // Your timezone

@@ -229,7 +229,7 @@ const isOwner = (
 
 const isGroup = m.isGroup
 const pushname = m.pushName || `${senderNumber}`
-const isBot = botNumber.includes(senderNumber)
+const isBot = botNumber.split('@')[0].split(':')[0] === senderNumber
 const quoted = m.quoted ? m.quoted : m
 const mime = (quoted.msg || quoted).mimetype || ''
 const groupMetadata = isGroup ? await X.groupMetadata(from).catch(e => null) : null

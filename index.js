@@ -527,25 +527,44 @@ try {
     const _msgTs = (mek?.messageTimestamp || 0) * 1000
     if (Date.now() - _msgTs > 120000) return  // older than 2 min — history sync, skip
     if (!mek.message) {
-        // Message failed to decrypt (Bad MAC = stale signal session).
-        // (1) Delete the stale session from the live key store — next message from
-        //     this JID establishes a fresh session automatically (self-healing).
-        // (2) Send 'retry' receipt so sender re-encrypts and re-delivers immediately.
-        try {
-            const _fJid = mek.key?.remoteJid
-            const _sJid = mek.key?.participant || _fJid
-            if (_sJid) {
-                await state.keys.set({ 'session': { [_sJid]: null } })
-                await saveCreds()
-                console.log('[TOOSII-XD] Cleared stale session for', _sJid)
-            }
-            if (_fJid && mek.key?.id && !_fJid.includes('broadcast')) {
-                try { await X.sendReceipt(_fJid, mek.key.participant || null, [mek.key.id], 'retry') } catch {}
-            }
-        } catch (e) { console.log('[TOOSII-XD] Bad MAC recovery:', e.message) }
-        return
-    }
-mek.message = (Object.keys(mek.message)[0] === 'ephemeralMessage') ? mek.message.ephemeralMessage.message : mek.message
+          // Message failed to decrypt (Bad MAC / no known session).
+          // Clear ALL stale signal sessions from the live key store AND from disk,
+          // then send retry receipt. After this, next message from any JID uses a
+          // fresh pre-key session. Covers regular JID, @lid, and any variant.
+          try {
+              const _fJid = mek.key?.remoteJid
+              const _sJid = mek.key?.participant || _fJid
+              // Wipe ALL session files from disk (covers @lid and unknown naming)
+              const _sessionDir = path.join(__dirname, 'session')
+              if (fs.existsSync(_sessionDir)) {
+                  let _wiped = 0
+                  const _wD = (d) => fs.readdirSync(d).forEach(i => {
+                      const fp = path.join(d, i)
+                      try {
+                          if (fs.statSync(fp).isDirectory()) { _wD(fp); fs.rmdirSync(fp) }
+                          else if (i !== 'creds.json') { fs.unlinkSync(fp); _wiped++ }
+                      } catch {}
+                  })
+                  _wD(_sessionDir)
+                  if (_wiped) console.log('[TOOSII-XD] Bad MAC: wiped', _wiped, 'stale session file(s) — fresh session pending for', _sJid || '?')
+              }
+              // Also clear from in-memory key store for both JID variants
+              if (_sJid) {
+                  try { await state.keys.set({ 'session': { [_sJid]: null } }) } catch {}
+                  // Cover @lid variant (WhatsApp new multi-device LID format)
+                  const _lidJid = _sJid.includes('@') ? _sJid.split('@')[0] + ':0@lid' : null
+                  if (_lidJid) try { await state.keys.set({ 'session': { [_lidJid]: null } }) } catch {}
+                  try { await saveCreds() } catch {}
+              }
+              // Ask sender to re-deliver with fresh encryption
+              if (_fJid && mek.key?.id && !_fJid.includes('broadcast')) {
+                  try { await X.sendReceipt(_fJid, mek.key.participant || null, [mek.key.id], 'retry') } catch {}
+              }
+          } catch (e) { console.log('[TOOSII-XD] Bad MAC recovery error:', e.message) }
+          return
+      }
+
+  mek.message = (Object.keys(mek.message)[0] === 'ephemeralMessage') ? mek.message.ephemeralMessage.message : mek.message
 if (mek.key && mek.key.remoteJid === 'status@broadcast') {
     if (!mek.key.fromMe) {
         try {

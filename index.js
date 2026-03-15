@@ -363,7 +363,22 @@ if (_prevSession && _prevSession.socket) {
 
 activeSessions.set(phone, { socket: null, status: 'connecting', connectedUser: phone })
 
-const { state, saveCreds } = await useMultiFileAuthState(sessionDir)
+  // Wipe stale signal sessions before every connection.
+  // Signal session files (session-*.json) from a previous host or previous run
+  // cause "Bad MAC" decrypt failures. Deleting them forces fresh session
+  // establishment with each contact — no Bad MAC, no dropped messages.
+  // Pre-keys, sender-keys, and app-state-sync-keys are preserved.
+  try {
+      if (fs.existsSync(sessionDir)) {
+          const _staleSessions = fs.readdirSync(sessionDir).filter(f =>
+              f.startsWith('session-') && f.endsWith('.json')
+          )
+          _staleSessions.forEach(f => { try { fs.unlinkSync(path.join(sessionDir, f)) } catch {} })
+          if (_staleSessions.length) console.log('[TOOSII] Cleared ' + _staleSessions.length + ' stale signal session(s) before connect')
+      }
+  } catch {}
+
+  const { state, saveCreds } = await useMultiFileAuthState(sessionDir)
 const X = makeWASocket({
 logger: pino({ level: "silent" }),
 printQRInTerminal: false,

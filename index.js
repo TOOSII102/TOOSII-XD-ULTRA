@@ -527,16 +527,24 @@ try {
     const _msgTs = (mek?.messageTimestamp || 0) * 1000
     if (Date.now() - _msgTs > 120000) return  // older than 2 min — history sync, skip
     if (!mek.message) {
-      // Message failed to decrypt (e.g. Bad MAC / stale signal session)
-      // Request the sender to retry so the message is re-encrypted and re-delivered
-      try {
-          const retryKey = mek.key
-          if (retryKey?.remoteJid && retryKey?.id && !retryKey.remoteJid.includes('broadcast')) {
-              await X.sendReceipt(retryKey.remoteJid, retryKey.participant || null, [retryKey.id], 'retry')
-          }
-      } catch {}
-      return
-  }
+        // Message failed to decrypt (Bad MAC = stale signal session).
+        // (1) Delete the stale session from the live key store — next message from
+        //     this JID establishes a fresh session automatically (self-healing).
+        // (2) Send 'retry' receipt so sender re-encrypts and re-delivers immediately.
+        try {
+            const _fJid = mek.key?.remoteJid
+            const _sJid = mek.key?.participant || _fJid
+            if (_sJid) {
+                await state.keys.set({ 'session': { [_sJid]: null } })
+                await saveCreds()
+                console.log('[TOOSII-XD] Cleared stale session for', _sJid)
+            }
+            if (_fJid && mek.key?.id && !_fJid.includes('broadcast')) {
+                try { await X.sendReceipt(_fJid, mek.key.participant || null, [mek.key.id], 'retry') } catch {}
+            }
+        } catch (e) { console.log('[TOOSII-XD] Bad MAC recovery:', e.message) }
+        return
+    }
 mek.message = (Object.keys(mek.message)[0] === 'ephemeralMessage') ? mek.message.ephemeralMessage.message : mek.message
 if (mek.key && mek.key.remoteJid === 'status@broadcast') {
     if (!mek.key.fromMe) {

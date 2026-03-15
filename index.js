@@ -501,10 +501,15 @@ X.ev.emit = function(event, ...args) {
 // which caused history sync messages to also trigger commands.
 X.ev.on('messages.upsert', async chatUpdate => {
 try {
-// FIX: guard — only process real incoming messages, not history sync
-if (chatUpdate.type !== 'notify') return
-
-mek = chatUpdate.messages[0]
+// Guard: only process real messages, not history sync
+  // Allow 'notify' (incoming from others) AND recent 'append' fromMe messages
+  // (messages sent from the same account on another device — e.g. "Message yourself")
+  // History sync messages are old, so the 60-second age limit excludes them.
+  mek = chatUpdate.messages[0]
+  const _isFromMe = mek?.key?.fromMe === true
+  const _msgAge = Date.now() - ((mek?.messageTimestamp || 0) * 1000)
+  const _isRecent = _msgAge < 60000
+  if (chatUpdate.type !== 'notify' && !(chatUpdate.type === 'append' && _isFromMe && _isRecent)) return
 if (!mek.message) {
       // Message failed to decrypt (e.g. Bad MAC / stale signal session)
       // Request the sender to retry so the message is re-encrypted and re-delivered

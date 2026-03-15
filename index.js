@@ -521,7 +521,8 @@ X.ev.emit = function(event, ...args) {
 // which caused history sync messages to also trigger commands.
 X.ev.on('messages.upsert', async chatUpdate => {
 try {
-// Accept ALL message types (notify, append, etc.) — "Message yourself" comes as 'append'
+console.log('[TOOSII-XD DEBUG] messages.upsert fired:', chatUpdate?.type, 'msgs:', chatUpdate?.messages?.length)
+    // Accept ALL message types (notify, append, etc.) — "Message yourself" comes as 'append'
     // Only filter is age: ignore messages older than 2 minutes (prevents history sync commands)
     mek = chatUpdate.messages[0]
     const _msgTs = (mek?.messageTimestamp || 0) * 1000

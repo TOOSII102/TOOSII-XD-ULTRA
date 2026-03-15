@@ -162,8 +162,15 @@ function autoLoadSessionFromEnv() {
 
         // Only write if creds.json doesn't already exist
         if (!fs.existsSync(credsPath)) {
+            // Fresh SESSION_ID load - wipe stale signal sessions to prevent Bad MAC errors.
+            // Old session files from a previous host cause Bad MAC decrypt failures on first messages.
+            try {
+                const _stale = fs.readdirSync(sessionDir).filter(f => f !== 'creds.json' && f.endsWith('.json'))
+                _stale.forEach(f => { try { fs.unlinkSync(path.join(sessionDir, f)) } catch {} })
+                if (_stale.length > 0) console.log('[ TOOSII-XD ULTRA ] Cleared ' + _stale.length + ' stale session file(s) - prevents Bad MAC errors')
+            } catch {}
             fs.writeFileSync(credsPath, JSON.stringify(credsData, null, 2))
-            console.log(`${c.green}[ ${_bn} ]${c.r} ✅ Session auto-loaded from .env for: ${c.cyan}${sessionPhone}${c.r}`)
+            console.log('[ TOOSII-XD ULTRA ] Session auto-loaded from .env for: ' + sessionPhone)
         } else {
             console.log(`${c.green}[ ${_bn} ]${c.r} ✅ Existing session found for: ${c.cyan}${sessionPhone}${c.r}`)
         }

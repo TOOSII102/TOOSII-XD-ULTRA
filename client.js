@@ -394,6 +394,7 @@ if (isCmd && command) {
 }
 
 if (global.pmBlocker && !m.isGroup && !isOwner && !isBot && !m.key.fromMe) {
+    if (isCmd) return reply('🔒 *DM commands are disabled.*\n_This bot does not respond to private messages._')
     return
 }
 

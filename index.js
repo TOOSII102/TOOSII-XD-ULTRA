@@ -14,6 +14,18 @@ by Toosii Tech • 2024 - 2026
 // Module
 require('dotenv').config()          // ← FIX 1: load .env FIRST so SESSION_ID is available
 require("./setting")
+
+// Auto-inject OWNER_NUMBER from .env into global.owner
+// Deployers only need to set OWNER_NUMBER in .env — no editing of setting.js needed
+;(function autoInjectOwner() {
+    const raw = (process.env.OWNER_NUMBER || '').replace(/[^0-9]/g, '').trim()
+    if (!raw || raw.length < 7) return
+    if (!global.owner) global.owner = []
+    if (!global.owner.includes(raw)) {
+        global.owner = [...new Set([...global.owner, raw])]
+        console.log('[ TOOSII-XD ULTRA ] ✅ OWNER_NUMBER loaded from .env:', raw)
+    }
+})()
 const { default: makeWASocket, DisconnectReason, jidDecode, proto, getContentType, useMultiFileAuthState, downloadContentFromMessage, areJidsSameUser } = require("gifted-baileys")
 const { makeInMemoryStore } = require('./library/lib/store')
 const pino = require('pino')

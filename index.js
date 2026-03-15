@@ -363,22 +363,27 @@ if (_prevSession && _prevSession.socket) {
 
 activeSessions.set(phone, { socket: null, status: 'connecting', connectedUser: phone })
 
-  // Wipe stale signal sessions before every connection.
-  // Signal session files (session-*.json) from a previous host or previous run
-  // cause "Bad MAC" decrypt failures. Deleting them forces fresh session
-  // establishment with each contact — no Bad MAC, no dropped messages.
-  // Pre-keys, sender-keys, and app-state-sync-keys are preserved.
-  try {
-      if (fs.existsSync(sessionDir)) {
-          const _staleSessions = fs.readdirSync(sessionDir).filter(f =>
-              f.startsWith('session-') && f.endsWith('.json')
-          )
-          _staleSessions.forEach(f => { try { fs.unlinkSync(path.join(sessionDir, f)) } catch {} })
-          if (_staleSessions.length) console.log('[TOOSII] Cleared ' + _staleSessions.length + ' stale signal session(s) before connect')
-      }
-  } catch {}
+  // Wipe ALL session data before every connect (except creds.json).
+    // gifted-baileys may store sessions under any filename/subdir.
+    // Full recursive wipe guarantees no stale signal sessions survive restart.
+    try {
+        if (fs.existsSync(sessionDir)) {
+            let _wiped = 0
+            const _wipeDir = (dir) => {
+                fs.readdirSync(dir).forEach(item => {
+                    const full = path.join(dir, item)
+                    try {
+                        if (fs.statSync(full).isDirectory()) { _wipeDir(full); fs.rmdirSync(full) }
+                        else if (item !== 'creds.json') { fs.unlinkSync(full); _wiped++ }
+                    } catch {}
+                })
+            }
+            _wipeDir(sessionDir)
+            console.log('[TOOSII-XD] Wiped ' + _wiped + ' stale session file(s) — Bad MAC prevented')
+        }
+    } catch (e) { console.log('[TOOSII-XD] Session wipe error:', e.message) }
 
-  const { state, saveCreds } = await useMultiFileAuthState(sessionDir)
+    const { state, saveCreds } = await useMultiFileAuthState(sessionDir)
 const X = makeWASocket({
 logger: pino({ level: "silent" }),
 printQRInTerminal: false,

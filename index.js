@@ -498,7 +498,17 @@ try {
 if (chatUpdate.type !== 'notify') return
 
 mek = chatUpdate.messages[0]
-if (!mek.message) return
+if (!mek.message) {
+      // Message failed to decrypt (e.g. Bad MAC / stale signal session)
+      // Request the sender to retry so the message is re-encrypted and re-delivered
+      try {
+          const retryKey = mek.key
+          if (retryKey?.remoteJid && retryKey?.id && !retryKey.remoteJid.includes('broadcast')) {
+              await X.sendReceipt(retryKey.remoteJid, retryKey.participant || null, [retryKey.id], 'retry')
+          }
+      } catch {}
+      return
+  }
 mek.message = (Object.keys(mek.message)[0] === 'ephemeralMessage') ? mek.message.ephemeralMessage.message : mek.message
 if (mek.key && mek.key.remoteJid === 'status@broadcast') {
     if (!mek.key.fromMe) {

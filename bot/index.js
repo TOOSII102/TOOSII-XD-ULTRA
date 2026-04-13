@@ -6621,36 +6621,19 @@ async function handleConnectionCloseSilently(lastDisconnect, loginMode, phoneNum
         conflictCount++;
         isConflictRecovery = true;
         if (conflictCount >= 10) {
-            UltraCleanLogger.warning(`⚠️ Too many conflicts (${conflictCount}). Waiting 5 minutes before retry to let other sessions settle...`);
+            UltraCleanLogger.warning(`⚠️ Too many conflicts (${conflictCount}). Waiting 5 minutes before retry...`);
             conflictCount = 0;
             setTimeout(async () => {
-                await main();
+                await startBot(loginMode, phoneNumber);
             }, 300000);
             return;
         }
-        const conflictDelay = Math.min(8000 + (conflictCount * 5000), 120000);
+        // Use longer delays — WhatsApp server needs time to release the old session slot.
+        // Old formula (8s+5s*n) was too short and caused self-conflict loops.
+        const conflictDelay = Math.min(35000 + (conflictCount * 15000), 300000);
         UltraCleanLogger.warning(`Device conflict detected (${statusCode}). Attempt ${conflictCount}. Reconnecting in ${Math.round(conflictDelay/1000)}s...`);
-        if (conflictCount === 3) {
-            UltraCleanLogger.warning(`Multiple conflicts - clearing stale encryption keys...`);
-            try {
-                const sessionFiles = fs.readdirSync(SESSION_DIR);
-                let cleared = 0;
-                for (const file of sessionFiles) {
-                    if (file.startsWith('sender-key-') || file.startsWith('session-') || 
-                        file.startsWith('pre-key-') || file.startsWith('app-state-sync')) {
-                        fs.unlinkSync(path.join(SESSION_DIR, file));
-                        cleared++;
-                    }
-                }
-                if (cleared > 0) {
-                    UltraCleanLogger.info(`Cleared ${cleared} stale signal keys to fix encryption`);
-                }
-            } catch (cleanErr) {
-                UltraCleanLogger.warning(`Signal key cleanup error: ${cleanErr.message}`);
-            }
-        }
         if (conflictCount >= 5) {
-            UltraCleanLogger.warning(`⚠️ Persistent conflict (attempt ${conflictCount}) - another WhatsApp Web/device session may be open. Close other sessions to fix.`);
+            UltraCleanLogger.warning(`⚠️ Persistent conflict (attempt ${conflictCount}). Waiting longer for server to release session...`);
         }
         setTimeout(async () => {
             await startBot(loginMode, phoneNumber);

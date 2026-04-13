@@ -1,6 +1,7 @@
 'use strict';
 
-const { getBotName } = require('../../lib/botname');
+const { getBotName }              = require('../../lib/botname');
+const { keithGet, casperGet, dlBuffer } = require('../../lib/keithapi');
 const BASE = 'https://apiskeith.top';
 
 async function kFetch(path) {
@@ -307,22 +308,12 @@ const BREATHE_TECHNIQUES = [
     { name: '2-1-4-1 Breathing', steps: 'Inhale *2s* → Hold *1s* → Exhale *4s* → Hold *1s*', benefit: 'Quickly reduces stress and clears the mind' },
 ];
 
-async function dlBuf(url) {
-    const res = await fetch(url, { signal: AbortSignal.timeout(20000) });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return Buffer.from(await res.arrayBuffer());
-}
-
-async function speakText(text) {
-    const res  = await fetch(`${BASE}/ai/tts?q=${encodeURIComponent(text)}`, { signal: AbortSignal.timeout(15000) });
-    const data = await res.json();
-    if (!data.status || !data.result?.voices?.length) throw new Error('TTS unavailable');
-    const voices = data.result.voices;
-    const voice  = voices.find(v => v.voice_name.toLowerCase().includes('ana') || v.voice_name.toLowerCase().includes('female')) || voices[0];
-    const ext    = voice.audio_url.endsWith('.wav') ? 'wav' : 'mpeg';
-    const mime   = ext === 'wav' ? 'audio/wav' : 'audio/mpeg';
-    const buf    = await dlBuf(voice.audio_url);
-    return { buf, mime, voice: voice.voice_name };
+// Casper TTS — 9 OpenAI-quality voices. Use "nova" (female, warm) for meditation.
+async function speakText(text, voice = 'nova') {
+    const data = await casperGet('/api/tools/tts', { text, voice });
+    if (!data.success || !data.audioUrl) throw new Error('TTS unavailable');
+    const buf  = await dlBuffer(data.audioUrl);
+    return { buf, mime: 'audio/mpeg', voice: data.voiceInfo?.label || voice };
 }
 
 const meditatCmd = {

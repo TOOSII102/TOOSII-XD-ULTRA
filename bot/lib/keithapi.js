@@ -8,10 +8,10 @@ const CASPER = 'https://apis.xcasper.space';
 const KEITH  = 'https://apiskeith.top';
 const MAX_BYTES = 60 * 1024 * 1024;
 
-async function casperGet(path, params = {}) {
+async function casperGet(path, params = {}, timeoutMs = 30000) {
     const qs  = new URLSearchParams(params).toString();
     const url = `${CASPER}${path}${qs ? '?' + qs : ''}`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(30000) });
+    const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
     if (!res.ok) throw new Error(`Casper HTTP ${res.status}`);
     return res.json();
 }

@@ -1,7 +1,7 @@
 {
   "status_detection_logs": {
     "logs": [],
-    "updatedAt": "2026-04-13T01:34:53.162Z",
+    "updatedAt": "2026-04-13T01:44:59.619Z",
     "count": 0
   },
   "member_detection": {
@@ -256,6 +256,15 @@
           "number": "215079748415607",
           "addedAt": "2026-04-12T15:50:00.301Z",
           "timestamp": 1776009000301,
+          "action": "add",
+          "addedBy": "unknown"
+        },
+        {
+          "jid": "241463849918655@lid",
+          "name": "241463849918655",
+          "number": "241463849918655",
+          "addedAt": "2026-04-13T05:51:59.440Z",
+          "timestamp": 1776059519440,
           "action": "add",
           "addedBy": "unknown"
         }
@@ -676,7 +685,7 @@
         }
       ]
     },
-    "updatedAt": "2026-04-13T01:34:53.162Z",
+    "updatedAt": "2026-04-13T05:51:59.441Z",
     "totalGroups": 6
   },
   "owner_data": {
@@ -685,7 +694,7 @@
     "OWNER_CLEAN_JID": "254706441840@s.whatsapp.net",
     "OWNER_CLEAN_NUMBER": "254706441840",
     "ownerLID": null,
-    "linkedAt": "2026-04-13T01:34:43.087Z",
+    "linkedAt": "2026-04-13T05:54:52.545Z",
     "autoLinked": false,
     "previousOwnerCleared": true,
     "version": "1.1.5"
@@ -722,7 +731,7 @@
   },
   "antiviewonce_history": {
     "messages": [],
-    "updatedAt": "2026-04-13T01:34:53.164Z",
+    "updatedAt": "2026-04-13T01:44:59.631Z",
     "total": 0,
     "mode": "public"
   },

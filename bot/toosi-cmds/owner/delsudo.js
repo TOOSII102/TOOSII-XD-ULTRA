@@ -70,13 +70,6 @@ module.exports = {
             }, { quoted: msg });
         }
 
-        const ownerNumber = (ctx.OWNER_NUMBER || '').replace(/[^0-9]/g, '');
-        if (targetNumber === ownerNumber) {
-            return sock.sendMessage(chatId, {
-                text: `${H}\n║\n║ ▸ *Status* : ❌ Cannot remove the owner\n║\n${F()}`
-            }, { quoted: msg });
-        }
-
         const { sudoers: before } = getSudoList();
         if (!before.includes(targetNumber)) {
             return sock.sendMessage(chatId, {

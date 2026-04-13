@@ -851,6 +851,17 @@ async function reloadConfigCaches() {
         _cache_antiviewonce_config = await _loadConfigCache('antiviewonce_config', DEFAULT_ANTIVIEWONCE_CONFIG);
         _cache_antiviewonce_history = await _loadConfigCache('antiviewonce_history', {});
 
+        // Apply saved prefix to prefixCache now that _cache_prefix_config is loaded
+        const _reloadedPrefix = loadPrefixFromFiles();
+        if (_reloadedPrefix !== prefixCache) {
+            prefixCache = _reloadedPrefix;
+            isPrefixless = _reloadedPrefix === '';
+            process.env.PREFIX = _reloadedPrefix;
+            global.prefix = _reloadedPrefix;
+            global.CURRENT_PREFIX = _reloadedPrefix;
+            global.isPrefixless = isPrefixless;
+        }
+
         // Reload font, antilink & antibug configs with the correct bot ID (they were
         // initially loaded at module startup before login, so bot_id was 'default')
         const fontData = await _loadConfigCache('font_config', { font: 'default' });

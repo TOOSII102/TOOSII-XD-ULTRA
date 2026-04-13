@@ -92,13 +92,6 @@ module.exports = {
         const upS     = upSecs % 60;
         const uptimeStr = `${upH}h ${upM}m ${upS}s`;
 
-        const mem     = process.memoryUsage();
-        const usedMB  = (mem.rss / 1024 / 1024).toFixed(1);
-        const totalGB = (os.totalmem() / 1024 / 1024 / 1024).toFixed(2);
-        const ramPct  = Math.min(100, Math.round((mem.rss / os.totalmem()) * 100));
-        const filled  = Math.round(ramPct / 10);
-        const ramBar  = '█'.repeat(filled) + '░'.repeat(10 - filled);
-
         const version = global.VERSION || cfg.VERSION || '1.1.5';
 
         // Ping: measure sendReact round-trip
@@ -108,6 +101,14 @@ module.exports = {
 
         const cats = loadCategories();
         const totalCmds = Object.values(cats).reduce((s, arr) => s + arr.length, 0);
+
+        // ── RAM sampled last — after all async work — for freshest reading ──
+        const _liveRss  = process.memoryUsage().rss;
+        const usedMB    = (_liveRss / 1024 / 1024).toFixed(1);
+        const totalGB   = (os.totalmem() / 1024 / 1024 / 1024).toFixed(2);
+        const ramPct    = Math.min(100, Math.round((_liveRss / os.totalmem()) * 100));
+        const filled    = Math.round(ramPct / 10);
+        const ramBar    = '█'.repeat(filled) + '░'.repeat(10 - filled);
 
         let lines = [];
 

@@ -87,49 +87,69 @@ const trailerCmd = {
         try {
             await sock.sendMessage(chatId, { react: { text: '🎬', key: msg.key } });
 
-            // Step 1: Resolve exact title via OMDb (optional but improves YouTube search)
+            // Step 1: Resolve exact title via OMDb
             let searchTitle = input;
             let movieInfo   = null;
             try {
                 const query = /^tt\d+$/i.test(input) ? { i: input } : { t: input };
                 const omdb  = await omdbFetch(query);
                 if (omdb.Response !== 'False') {
-                    movieInfo  = omdb;
+                    movieInfo   = omdb;
                     searchTitle = `${omdb.Title} ${omdb.Year}`;
                 }
             } catch { }
 
-            // Step 2: Search YouTube for the trailer
-            const ytQuery = `${searchTitle} official trailer`;
-            const videoId = await ytSearchVideoId(ytQuery);
-            if (!videoId) throw new Error('Could not find trailer on YouTube');
+            // Step 2: Search YouTube for trailer — try multiple video IDs
+            const ytQuery  = `${searchTitle} official trailer`;
+            const html     = await (async () => {
+                const controller = new AbortController();
+                const timer = setTimeout(() => controller.abort(), 12000);
+                try {
+                    const res = await fetch(
+                        `https://www.youtube.com/results?search_query=${encodeURIComponent(ytQuery)}`,
+                        { signal: controller.signal, headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36' } }
+                    );
+                    return await res.text();
+                } finally { clearTimeout(timer); }
+            })();
 
-            const ytUrl = `https://www.youtube.com/watch?v=${videoId}`;
+            const allIds  = [...new Set([...html.matchAll(/"videoId":"([A-Za-z0-9_-]{11})"/g)].map(m => m[1]))];
+            if (!allIds.length) throw new Error('Could not find trailer on YouTube');
 
-            // Step 3: Download via Casper ytmp4
-            const dl = await casperGet('/api/downloader/ytmp4', { url: ytUrl });
-            if (!dl.success || !dl.data?.downloads?.length) throw new Error('Download failed — trailer may be restricted');
+            const title = movieInfo?.Title || searchTitle;
+            const info  = movieInfo
+                ? `║ ▸ *Title*  : ${title} (${movieInfo.Year})\n║ ▸ *Genre*  : ${movieInfo.Genre}\n║ ▸ *IMDB*   : ⭐ ${movieInfo.imdbRating}/10\n║ ▸ *Plot*   : ${(movieInfo.Plot || '').substring(0, 100)}…`
+                : `║ ▸ *Title*  : ${title}`;
 
-            // Pick lowest quality to keep file size manageable
-            const downloads = dl.data.downloads.filter(d => d.hasAudio && d.extension === 'mp4');
-            const pick      = downloads[downloads.length - 1] || downloads[0];
-            if (!pick?.url) throw new Error('No downloadable video link found');
+            // Step 3: Try up to 4 video IDs — download the first that works
+            let sent = false;
+            for (const videoId of allIds.slice(0, 4)) {
+                const ytUrl = `https://www.youtube.com/watch?v=${videoId}`;
+                try {
+                    const dl = await casperGet('/api/downloader/ytmp4', { url: ytUrl });
+                    if (!dl.success || !dl.data?.downloads?.length) continue;
 
-            const buf = await dlBuffer(pick.url, 90000);
-            if (!buf || buf.length < 5000) throw new Error('Downloaded file too small — trailer unavailable');
+                    const picks = dl.data.downloads.filter(d => d.hasAudio && d.extension === 'mp4' && d.quality?.includes('360'));
+                    const pick  = picks[0] || dl.data.downloads.find(d => d.hasAudio && d.extension === 'mp4');
+                    if (!pick?.url) continue;
 
-            const title  = movieInfo?.Title || dl.data.title || searchTitle;
-            const info   = movieInfo
-                ? `║ ▸ *Title*  : ${title} (${movieInfo.Year})\n║ ▸ *Genre*  : ${movieInfo.Genre}\n║ ▸ *IMDB*   : ⭐ ${movieInfo.imdbRating}/10\n║ ▸ *Plot*   : ${movieInfo.Plot?.substring(0, 100)}…`
-                : `║ ▸ *Title*  : ${title}\n║ ▸ 🔗 ${ytUrl}`;
+                    const buf = await dlBuffer(pick.url, 90000);
+                    if (!buf || buf.length < 5000) continue;
 
-            const caption = `╔═|〔  🎬 MOVIE TRAILER 〕\n║\n${info}\n║ ▸ *Quality*: ${pick.quality || 'SD'}\n║\n╚═|〔 ${name} 〕`;
+                    const caption = `╔═|〔  🎬 MOVIE TRAILER 〕\n║\n${info}\n║ ▸ *Quality* : ${pick.quality || 'SD'}\n║\n╚═|〔 ${name} 〕`;
+                    await sock.sendMessage(chatId, { video: buf, mimetype: 'video/mp4', caption }, { quoted: msg });
+                    sent = true;
+                    break;
+                } catch { }
+            }
 
-            await sock.sendMessage(chatId, {
-                video: buf,
-                mimetype: 'video/mp4',
-                caption
-            }, { quoted: msg });
+            // Step 4: Fallback — send YouTube link (WhatsApp generates a clickable preview)
+            if (!sent) {
+                const ytFallback = `https://www.youtube.com/watch?v=${allIds[0]}`;
+                await sock.sendMessage(chatId, {
+                    text: `╔═|〔  🎬 MOVIE TRAILER 〕\n║\n${info}\n║\n║ ▸ *Trailer* : ${ytFallback}\n║ ▸ ⚠️ Direct video unavailable (studio-protected)\n║\n╚═|〔 ${name} 〕`
+                }, { quoted: msg });
+            }
 
         } catch (e) {
             await sock.sendMessage(chatId, {

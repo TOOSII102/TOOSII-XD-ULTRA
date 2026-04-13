@@ -7396,9 +7396,22 @@ async function handleIncomingMessage(sock, msg) {
                 const _qOwner = jidManager.isOwner(msg);
                 const _qSudo  = jidManager.isSudo(msg);
                 if (!_qOwner && !_qSudo) {
-                    if (_qMode === 'silent') return;
-                    if (_qMode === 'groups' && !isGroup) return;
-                    if (_qMode === 'dms'    &&  isGroup) return;
+                    // LID fallback: sender may arrive as a LID in groups — resolve to phone and recheck
+                    let _qBypass = false;
+                    const _qRaw = senderJid.split('@')[0].split(':')[0];
+                    const _qOwnerNum = (OWNER_CLEAN_NUMBER || '').replace(/[^0-9]/g, '');
+                    // 1. Direct numeric match (handles edge cases where JID contains phone directly)
+                    if (_qRaw && _qOwnerNum && _qRaw === _qOwnerNum) _qBypass = true;
+                    // 2. LID resolution — look up cached LID→phone mapping
+                    if (!_qBypass && senderJid.includes('@lid')) {
+                        const _qPhone = resolvePhoneFromLid(senderJid) || lidPhoneCache.get(_qRaw);
+                        if (_qPhone && (_qPhone === _qOwnerNum || isSudoNumber(_qPhone))) _qBypass = true;
+                    }
+                    if (!_qBypass) {
+                        if (_qMode === 'silent') return;
+                        if (_qMode === 'groups' && !isGroup) return;
+                        if (_qMode === 'dms'    &&  isGroup) return;
+                    }
                 }
             }
         }

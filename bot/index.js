@@ -73,7 +73,7 @@
 // ====== TOOSII-XD - ULTIMATE CLEAN EDITION (SPEED OPTIMIZED) ======
 // Features: Real-time prefix changes, UltimateFix, Status Detection, Auto-Connect
 // SUPER CLEAN TERMINAL - Zero spam, Zero session noise, Rate limit protection
-// Date: 2024 | Version: 1.1.5 (PREFIXLESS & NEW MEMBER DETECTION)
+// Date: 2024 | Version: 1.1.6 (PREFIXLESS & NEW MEMBER DETECTION)
 // New: Session ID authentication from process.env.SESSION_ID
 // New: TOOSII-XD session format support (TOOSII-XD:eyJ...)
 // New: Professional success messaging like TOOSII-XD
@@ -758,7 +758,7 @@ try {
 let BOT_NAME = _getBotName();
 global.BOT_NAME = BOT_NAME;
 function getCurrentBotName() { return _getBotName(); }
-const VERSION = '1.1.5';
+const VERSION = '1.1.6';
 global.VERSION = VERSION;
 const _rawEnvPrefix = process.env.BOT_PREFIX || process.env.PREFIX || '';
 const DEFAULT_PREFIX = (_rawEnvPrefix && _rawEnvPrefix.length <= 5) ? _rawEnvPrefix : '.';

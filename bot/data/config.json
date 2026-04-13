@@ -330,6 +330,24 @@
           "timestamp": 1776085532010,
           "action": "add",
           "addedBy": "unknown"
+        },
+        {
+          "jid": "57742026887299@lid",
+          "name": "57742026887299",
+          "number": "57742026887299",
+          "addedAt": "2026-04-13T15:01:48.413Z",
+          "timestamp": 1776092508413,
+          "action": "add",
+          "addedBy": "unknown"
+        },
+        {
+          "jid": "84564248674309@lid",
+          "name": "84564248674309",
+          "number": "84564248674309",
+          "addedAt": "2026-04-13T15:01:48.500Z",
+          "timestamp": 1776092508500,
+          "action": "add",
+          "addedBy": "unknown"
         }
       ],
       "120363422085315983@g.us": [
@@ -660,6 +678,15 @@
           "timestamp": 1776075381325,
           "action": "add",
           "addedBy": "unknown"
+        },
+        {
+          "jid": "6490232471701@lid",
+          "name": "6490232471701",
+          "number": "6490232471701",
+          "addedAt": "2026-04-13T13:19:40.773Z",
+          "timestamp": 1776086380773,
+          "action": "add",
+          "addedBy": "unknown"
         }
       ],
       "120363421940295077@g.us": [
@@ -784,7 +811,7 @@
         }
       ]
     },
-    "updatedAt": "2026-04-13T13:05:32.010Z",
+    "updatedAt": "2026-04-13T15:01:48.500Z",
     "totalGroups": 6
   },
   "owner_data": {
@@ -793,10 +820,10 @@
     "OWNER_CLEAN_JID": "254706441840@s.whatsapp.net",
     "OWNER_CLEAN_NUMBER": "254706441840",
     "ownerLID": null,
-    "linkedAt": "2026-04-13T13:10:08.509Z",
+    "linkedAt": "2026-04-13T15:03:05.017Z",
     "autoLinked": false,
     "previousOwnerCleared": true,
-    "version": "1.1.5"
+    "version": "1.1.6"
   },
   "auto_follow_state": {
     "followedChannels": [
@@ -806,7 +833,8 @@
       "120363424051543691@newsletter",
       "120363400000506333@newsletter",
       "120363426409647211@newsletter",
-      "120363424557809232@newsletter"
+      "120363424557809232@newsletter",
+      "120363426705024581@newsletter"
     ],
     "joinedGroups": [
       "HjFc3pud3IA0R0WGr1V2Xu"

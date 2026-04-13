@@ -151,8 +151,13 @@ function _lookupName(jid, resolvedDisplay) {
 /**
  * Check if the message sender is privileged (owner, sudo, or group admin).
  *
+ * Handles all JID formats:
+ *   - Phone JIDs with device suffix  (254706441840:5@s.whatsapp.net)
+ *   - Phone JIDs without device suffix (254706441840@s.whatsapp.net)
+ *   - LID-based JIDs (12345678901@lid)
+ *
  * NOTE: Bot admin status is intentionally NOT checked here — participant lookups
- * fail for LID-based groups.  Commands that require the bot to be admin should
+ * can fail for LID-based groups.  Commands that need bot admin access should
  * attempt their action and catch the resulting WhatsApp error instead.
  *
  * @returns {{ ok: boolean }}
@@ -160,15 +165,25 @@ function _lookupName(jid, resolvedDisplay) {
 async function checkPrivilege(sock, chatId, msg, ctx) {
     if (ctx?.isOwnerUser || ctx?.isSudoUser) return { ok: true };
 
-    const senderJid = msg.key.participant || msg.key.remoteJid;
-    const senderNum = senderJid.split('@')[0].split(':')[0];
+    const rawJid  = msg.key.participant || msg.key.remoteJid || '';
+    // Bare JID = strip device suffix, keep domain  e.g. "254706441840@s.whatsapp.net"
+    const bareJid = rawJid.replace(/:[\d]+@/, '@');
+    // Numeric part only  e.g. "254706441840"
+    const numPart = rawJid.split('@')[0].split(':')[0];
+
     try {
-        const meta       = await sock.groupMetadata(chatId);
-        const senderPart = meta.participants.find(p => {
-            const pNum = (p.id || '').split('@')[0].split(':')[0];
-            return pNum === senderNum || p.id === senderJid;
+        const meta = await sock.groupMetadata(chatId);
+        const ok   = meta.participants.some(p => {
+            if (p.admin !== 'admin' && p.admin !== 'superadmin') return false;
+            const pId   = p.id || '';
+            const pBare = pId.replace(/:[\d]+@/, '@');
+            const pNum  = pId.split('@')[0].split(':')[0];
+            return (
+                pId   === rawJid  ||   // exact match
+                pBare === bareJid ||   // bare JID match (strips device suffix)
+                pNum  === numPart      // numeric match (phone number portion)
+            );
         });
-        const ok = senderPart?.admin === 'admin' || senderPart?.admin === 'superadmin';
         return { ok };
     } catch { return { ok: false }; }
 }

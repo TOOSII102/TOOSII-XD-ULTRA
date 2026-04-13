@@ -24,13 +24,17 @@ module.exports = {
         let isPrivileged = ctx?.isOwnerUser || ctx?.isSudoUser;
         if (!isPrivileged) {
             try {
-                const meta      = await sock.groupMetadata(chatId);
-                const senderJid = msg.key.participant || msg.key.remoteJid;
-                const senderNum = senderJid.split('@')[0].split(':')[0];
-                const senderP   = meta.participants.find(p =>
-                    (p.id || '').split('@')[0].split(':')[0] === senderNum || p.id === senderJid
-                );
-                isPrivileged = senderP?.admin === 'admin' || senderP?.admin === 'superadmin';
+                const meta     = await sock.groupMetadata(chatId);
+                const rawJid   = msg.key.participant || msg.key.remoteJid || '';
+                const bareJid  = rawJid.replace(/:[\d]+@/, '@');
+                const numPart  = rawJid.split('@')[0].split(':')[0];
+                isPrivileged   = meta.participants.some(p => {
+                    if (p.admin !== 'admin' && p.admin !== 'superadmin') return false;
+                    const pId   = p.id || '';
+                    const pBare = pId.replace(/:[\d]+@/, '@');
+                    const pNum  = pId.split('@')[0].split(':')[0];
+                    return pId === rawJid || pBare === bareJid || pNum === numPart;
+                });
             } catch {}
         }
 

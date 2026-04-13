@@ -307,6 +307,24 @@ const BREATHE_TECHNIQUES = [
     { name: '2-1-4-1 Breathing', steps: 'Inhale *2s* → Hold *1s* → Exhale *4s* → Hold *1s*', benefit: 'Quickly reduces stress and clears the mind' },
 ];
 
+async function dlBuf(url) {
+    const res = await fetch(url, { signal: AbortSignal.timeout(20000) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return Buffer.from(await res.arrayBuffer());
+}
+
+async function speakText(text) {
+    const res  = await fetch(`${BASE}/ai/tts?q=${encodeURIComponent(text)}`, { signal: AbortSignal.timeout(15000) });
+    const data = await res.json();
+    if (!data.status || !data.result?.voices?.length) throw new Error('TTS unavailable');
+    const voices = data.result.voices;
+    const voice  = voices.find(v => v.voice_name.toLowerCase().includes('ana') || v.voice_name.toLowerCase().includes('female')) || voices[0];
+    const ext    = voice.audio_url.endsWith('.wav') ? 'wav' : 'mpeg';
+    const mime   = ext === 'wav' ? 'audio/wav' : 'audio/mpeg';
+    const buf    = await dlBuf(voice.audio_url);
+    return { buf, mime, voice: voice.voice_name };
+}
+
 const meditatCmd = {
     name       : 'meditate',
     aliases    : ['meditation', 'mindful', 'breathe', 'calm', 'relax'],
@@ -322,45 +340,58 @@ const meditatCmd = {
         // ── breathe sub-command ───────────────────────────────────────────────
         if (sub === 'breathe' || sub === 'breathing' || sub === 'breath') {
             const t = BREATHE_TECHNIQUES[Math.floor(Math.random() * BREATHE_TECHNIQUES.length)];
-            return sock.sendMessage(chatId, {
-                text: [
-                    `╔═|〔  🌬️ BREATHING TECHNIQUE 〕`,
-                    `║`,
-                    `║ ▸ *Technique* : ${t.name}`,
-                    `║ ▸ *Steps*     : ${t.steps}`,
-                    `║ ▸ *Benefit*   : ${t.benefit}`,
-                    `║`,
-                    `║ 💡 Practice for at least 3 minutes`,
-                    `║`,
-                    `╚═|〔 ${name} 〕`,
-                ].join('\n')
-            }, { quoted: msg });
+            const card = [
+                `╔═|〔  🌬️ BREATHING TECHNIQUE 〕`,
+                `║`,
+                `║ ▸ *Technique* : ${t.name}`,
+                `║ ▸ *Steps*     : ${t.steps}`,
+                `║ ▸ *Benefit*   : ${t.benefit}`,
+                `║`,
+                `║ 💡 Practice for at least 3 minutes`,
+                `║`,
+                `╚═|〔 ${name} 〕`,
+            ].join('\n');
+            await sock.sendMessage(chatId, { text: card }, { quoted: msg });
+            try {
+                const plainSteps = t.steps.replace(/\*/g, '');
+                const ttsText = `${t.name}. ${plainSteps}. ${t.benefit}.`;
+                const { buf, mime } = await speakText(ttsText);
+                await sock.sendMessage(chatId, { audio: buf, mimetype: mime, ptt: false }, { quoted: msg });
+            } catch {}
+            return;
         }
 
         // ── default: full guided session ──────────────────────────────────────
         const s = SESSIONS[Math.floor(Math.random() * SESSIONS.length)];
         const stepLines = s.steps.map((st, i) => `║  ${i + 1}. ${st}`);
 
-        return sock.sendMessage(chatId, {
-            text: [
-                `╔═|〔  🧘 MEDITATION 〕`,
-                `║`,
-                `║ *${s.title}*`,
-                `║`,
-                `║ 🌬️ *Breathing Guide*`,
-                ...stepLines,
-                `║`,
-                `║ 🎯 *Focus Point*`,
-                `║  ${s.focus}`,
-                `║`,
-                `║ ✨ *Affirmation*`,
-                `║  ${s.affirm}`,
-                `║`,
-                `║ 💡 *Try also* : ${prefix}meditate breathe`,
-                `║`,
-                `╚═|〔 ${name} 〕`,
-            ].join('\n')
-        }, { quoted: msg });
+        const card = [
+            `╔═|〔  🧘 MEDITATION 〕`,
+            `║`,
+            `║ *${s.title}*`,
+            `║`,
+            `║ 🌬️ *Breathing Guide*`,
+            ...stepLines,
+            `║`,
+            `║ 🎯 *Focus Point*`,
+            `║  ${s.focus}`,
+            `║`,
+            `║ ✨ *Affirmation*`,
+            `║  ${s.affirm}`,
+            `║`,
+            `║ 💡 *Try also* : ${prefix}meditate breathe`,
+            `║`,
+            `╚═|〔 ${name} 〕`,
+        ].join('\n');
+
+        await sock.sendMessage(chatId, { text: card }, { quoted: msg });
+
+        try {
+            const cleanAffirm = s.affirm.replace(/_/g, '').trim();
+            const ttsText = `Welcome to your ${s.title.replace(/[🌅🌊🔥🌙🌿]/g, '').trim()} session. ${s.focus} Remember this affirmation: ${cleanAffirm}`;
+            const { buf, mime } = await speakText(ttsText);
+            await sock.sendMessage(chatId, { audio: buf, mimetype: mime, ptt: false }, { quoted: msg });
+        } catch {}
     }
 };
 

@@ -9,8 +9,17 @@ const MAX_ROUNDS  = 3;
 
 const DICE_FACES = ['', '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣'];
 
-function getSender(msg)  { return msg.key.participant || msg.key.remoteJid; }
-function shortNum(jid)   { return jid.replace(/[^0-9]/g, '').slice(-6); }
+function getSender(msg)  {
+      // In groups msg.key.participant holds the real sender JID (phone or LID)
+      return msg.key.participant || msg.key.remoteJid;
+  }
+function shortNum(jid)   {
+      // Strip device suffix (:12 in LID format) and domain before extracting digits
+      // LID example : 123456789012345678:12@lid  →  123456789012345678  →  last 6: 345678
+      // Phone example: 254706441840@s.whatsapp.net →  254706441840        →  last 6: 441840
+      const clean = (jid || '').split('@')[0].split(':')[0];
+      return clean.replace(/[^0-9]/g, '').slice(-6) || '??????';
+  }
 
 function rollDie() { return Math.floor(Math.random() * 6) + 1; }
 

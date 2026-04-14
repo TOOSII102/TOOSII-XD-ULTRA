@@ -28,7 +28,7 @@ module.exports = {
         const botName = getBotName();
         const q       = args.join(' ').trim();
         const H = `╔═|〔  APK DOWNLOADER 〕`;
-        const F = `╚═|〔 ${botName} 〕`;
+        const F = `╚═╝`;
 
         if (!q) {
             return sock.sendMessage(chatId, {

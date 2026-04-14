@@ -37,7 +37,7 @@ module.exports = [
             const name   = getBotName();
             try { await sock.sendMessage(chatId, { react: { text: '💱', key: msg.key } }); } catch {}
 
-            const USAGE = `╔═|〔  CURRENCY 💱 〕\n║\n║ ▸ *Usage*   : ${prefix}currency <amount> <from> <to>\n║ ▸ *Example* : ${prefix}currency 100 USD KES\n║ ▸ *Example* : ${prefix}currency 50 EUR GBP\n║\n╚═|〔 ${name} 〕`;
+            const USAGE = `╔═|〔  CURRENCY 💱 〕\n║\n║ ▸ *Usage*   : ${prefix}currency <amount> <from> <to>\n║ ▸ *Example* : ${prefix}currency 100 USD KES\n║ ▸ *Example* : ${prefix}currency 50 EUR GBP\n║\n╚═╝`;
 
             const amount = parseFloat(args[0]);
             if (!args[0] || isNaN(amount) || amount <= 0) return sock.sendMessage(chatId, { text: USAGE }, { quoted: msg });
@@ -64,12 +64,12 @@ module.exports = [
                         `║ ▸ *Rate*   : 1 ${from.toUpperCase()} = ${fmt(rate)} ${to.toUpperCase()}`,
                         `║ ▸ *Source* : Fawazahmed0 (live)`,
                         `║`,
-                        `╚═|〔 ${name} 〕`,
+                        `╚═╝`,
                     ].join('\n')
                 }, { quoted: msg });
             } catch (e) {
                 await sock.sendMessage(chatId, {
-                    text: `╔═|〔  CURRENCY 〕\n║\n║ ▸ *Status* : ❌ Failed\n║ ▸ *Reason* : ${e.message}\n║\n╚═|〔 ${name} 〕`
+                    text: `╔═|〔  CURRENCY 〕\n║\n║ ▸ *Status* : ❌ Failed\n║ ▸ *Reason* : ${e.message}\n║\n╚═╝`
                 }, { quoted: msg });
             }
         }
@@ -97,11 +97,11 @@ module.exports = [
                     });
 
                 await sock.sendMessage(chatId, {
-                    text: [`╔═|〔  FOREX RATES 📊 〕`, `║`, `║ ▸ *Base* : ${base.toUpperCase()}`, `║`, ...lines, `║`, `╚═|〔 ${name} 〕`].join('\n')
+                    text: [`╔═|〔  FOREX RATES 📊 〕`, `║`, `║ ▸ *Base* : ${base.toUpperCase()}`, `║`, ...lines, `║`, `╚═╝`].join('\n')
                 }, { quoted: msg });
             } catch (e) {
                 await sock.sendMessage(chatId, {
-                    text: `╔═|〔  FOREX RATES 〕\n║\n║ ▸ *Status* : ❌ Failed\n║ ▸ *Reason* : ${e.message}\n║\n╚═|〔 ${name} 〕`
+                    text: `╔═|〔  FOREX RATES 〕\n║\n║ ▸ *Status* : ❌ Failed\n║ ▸ *Reason* : ${e.message}\n║\n╚═╝`
                 }, { quoted: msg });
             }
         }

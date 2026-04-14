@@ -17,7 +17,7 @@ module.exports = {
 
         if (!chatId.endsWith('@g.us')) {
             return sock.sendMessage(chatId, {
-                text: `╔═|〔  📋 MEMBER LIST 〕\n║\n║ ▸ *Status* : ❌ Group only\n║\n╚═|〔 ${name} 〕`
+                text: `╔═|〔  📋 MEMBER LIST 〕\n║\n║ ▸ *Status* : ❌ Group only\n║\n╚═╝`
             }, { quoted: msg });
         }
 
@@ -63,7 +63,7 @@ module.exports = {
                 `║`,
                 `║ 👑 = Owner  ⭐ = Admin  👤 = Member`,
                 `║`,
-                `╚═|〔 ${name} 〕`,
+                `╚═╝`,
             ];
 
             const allLines = [...header, ...memberLines, ...footer];
@@ -96,7 +96,7 @@ module.exports = {
 
         } catch (e) {
             await sock.sendMessage(chatId, {
-                text: `╔═|〔  📋 MEMBER LIST 〕\n║\n║ ▸ *Status* : ❌ Failed\n║ ▸ *Reason* : ${e.message}\n║\n╚═|〔 ${name} 〕`
+                text: `╔═|〔  📋 MEMBER LIST 〕\n║\n║ ▸ *Status* : ❌ Failed\n║ ▸ *Reason* : ${e.message}\n║\n╚═╝`
             }, { quoted: msg });
         }
     }

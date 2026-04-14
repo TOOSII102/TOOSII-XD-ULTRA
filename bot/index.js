@@ -3002,7 +3002,7 @@ const memoryMonitor = {
         // Routine trim every 3 minutes regardless of memory level
         this._trimInterval = setInterval(() => {
             try { this.trimCaches(false); } catch {}
-        }, 3 * 60 * 1000);
+        }, 90 * 1000);
         // Emergency GC every 10 seconds when memory is high
         this._lastEmergencyGCLog = 0;
         this._emergencyInterval = setInterval(() => {
@@ -4936,9 +4936,9 @@ async function startBot(loginMode = 'auto', loginData = null) {
                 // ── Auto-restart every 90 min to prevent memory accumulation ──
                 if (autoRestartTimer) clearTimeout(autoRestartTimer);
                 autoRestartTimer = setTimeout(() => {
-                    UltraCleanLogger.info('🔄 Scheduled memory-cleanup restart (90 min uptime)');
+                    UltraCleanLogger.info('🔄 Scheduled memory-cleanup restart (45 min uptime)');
                     setTimeout(() => process.exit(0), 1500);
-                }, 90 * 60 * 1000);
+                }, 45 * 60 * 1000);
 
                 startHeartbeat(sock);
                 // ── Reset all per-group and global toggles to OFF on startup ──
@@ -5763,7 +5763,7 @@ async function startBot(loginMode = 'auto', loginData = null) {
                                 let isSenderAdmin = false;
                                 let groupSubject = chatJid.split('@')[0];
                                 try {
-                                    const gMeta = await sock.groupMetadata(chatJid);
+                                    const gMeta = await getCachedGroupMetadata(chatJid, sock);
                                     if (gMeta?.subject) groupSubject = gMeta.subject;
                                     const senderP = gMeta.participants.find(p => {
                                         const pClean = p.id.split(':')[0].split('@')[0];
@@ -7357,7 +7357,7 @@ async function handleIncomingMessage(sock, msg) {
                                     await sock.sendPresenceUpdate(_presType2, _presJid2);
                                     UltraCleanLogger.info(`✅ Presence sent: ${_presType2} → ${_presJid2}`);
                                 } catch(e) { UltraCleanLogger.warn(`sendPresenceUpdate err: ${e.message}`); }
-                                await new Promise(r => setTimeout(r, 10000));
+                                await new Promise(r => setTimeout(r, 2000));
                             }
                         }
                         try {
@@ -7617,7 +7617,7 @@ async function handleIncomingMessage(sock, msg) {
                             await sock.sendPresenceUpdate(_presType, _presJid);
                             UltraCleanLogger.info(`✅ Presence sent: ${_presType} → ${_presJid}`);
                         } catch(e) { UltraCleanLogger.warn(`sendPresenceUpdate err: ${e.message}`); }
-                        await new Promise(r => setTimeout(r, 10000));
+                        await new Promise(r => setTimeout(r, 2000));
                     }
                 }
 

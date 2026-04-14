@@ -75,7 +75,7 @@ module.exports = {
         const botName = getBotName();
         const keyword = args.join(' ').trim().toLowerCase() || null;
         const H = `╔═|〔  💬 QUOTE 〕`;
-        const F = `╚═|〔 ${botName} 〕`;
+        const F = `╚═╝`;
 
         // Show categories list
         if (keyword === 'list' || keyword === 'categories') {

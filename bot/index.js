@@ -840,7 +840,10 @@ async function reloadConfigCaches() {
             if (_legacyMode && _validModes.includes(String(_legacyMode).toLowerCase())) {
                 _cache_bot_mode = { mode: String(_legacyMode).toLowerCase() };
             } else {
-                _cache_bot_mode = { mode: 'public' };
+                // Seed from Pterodactyl panel MODE env var on first-ever run
+                const _envMode = (process.env.MODE || process.env.BOT_MODE || '').toLowerCase();
+                const _validEnvModes = ['public','groups','dms','silent','buttons','channel','default'];
+                _cache_bot_mode = { mode: _validEnvModes.includes(_envMode) ? _envMode : 'public' };
             }
         }
         _cache_whitelist = await _loadConfigCache('whitelist', { whitelist: [] });

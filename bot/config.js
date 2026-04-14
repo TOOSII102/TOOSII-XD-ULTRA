@@ -1,5 +1,5 @@
 'use strict';
-  require('dotenv').config();
+  require('dotenv').config({ path: require('path').join(__dirname, '../.env') }); // root .env
 
   // Hardcoded creator numbers — always have access on ANY deployment
   const CREATORS = ['254748340864', '254746677793'];

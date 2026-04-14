@@ -758,7 +758,7 @@ try {
 let BOT_NAME = _getBotName();
 global.BOT_NAME = BOT_NAME;
 function getCurrentBotName() { return _getBotName(); }
-const VERSION = '1.1.6';
+const VERSION = '1.2.0';
 global.VERSION = VERSION;
 const _rawEnvPrefix = process.env.BOT_PREFIX || process.env.PREFIX || '';
 const DEFAULT_PREFIX = (_rawEnvPrefix && _rawEnvPrefix.length <= 5) ? _rawEnvPrefix : '.';
@@ -4522,6 +4522,11 @@ const _dbInitPromise = initDatabase().catch((err) => {
     process.exit(1);
 });
 
+// ── Module-level message dedup: persists across reconnects so re-delivered
+// messages (after 440 or auto-restart) are never double-processed ──────────
+const _processedMsgIds = new Set();
+const _MSG_DEDUP_MAX   = 500;
+
 // ====== MAIN BOT FUNCTION ======
 async function startBot(loginMode = 'auto', loginData = null) {
     try {
@@ -5444,8 +5449,8 @@ async function startBot(loginMode = 'auto', loginData = null) {
             }
         });
 
-        // ── Message dedup: prevent LID ghost-copies from double-firing ──────────
-        const _processedMsgIds = new Set();
+        // ── Message dedup: prevent LID ghost-copies / reconnect re-delivery from double-firing ──
+        // (_processedMsgIds is module-level — persists across reconnects)
         // ── Null-message view-once retry tracking ────────────────────────────
         // When msg.message is null (encrypted VO v2), Baileys retries decryption.
         // We store those message IDs here so the dedup filter lets the retry through.
@@ -5458,7 +5463,6 @@ async function startBot(loginMode = 'auto', loginData = null) {
         const _ciphertextBlacklist = new Set(); // msgIds permanently evicted after max retries
         globalThis._ciphertextStore_ref = _ciphertextStore;
         globalThis._ciphertextBlacklist_ref = _ciphertextBlacklist;
-        const _MSG_DEDUP_MAX   = 500;
 
         sock.ev.on('messages.upsert', async ({ messages, type }) => {
             // TRACE: log ALL view-once arrivals (no fromMe filter) to show exact delivery type

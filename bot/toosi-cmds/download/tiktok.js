@@ -14,7 +14,7 @@ module.exports = {
 
         if (!url) {
             return sock.sendMessage(chatId, {
-                text: `╔═|〔  TIKTOK 〕\n║\n║ ▸ *Usage* : ${prefix}tiktok <url>\n║\n╚═|〔 ${name} 〕`
+                text: `╔═|〔  TIKTOK 〕\n║\n║ ▸ *Usage* : ${prefix}tiktok <url>\n║\n╚═╝`
             }, { quoted: msg });
         }
 
@@ -38,12 +38,12 @@ module.exports = {
             }
 
             const buf    = await dlBuffer(dlUrl);
-            const banner = `╔═|〔  TIKTOK 〕\n║\n║ ▸ *Title* : ${title}\n║ ▸ *By*    : @${author}\n║ ▸ *Size*  : ${(buf.length/1024/1024).toFixed(2)} MB\n║\n╚═|〔 ${name} 〕`;
+            const banner = `╔═|〔  TIKTOK 〕\n║\n║ ▸ *Title* : ${title}\n║ ▸ *By*    : @${author}\n║ ▸ *Size*  : ${(buf.length/1024/1024).toFixed(2)} MB\n║\n╚═╝`;
             await sock.sendMessage(chatId, { video: buf, caption: banner }, { quoted: msg });
 
         } catch (e) {
             await sock.sendMessage(chatId, {
-                text: `╔═|〔  TIKTOK 〕\n║\n║ ▸ *Status* : ❌ Failed\n║ ▸ *Reason* : ${e.message}\n║\n╚═|〔 ${name} 〕`
+                text: `╔═|〔  TIKTOK 〕\n║\n║ ▸ *Status* : ❌ Failed\n║ ▸ *Reason* : ${e.message}\n║\n╚═╝`
             }, { quoted: msg });
         }
     }

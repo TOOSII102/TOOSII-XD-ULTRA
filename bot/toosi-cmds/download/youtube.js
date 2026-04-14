@@ -117,7 +117,7 @@ async function ytDownload(sock, msg, args, prefix, ctx, type) {
 
     if (!url) {
         return sock.sendMessage(chatId, {
-            text: `╔═|〔  YOUTUBE ${type.toUpperCase()} 〕\n║\n║ ▸ *Usage* : ${prefix}yt${type === 'audio' ? 'a' : 'v'} <url>\n║\n╚═|〔 ${name} 〕`
+            text: `╔═|〔  YOUTUBE ${type.toUpperCase()} 〕\n║\n║ ▸ *Usage* : ${prefix}yt${type === 'audio' ? 'a' : 'v'} <url>\n║\n╚═╝`
         }, { quoted: msg });
     }
 
@@ -138,7 +138,7 @@ async function ytDownload(sock, msg, args, prefix, ctx, type) {
                 title   = 'audio';
                 quality = '128kbps';
             }
-            const banner = `╔═|〔  YOUTUBE AUDIO 〕\n║\n║ ▸ *Track*   : ${title}\n║ ▸ *Quality* : ${quality}\n║ ▸ *Size*    : ${(buf.length/1024/1024).toFixed(2)} MB\n║\n╚═|〔 ${name} 〕`;
+            const banner = `╔═|〔  YOUTUBE AUDIO 〕\n║\n║ ▸ *Track*   : ${title}\n║ ▸ *Quality* : ${quality}\n║ ▸ *Size*    : ${(buf.length/1024/1024).toFixed(2)} MB\n║\n╚═╝`;
             await sock.sendMessage(chatId, { document: buf, mimetype: 'audio/mpeg', fileName: `${title}.mp3`, caption: banner }, { quoted: msg });
 
         } else {
@@ -156,13 +156,13 @@ async function ytDownload(sock, msg, args, prefix, ctx, type) {
                 title   = 'video';
                 quality = 'HD';
             }
-            const banner = `╔═|〔  YOUTUBE VIDEO 〕\n║\n║ ▸ *Title*   : ${title}\n║ ▸ *Quality* : ${quality}\n║ ▸ *Size*    : ${(buf.length/1024/1024).toFixed(2)} MB\n║\n╚═|〔 ${name} 〕`;
+            const banner = `╔═|〔  YOUTUBE VIDEO 〕\n║\n║ ▸ *Title*   : ${title}\n║ ▸ *Quality* : ${quality}\n║ ▸ *Size*    : ${(buf.length/1024/1024).toFixed(2)} MB\n║\n╚═╝`;
             await sock.sendMessage(chatId, { video: buf, caption: banner }, { quoted: msg });
         }
 
     } catch (e) {
         await sock.sendMessage(chatId, {
-            text: `╔═|〔  YOUTUBE ${type.toUpperCase()} 〕\n║\n║ ▸ *Status* : ❌ Failed\n║ ▸ *Reason* : ${e.message}\n║\n╚═|〔 ${name} 〕`
+            text: `╔═|〔  YOUTUBE ${type.toUpperCase()} 〕\n║\n║ ▸ *Status* : ❌ Failed\n║ ▸ *Reason* : ${e.message}\n║\n╚═╝`
         }, { quoted: msg });
     }
 }

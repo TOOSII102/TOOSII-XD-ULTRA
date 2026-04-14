@@ -28,7 +28,7 @@ const ttsCmd = {
         if (!args.length || args[0] === 'voices') {
             const list = VOICES.map((v, i) => `║ ▸ [${i + 1}] ${v.label}`).join('\n');
             return sock.sendMessage(chatId, {
-                text: `╔═|〔  🔊 TTS VOICES 〕\n║\n${list}\n║\n║ *Usage* : ${prefix}tts <number> <text>\n║ *Example* : ${prefix}tts 5 Hello world\n║\n╚═|〔 ${name} 〕`
+                text: `╔═|〔  🔊 TTS VOICES 〕\n║\n${list}\n║\n║ *Usage* : ${prefix}tts <number> <text>\n║ *Example* : ${prefix}tts 5 Hello world\n║\n╚═╝`
             }, { quoted: msg });
         }
 
@@ -41,7 +41,7 @@ const ttsCmd = {
 
         const text = textArgs.join(' ').trim();
         if (!text) return sock.sendMessage(chatId, {
-            text: `╔═|〔  🔊 TTS 〕\n║\n║ ▸ *Usage*  : ${prefix}tts <text>\n║ ▸ *Voices* : ${prefix}tts voices\n║\n╚═|〔 ${name} 〕`
+            text: `╔═|〔  🔊 TTS 〕\n║\n║ ▸ *Usage*  : ${prefix}tts <text>\n║ ▸ *Voices* : ${prefix}tts voices\n║\n╚═╝`
         }, { quoted: msg });
 
         const voice = VOICES[voiceIndex];
@@ -51,11 +51,11 @@ const ttsCmd = {
             if (!data.success || !data.audioUrl) throw new Error(data.message || 'TTS failed');
 
             const buf = await dlBuffer(data.audioUrl);
-            const caption = `╔═|〔  🔊 TTS 〕\n║\n║ ▸ *Voice* : ${voice.label}\n║ ▸ *Text*  : ${text.substring(0, 80)}${text.length > 80 ? '...' : ''}\n║\n╚═|〔 ${name} 〕`;
+            const caption = `╔═|〔  🔊 TTS 〕\n║\n║ ▸ *Voice* : ${voice.label}\n║ ▸ *Text*  : ${text.substring(0, 80)}${text.length > 80 ? '...' : ''}\n║\n╚═╝`;
             await sock.sendMessage(chatId, { audio: buf, mimetype: 'audio/mpeg', ptt: false, caption }, { quoted: msg });
         } catch (e) {
             await sock.sendMessage(chatId, {
-                text: `╔═|〔  🔊 TTS 〕\n║\n║ ▸ *Status* : ❌ Failed\n║ ▸ *Reason* : ${e.message}\n║\n╚═|〔 ${name} 〕`
+                text: `╔═|〔  🔊 TTS 〕\n║\n║ ▸ *Status* : ❌ Failed\n║ ▸ *Reason* : ${e.message}\n║\n╚═╝`
             }, { quoted: msg });
         }
     }

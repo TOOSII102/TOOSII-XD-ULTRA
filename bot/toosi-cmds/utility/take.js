@@ -108,7 +108,7 @@ module.exports = {
                     `║              with *${prefix}take*`,
                     `║ ▸ *Custom*  : ${prefix}take MyPack | Author`,
                     `║`,
-                    `╚═|〔 ${name} 〕`,
+                    `╚═╝`,
                 ].join('\n')
             }, { quoted: msg });
         }
@@ -166,13 +166,13 @@ module.exports = {
                     `║ ▸ *Author* : ${packAuthor}`,
                     `║ ▸ *Status* : ✅ Done`,
                     `║`,
-                    `╚═|〔 ${name} 〕`,
+                    `╚═╝`,
                 ].join('\n')
             }, { quoted: msg });
 
         } catch (e) {
             await sock.sendMessage(chatId, {
-                text: `╔═|〔  🎨 TAKE STICKER 〕\n║\n║ ▸ *Status* : ❌ Failed\n║ ▸ *Reason* : ${e.message}\n║\n╚═|〔 ${name} 〕`
+                text: `╔═|〔  🎨 TAKE STICKER 〕\n║\n║ ▸ *Status* : ❌ Failed\n║ ▸ *Reason* : ${e.message}\n║\n╚═╝`
             }, { quoted: msg });
         } finally {
             try { if (fs.existsSync(tmpOut)) fs.unlinkSync(tmpOut); } catch {}

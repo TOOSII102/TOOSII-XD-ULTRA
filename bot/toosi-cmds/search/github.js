@@ -83,7 +83,7 @@
                           `║ ▸ *Repo*    : ${prefix}ghrepo <user/repo>`,
                           `║ ▸ *Example* : ${prefix}ghrepo TOOSII102/toosii-xd-ultra`,
                           `║`,
-                          `╚═|〔 ${name} 〕`,
+                          `╚═╝`,
                       ].join('\n')
                   }, { quoted: msg });
               }
@@ -109,7 +109,7 @@
                       u.blog     ? `║ ▸ *Website*   : ${u.blog}` : null,
                       `║ ▸ *Profile*   : github.com/${u.login}`,
                       `║`,
-                      `╚═|〔 ${name} 〕`,
+                      `╚═╝`,
                   ].filter(Boolean).join('\n');
 
                   if (u.avatar_url) {
@@ -126,7 +126,7 @@
 
               } catch (e) {
                   await sock.sendMessage(chatId, {
-                      text: `╔═|〔  GITHUB 〕\n║\n║ ▸ *Status* : ❌ ${e.message}\n║\n╚═|〔 ${name} 〕`
+                      text: `╔═|〔  GITHUB 〕\n║\n║ ▸ *Status* : ❌ ${e.message}\n║\n╚═╝`
                   }, { quoted: msg });
               }
           }
@@ -153,7 +153,7 @@
                           `║ ▸ *Example*    : ${prefix}ghrepo TOOSII102/toosii-xd-ultra`,
                           `║ ▸ *Also works* : ${prefix}ghrepo https://github.com/user/repo`,
                           `║`,
-                          `╚═|〔 ${name} 〕`,
+                          `╚═╝`,
                       ].join('\n')
                   }, { quoted: msg });
               }
@@ -182,14 +182,14 @@
                       `║  💛 *Love it? Drop a ⭐ and 🍴 fork it!*`,
                       `║  👉 ${r.html_url}`,
                       `║`,
-                      `╚═|〔 ${name} 〕`,
+                      `╚═╝`,
                   ].filter(Boolean).join('\n');
 
                   await sock.sendMessage(chatId, { text: lines }, { quoted: msg });
 
               } catch (e) {
                   await sock.sendMessage(chatId, {
-                      text: `╔═|〔  GITHUB REPO 〕\n║\n║ ▸ *Status* : ❌ ${e.message}\n║\n╚═|〔 ${name} 〕`
+                      text: `╔═|〔  GITHUB REPO 〕\n║\n║ ▸ *Status* : ❌ ${e.message}\n║\n╚═╝`
                   }, { quoted: msg });
               }
           }

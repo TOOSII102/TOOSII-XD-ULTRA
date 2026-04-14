@@ -35,11 +35,11 @@ const jokeCmd = {
         try {
             const joke = await fetchJoke();
             await sock.sendMessage(chatId, {
-                text: `╔═|〔  JOKE 😂 〕\n║\n║ ${joke.replace(/\n/g, '\n║ ')}\n║\n╚═|〔 ${name} 〕`
+                text: `╔═|〔  JOKE 😂 〕\n║\n║ ${joke.replace(/\n/g, '\n║ ')}\n║\n╚═╝`
             }, { quoted: msg });
         } catch (e) {
             await sock.sendMessage(chatId, {
-                text: `╔═|〔  JOKE 〕\n║\n║ ▸ *Status* : ❌ ${e.message}\n║\n╚═|〔 ${name} 〕`
+                text: `╔═|〔  JOKE 〕\n║\n║ ▸ *Status* : ❌ ${e.message}\n║\n╚═╝`
             }, { quoted: msg });
         }
     }
@@ -57,11 +57,11 @@ const factCmd = {
         try {
             const fact = await fetchFact();
             await sock.sendMessage(chatId, {
-                text: `╔═|〔  FUN FACT 🧠 〕\n║\n║ ${fact}\n║\n╚═|〔 ${name} 〕`
+                text: `╔═|〔  FUN FACT 🧠 〕\n║\n║ ${fact}\n║\n╚═╝`
             }, { quoted: msg });
         } catch (e) {
             await sock.sendMessage(chatId, {
-                text: `╔═|〔  FUN FACT 〕\n║\n║ ▸ *Status* : ❌ ${e.message}\n║\n╚═|〔 ${name} 〕`
+                text: `╔═|〔  FUN FACT 〕\n║\n║ ▸ *Status* : ❌ ${e.message}\n║\n╚═╝`
             }, { quoted: msg });
         }
     }
@@ -79,11 +79,11 @@ const quoteCmd = {
         try {
             const { text, author } = await fetchQuote();
             await sock.sendMessage(chatId, {
-                text: `╔═|〔  QUOTE 💬 〕\n║\n║ _"${text}"_\n║\n║ ▸ *—* ${author}\n║\n╚═|〔 ${name} 〕`
+                text: `╔═|〔  QUOTE 💬 〕\n║\n║ _"${text}"_\n║\n║ ▸ *—* ${author}\n║\n╚═╝`
             }, { quoted: msg });
         } catch (e) {
             await sock.sendMessage(chatId, {
-                text: `╔═|〔  QUOTE 〕\n║\n║ ▸ *Status* : ❌ ${e.message}\n║\n╚═|〔 ${name} 〕`
+                text: `╔═|〔  QUOTE 〕\n║\n║ ▸ *Status* : ❌ ${e.message}\n║\n╚═╝`
             }, { quoted: msg });
         }
     }

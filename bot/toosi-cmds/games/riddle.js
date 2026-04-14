@@ -26,7 +26,7 @@ module.exports = [
 
             if (pending.has(chatId)) {
                 return sock.sendMessage(chatId, {
-                    text: `╔═|〔  RIDDLE 〕\n║\n║ ▸ A riddle is active! Guess or type\n║   *${prefix}riddleanswr* to reveal the answer\n║\n╚═|〔 ${name} 〕`
+                    text: `╔═|〔  RIDDLE 〕\n║\n║ ▸ A riddle is active! Guess or type\n║   *${prefix}riddleanswr* to reveal the answer\n║\n╚═╝`
                 }, { quoted: msg });
             }
 
@@ -36,7 +36,7 @@ module.exports = [
                 const timer = setTimeout(async () => {
                     pending.delete(chatId);
                     await sock.sendMessage(chatId, {
-                        text: `╔═|〔  RIDDLE 🧩 〕\n║\n║ ▸ ⏰ Time's up!\n║ ▸ *Answer* : ${answer}\n║\n╚═|〔 ${name} 〕`
+                        text: `╔═|〔  RIDDLE 🧩 〕\n║\n║ ▸ ⏰ Time's up!\n║ ▸ *Answer* : ${answer}\n║\n╚═╝`
                     });
                 }, 90000);
 
@@ -52,13 +52,13 @@ module.exports = [
                         `║ ▸ *${prefix}riddleanswr* to reveal`,
                         `║ ▸ 90 seconds on the clock ⏱️`,
                         `║`,
-                        `╚═|〔 ${name} 〕`,
+                        `╚═╝`,
                     ].join('\n')
                 }, { quoted: msg });
 
             } catch (e) {
                 await sock.sendMessage(chatId, {
-                    text: `╔═|〔  RIDDLE 〕\n║\n║ ▸ *Status* : ❌ ${e.message}\n║\n╚═|〔 ${name} 〕`
+                    text: `╔═|〔  RIDDLE 〕\n║\n║ ▸ *Status* : ❌ ${e.message}\n║\n╚═╝`
                 }, { quoted: msg });
             }
         }
@@ -76,14 +76,14 @@ module.exports = [
             const q = pending.get(chatId);
 
             if (!q) return sock.sendMessage(chatId, {
-                text: `╔═|〔  RIDDLE 〕\n║\n║ ▸ No active riddle. Start one with *${prefix}riddle*\n║\n╚═|〔 ${name} 〕`
+                text: `╔═|〔  RIDDLE 〕\n║\n║ ▸ No active riddle. Start one with *${prefix}riddle*\n║\n╚═╝`
             }, { quoted: msg });
 
             clearTimeout(q.timer);
             pending.delete(chatId);
 
             await sock.sendMessage(chatId, {
-                text: `╔═|〔  RIDDLE 🧩 〕\n║\n║ ▸ *Answer* : ${q.raw}\n║ ▸ Start another with *${prefix}riddle*\n║\n╚═|〔 ${name} 〕`
+                text: `╔═|〔  RIDDLE 🧩 〕\n║\n║ ▸ *Answer* : ${q.raw}\n║ ▸ Start another with *${prefix}riddle*\n║\n╚═╝`
             }, { quoted: msg });
         }
     },
@@ -108,7 +108,7 @@ module.exports = [
 
                 const sender = (msg.key.participant || msg.key.remoteJid).split('@')[0].split(':')[0];
                 await sock.sendMessage(chatId, {
-                    text: `╔═|〔  RIDDLE 🧩 〕\n║\n║ ▸ ✅ Correct! @${sender} got it!\n║ ▸ *Answer* : ${q.raw}\n║\n╚═|〔 ${q.name || 'TOOSII-XD' } 〕`,
+                    text: `╔═|〔  RIDDLE 🧩 〕\n║\n║ ▸ ✅ Correct! @${sender} got it!\n║ ▸ *Answer* : ${q.raw}\n║\n╚═╝`,
                     mentions: [`${sender}@s.whatsapp.net`],
                 }, { quoted: msg });
             }

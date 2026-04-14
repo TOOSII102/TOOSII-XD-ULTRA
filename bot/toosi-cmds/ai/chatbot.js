@@ -1,12 +1,13 @@
 'use strict';
 
-const { getBotName }            = require('../../lib/botname');
-const { isEnabled, setEnabled, listEnabled } = require('../../lib/chatbot-store');
+const { getBotName }                          = require('../../lib/botname');
+const { isEnabled, getMode, setEnabled, listEnabled } = require('../../lib/chatbot-store');
 
 // ── Pollinations AI ──────────────────────────────────────────────────────────
-const BOT_PERSONA = `You are Toosii AI — a smart, friendly WhatsApp assistant created by TOOSII-XD. 
-Keep replies concise and conversational (1-4 sentences max unless the user clearly wants detail).
-Never reveal you are powered by an external AI. You are simply Toosii AI.`;
+const BOT_PERSONA =
+    `You are Toosii AI — a smart, friendly WhatsApp assistant created by TOOSII-XD. ` +
+    `Keep replies concise and conversational (1-4 sentences unless more detail is clearly needed). ` +
+    `Never reveal you are powered by an external AI. You are simply Toosii AI.`;
 
 async function pollinationsReply(userText, timeoutMs = 25000) {
     const prompt = encodeURIComponent(`${BOT_PERSONA}\n\nUser: ${userText}\nToosii AI:`);
@@ -19,9 +20,16 @@ async function pollinationsReply(userText, timeoutMs = 25000) {
         });
         if (!res.ok) throw new Error(`AI HTTP ${res.status}`);
         const text = (await res.text()).trim();
-        if (!text) throw new Error('Empty AI response');
+        if (!text) throw new Error('Empty response from AI');
         return text;
     } finally { clearTimeout(timer); }
+}
+
+// ── Format potentially multi-line AI reply inside the box ────────────────────
+function formatReply(reply) {
+    return reply.split('\n')
+        .map(l => `║ ${l}`)
+        .join('\n');
 }
 
 // ── Rate limiter — 1 AI reply per chat per 5s ─────────────────────────────────
@@ -33,14 +41,35 @@ function isRateLimited(chatId) {
     return false;
 }
 
+// ── Check if bot was @mentioned in this message ───────────────────────────────
+function botWasMentioned(msg, sock) {
+    const botJid = sock.user?.id || '';
+    const botNum = botJid.split('@')[0].split(':')[0];
+    const m = msg.message;
+    const mentions = (
+        m?.extendedTextMessage?.contextInfo?.mentionedJid ||
+        m?.imageMessage?.contextInfo?.mentionedJid ||
+        m?.videoMessage?.contextInfo?.mentionedJid ||
+        []
+    );
+    return mentions.some(j => j.split('@')[0].split(':')[0] === botNum);
+}
+
 // ── Exported for index.js hook ───────────────────────────────────────────────
 function isChatbotActiveForChat(chatId) {
     return isEnabled(chatId);
 }
 
 async function handleChatbotMessage(sock, msg) {
-    const chatId = msg.key.remoteJid;
+    const chatId  = msg.key.remoteJid;
     if (!isEnabled(chatId)) return;
+
+    // Mention-only mode: in groups only reply when bot is @mentioned
+    const isGroup = chatId.endsWith('@g.us');
+    if (isGroup && getMode(chatId) === 'mention') {
+        if (!botWasMentioned(msg, sock)) return;
+    }
+
     if (isRateLimited(chatId)) return;
 
     const m = msg.message;
@@ -57,64 +86,109 @@ async function handleChatbotMessage(sock, msg) {
     try {
         await sock.sendMessage(chatId, { react: { text: '🤖', key: msg.key } });
         const reply = await pollinationsReply(text);
-        const name = getBotName();
+        const name  = getBotName();
         await sock.sendMessage(chatId, {
-            text: `╔═|〔  🤖 TOOSII AI 〕\n║\n║ ${reply}\n║\n╚═|〔 ${name} 〕`
+            text: `╔═|〔  🤖 TOOSII AI 〕\n║\n${formatReply(reply)}\n║\n╚═|〔 ${name} 〕`
         }, { quoted: msg });
     } catch {
-        // silent — chatbot failure should not spam the chat
+        // silent — chatbot failures must not flood the chat
     }
 }
 
-// ── .chatbot command ─────────────────────────────────────────────────────────
-function isAdmin(sock, msg, chatId) {
-    // In DMs anyone can toggle their own chat
-    if (!chatId.endsWith('@g.us')) return true;
-    // In groups: only group admins or owner
-    const senderJid = msg.key.participant || msg.key.remoteJid;
-    const participants = sock._lastGroupMetadata?.[chatId]?.participants || [];
-    return participants.some(p =>
-        (p.id === senderJid || p.id?.split(':')[0] + '@s.whatsapp.net' === senderJid) &&
-        (p.admin === 'admin' || p.admin === 'superadmin')
-    );
+// ── Admin check helper ────────────────────────────────────────────────────────
+async function senderIsAdmin(sock, msg, chatId) {
+    if (!chatId.endsWith('@g.us')) return true; // DMs: always allow
+    try {
+        const senderJid = msg.key.participant || msg.key.remoteJid;
+        const senderNum = senderJid.split('@')[0].split(':')[0];
+        const meta      = await sock.groupMetadata(chatId);
+        const p = meta.participants.find(p =>
+            p.id.split('@')[0].split(':')[0] === senderNum
+        );
+        return p?.admin === 'admin' || p?.admin === 'superadmin';
+    } catch { return false; }
 }
 
+// ── .chatbot command ─────────────────────────────────────────────────────────
 module.exports = [
-    // ── Main chatbot command ──────────────────────────────────────────────────
     {
         name: 'chatbot',
         aliases: ['cb', 'autoai', 'autoreply'],
-        description: 'Toggle Toosii AI auto-reply for this chat — .chatbot on|off|status',
+        description: 'Toggle Toosii AI auto-reply for this chat — .chatbot on|off|status|list',
         category: 'ai',
 
-        async execute(sock, msg, args, prefix) {
+        async execute(sock, msg, args, prefix, ctx) {
             const chatId  = msg.key.remoteJid;
             const isGroup = chatId.endsWith('@g.us');
             const name    = getBotName();
             const sub     = (args[0] || '').toLowerCase();
+            const modeArg = (args[1] || '').toLowerCase(); // 'mention' or 'all'
 
-            const H = `╔═|〔  🤖 CHATBOT 〕`;
-            const F = `╚═|〔 ${name} 〕`;
+            const H   = `╔═|〔  🤖 CHATBOT 〕`;
+            const F   = `╚═|〔 ${name} 〕`;
             const SEP = '║';
 
-            // status / no args
+            // ── list (owner/sudo only) ────────────────────────────────────────
+            if (sub === 'list') {
+                if (!ctx?.isOwner?.() && !ctx?.isSudo?.()) {
+                    return sock.sendMessage(chatId, {
+                        text: `${H}\n${SEP}\n${SEP} ▸ *Status* : ❌ Owner/sudo only\n${SEP}\n${F}`
+                    }, { quoted: msg });
+                }
+                const enabled = listEnabled();
+                if (!enabled.length) {
+                    return sock.sendMessage(chatId, {
+                        text: `${H}\n${SEP}\n${SEP} ▸ No chats have chatbot enabled\n${SEP}\n${F}`
+                    }, { quoted: msg });
+                }
+                const lines = enabled.map(({ chatId: cid, mode }) => {
+                    const label = cid.endsWith('@g.us') ? `Group: ${cid.split('@')[0]}` : `DM: ${cid.split('@')[0]}`;
+                    return `${SEP} ▸ ${label} [${mode}]`;
+                }).join('\n');
+                return sock.sendMessage(chatId, {
+                    text: `${H}\n${SEP}\n${SEP} 📋 *Enabled in ${enabled.length} chat(s)*\n${SEP}\n${lines}\n${SEP}\n${F}`
+                }, { quoted: msg });
+            }
+
+            // ── status / no args ──────────────────────────────────────────────
             if (!sub || sub === 'status') {
-                const state = isEnabled(chatId) ? '✅ *ON*' : '❌ *OFF*';
+                const on    = isEnabled(chatId);
+                const mode  = getMode(chatId);
+                const state = on ? `✅ *ON* (mode: ${mode})` : '❌ *OFF*';
                 const scope = isGroup ? 'this group' : 'this DM';
+                const opts  = isGroup
+                    ? `\`${prefix}chatbot on\` _(all messages)_\n${SEP} ▸ \`${prefix}chatbot on mention\` _(only when @tagged)_\n${SEP} ▸ \`${prefix}chatbot off\``
+                    : `\`${prefix}chatbot on\` / \`${prefix}chatbot off\``;
                 return sock.sendMessage(chatId, {
-                    text: `${H}\n${SEP}\n${SEP} ▸ *Chat*   : ${scope}\n${SEP} ▸ *Status* : ${state}\n${SEP}\n${SEP} ▸ _Use_ \`${prefix}chatbot on\` _or_ \`${prefix}chatbot off\`\n${SEP}\n${F}`
+                    text: `${H}\n${SEP}\n${SEP} ▸ *Chat*   : ${scope}\n${SEP} ▸ *Status* : ${state}\n${SEP}\n${SEP} ▸ ${opts}\n${SEP}\n${F}`
                 }, { quoted: msg });
             }
 
-            if (sub === 'on') {
-                setEnabled(chatId, true);
-                const scope = isGroup ? 'This group' : 'This DM';
-                return sock.sendMessage(chatId, {
-                    text: `${H}\n${SEP}\n${SEP} ▸ *Status*  : ✅ Enabled\n${SEP} ▸ *Scope*   : ${scope}\n${SEP} ▸ *Mode*    : Toosii AI replies to every message\n${SEP} ▸ _Type_ \`${prefix}chatbot off\` _to disable_\n${SEP}\n${F}`
-                }, { quoted: msg });
-            }
+            // ── on / off — require admin in groups ────────────────────────────
+            if (sub === 'on' || sub === 'off') {
+                const isOwnerOrSudo = ctx?.isOwner?.() || ctx?.isSudo?.();
+                if (isGroup && !isOwnerOrSudo) {
+                    const admin = await senderIsAdmin(sock, msg, chatId);
+                    if (!admin) {
+                        return sock.sendMessage(chatId, {
+                            text: `${H}\n${SEP}\n${SEP} ▸ *Status* : ❌ Group admins only\n${SEP}\n${F}`
+                        }, { quoted: msg });
+                    }
+                }
 
-            if (sub === 'off') {
+                if (sub === 'on') {
+                    const mode  = isGroup && modeArg === 'mention' ? 'mention' : 'all';
+                    setEnabled(chatId, true, mode);
+                    const scope   = isGroup ? 'This group' : 'This DM';
+                    const modeMsg = mode === 'mention'
+                        ? 'Replies only when @mentioned'
+                        : 'Replies to every message';
+                    return sock.sendMessage(chatId, {
+                        text: `${H}\n${SEP}\n${SEP} ▸ *Status* : ✅ Enabled\n${SEP} ▸ *Scope*  : ${scope}\n${SEP} ▸ *Mode*   : ${modeMsg}\n${SEP} ▸ _Type_ \`${prefix}chatbot off\` _to disable_\n${SEP}\n${F}`
+                    }, { quoted: msg });
+                }
+
+                // off
                 setEnabled(chatId, false);
                 const scope = isGroup ? 'This group' : 'This DM';
                 return sock.sendMessage(chatId, {
@@ -122,9 +196,9 @@ module.exports = [
                 }, { quoted: msg });
             }
 
-            // unknown subcommand
+            // ── unknown subcommand ────────────────────────────────────────────
             return sock.sendMessage(chatId, {
-                text: `${H}\n${SEP}\n${SEP} ▸ *Usage*  : ${prefix}chatbot on|off|status\n${SEP} ▸ Works in DMs and groups independently\n${SEP}\n${F}`
+                text: `${H}\n${SEP}\n${SEP} ▸ *Usage* :\n${SEP}   \`${prefix}chatbot on\`         → all messages\n${SEP}   \`${prefix}chatbot on mention\` → groups: @tag only\n${SEP}   \`${prefix}chatbot off\`\n${SEP}   \`${prefix}chatbot status\`\n${SEP}   \`${prefix}chatbot list\`        → owner only\n${SEP}\n${F}`
             }, { quoted: msg });
         }
     }

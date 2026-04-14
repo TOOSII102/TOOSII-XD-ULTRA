@@ -55,8 +55,13 @@ async function isExempt(sock, chatId, senderJid, gcfg) {
 }
 
 // ── Event handler registered once at connect ──────────────────────────────────
+const _agsRegistered = new WeakSet();
+
 function setupAntiGroupStatusListener(sock) {
     _sock = sock;
+    if (_agsRegistered.has(sock)) return;
+    _agsRegistered.add(sock);
+
     sock.ev.on('messages.upsert', async ({ messages }) => {
         for (const msg of messages) {
             if (!msg.message?.groupStatusMentionMessage) continue;
@@ -65,10 +70,13 @@ function setupAntiGroupStatusListener(sock) {
 
             const cfg  = loadCfg();
             const gcfg = cfg[chatId];
-            if (!gcfg?.enabled) continue;
+            if (gcfg?.enabled !== true) continue;
 
             const sender = msg.key.participant || msg.key.remoteJid || '';
             if (await isExempt(sock, chatId, sender, gcfg)) continue;
+
+            // Re-check after await — user may have turned AGS off in the meantime
+            if (loadCfg()[chatId]?.enabled !== true) continue;
 
             try { await sock.sendMessage(chatId, { delete: msg.key }); } catch {}
         }

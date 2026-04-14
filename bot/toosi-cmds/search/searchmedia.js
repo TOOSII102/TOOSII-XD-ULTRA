@@ -20,22 +20,23 @@ const imgCmd = {
 
         try {
             await sock.sendMessage(chatId, { react: { text: '🖼️', key: msg.key } });
+            const lock = Math.floor(Math.random() * 1000000);
             const controller = new AbortController();
             const timer = setTimeout(() => controller.abort(), 20000);
             const res = await fetch(
-                `https://source.unsplash.com/featured/?${encodeURIComponent(query)},${Date.now()}`,
+                `https://loremflickr.com/1280/720/${encodeURIComponent(query)}?lock=${lock}`,
                 { signal: controller.signal, redirect: 'follow' }
             );
             clearTimeout(timer);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-            const ab  = await res.arrayBuffer();
-            const buf = Buffer.from(ab);
-            if (buf.length < 1000) throw new Error('No image returned');
+            const buf = Buffer.from(await res.arrayBuffer());
+            if (buf.length < 5000) throw new Error('No image returned');
 
             await sock.sendMessage(chatId, {
                 image: buf,
-                caption: `╔═|〔  🖼️ IMAGE SEARCH 〕\n║\n║ ▸ *Query* : ${query}\n║ ▸ *Via*   : Unsplash\n║\n╚═|〔 ${name} 〕`
+                mimetype: 'image/jpeg',
+                caption: `╔═|〔  🖼️ IMAGE SEARCH 〕\n║\n║ ▸ *Query* : ${query}\n║ ▸ *Via*   : LoremFlickr\n║\n╚═|〔 ${name} 〕`
             }, { quoted: msg });
         } catch (e) {
             await sock.sendMessage(chatId, {

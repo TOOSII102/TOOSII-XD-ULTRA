@@ -49,7 +49,7 @@ module.exports = [
             if (pending.has(chatId)) {
                 const cur = pending.get(chatId);
                 return sock.sendMessage(chatId, {
-                    text: `╔═|〔  TRIVIA 〕\n║\n║ ▸ A question is already active!\n║ ▸ Answer it or type *${prefix}triviaend* to skip\n║\n╚═|〔 ${name} 〕`
+                    text: `╔═|〔  TRIVIA 〕\n║\n║ ▸ A question is already active!\n║ ▸ Answer it or type *${prefix}triviaend* to skip\n║\n╚═╝`
                 }, { quoted: msg });
             }
 
@@ -81,13 +81,13 @@ module.exports = [
                     `║ ▸ Type *A / B / C / D* to answer`,
                     `║ ▸ *${prefix}triviaend* to skip`,
                     `║`,
-                    `╚═|〔 ${name} 〕`,
+                    `╚═╝`,
                 ].join('\n');
 
                 const timer = setTimeout(async () => {
                     pending.delete(chatId);
                     await sock.sendMessage(chatId, {
-                        text: `╔═|〔  TRIVIA 〕\n║\n║ ▸ ⏰ Time's up! Answer was: *${correctLetter}) ${correct}*\n║\n╚═|〔 ${name} 〕`
+                        text: `╔═|〔  TRIVIA 〕\n║\n║ ▸ ⏰ Time's up! Answer was: *${correctLetter}) ${correct}*\n║\n╚═╝`
                     });
                 }, 60000);
 
@@ -96,7 +96,7 @@ module.exports = [
 
             } catch (e) {
                 await sock.sendMessage(chatId, {
-                    text: `╔═|〔  TRIVIA 〕\n║\n║ ▸ *Status* : ❌ ${e.message}\n║\n╚═|〔 ${name} 〕`
+                    text: `╔═|〔  TRIVIA 〕\n║\n║ ▸ *Status* : ❌ ${e.message}\n║\n╚═╝`
                 }, { quoted: msg });
             }
         }
@@ -132,7 +132,7 @@ module.exports = [
                     `║`,
                     `║ ▸ Start another with *${prefix}trivia*`,
                     `║`,
-                    `╚═|〔 ${name} 〕`,
+                    `╚═╝`,
                 ].join('\n'),
                 mentions: [`${sender}@s.whatsapp.net`],
             }, { quoted: msg });
@@ -150,13 +150,13 @@ module.exports = [
             const name   = getBotName();
             const q = pending.get(chatId);
             if (!q) return sock.sendMessage(chatId, {
-                text: `╔═|〔  TRIVIA 〕\n║\n║ ▸ No active question\n║\n╚═|〔 ${name} 〕`
+                text: `╔═|〔  TRIVIA 〕\n║\n║ ▸ No active question\n║\n╚═╝`
             }, { quoted: msg });
 
             clearTimeout(q.timer);
             pending.delete(chatId);
             await sock.sendMessage(chatId, {
-                text: `╔═|〔  TRIVIA 〕\n║\n║ ▸ ⏭️ Skipped! Answer was: *${q.answer}) ${q.correct}*\n║\n╚═|〔 ${name} 〕`
+                text: `╔═|〔  TRIVIA 〕\n║\n║ ▸ ⏭️ Skipped! Answer was: *${q.answer}) ${q.correct}*\n║\n╚═╝`
             }, { quoted: msg });
         }
     },

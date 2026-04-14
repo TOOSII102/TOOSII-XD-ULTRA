@@ -14,7 +14,7 @@ module.exports = {
 
         if (!url) {
             return sock.sendMessage(chatId, {
-                text: `╔═|〔  INSTAGRAM 〕\n║\n║ ▸ *Usage* : ${prefix}ig <url>\n║\n╚═|〔 ${name} 〕`
+                text: `╔═|〔  INSTAGRAM 〕\n║\n║ ▸ *Usage* : ${prefix}ig <url>\n║\n╚═╝`
             }, { quoted: msg });
         }
 
@@ -57,14 +57,14 @@ module.exports = {
             }
 
             const buf    = await dlBuffer(dlUrl);
-            const banner = `╔═|〔  INSTAGRAM 〕\n║\n║ ▸ *Type* : ${isVid ? '📹 Video' : '🖼️ Image'}\n║ ▸ *Size* : ${(buf.length/1024/1024).toFixed(2)} MB\n║\n╚═|〔 ${name} 〕`;
+            const banner = `╔═|〔  INSTAGRAM 〕\n║\n║ ▸ *Type* : ${isVid ? '📹 Video' : '🖼️ Image'}\n║ ▸ *Size* : ${(buf.length/1024/1024).toFixed(2)} MB\n║\n╚═╝`;
 
             if (isVid) await sock.sendMessage(chatId, { video: buf, caption: banner }, { quoted: msg });
             else        await sock.sendMessage(chatId, { image: buf, caption: banner }, { quoted: msg });
 
         } catch (e) {
             await sock.sendMessage(chatId, {
-                text: `╔═|〔  INSTAGRAM 〕\n║\n║ ▸ *Status* : ❌ Failed\n║ ▸ *Reason* : ${e.message}\n║\n╚═|〔 ${name} 〕`
+                text: `╔═|〔  INSTAGRAM 〕\n║\n║ ▸ *Status* : ❌ Failed\n║ ▸ *Reason* : ${e.message}\n║\n╚═╝`
             }, { quoted: msg });
         }
     }

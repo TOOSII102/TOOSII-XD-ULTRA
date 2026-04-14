@@ -204,14 +204,12 @@ node index.js
 ### 📬 Contact & Support
 
 [![Telegram](https://img.shields.io/badge/Telegram-%40toosiitech-2CA5E0?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/toosiitech)
+[![WhatsApp](https://img.shields.io/badge/WhatsApp-Chat%20Us-25D366?style=for-the-badge&logo=whatsapp&logoColor=white)](https://wa.me/254746677793)
+[![WhatsApp](https://img.shields.io/badge/WhatsApp-Chat%20Us-25D366?style=for-the-badge&logo=whatsapp&logoColor=white)](https://wa.me/254748340864)
+[![Session Generator](https://img.shields.io/badge/Session-Get%20Session%20ID-FF6B6B?style=for-the-badge&logo=whatsapp&logoColor=white)](https://toosiitechdevelopertools.zone.id/session)
 
 ```
   ┌─────────────────────────────────────────────────────────────┐
-  │                                                             │
-  │   📱  Telegram   →  t.me/toosiitech                        │
-  │                                                             │
-  │   🌐  Session Generator →                                  │
-  │        toosiitechdevelopertools.zone.id/session             │
   │                                                             │
   │   © 2025 TOOSII TECH  —  MIT License  —  Free to use       │
   │                                                             │

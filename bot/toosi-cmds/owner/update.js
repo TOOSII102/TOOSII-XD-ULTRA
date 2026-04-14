@@ -13,12 +13,12 @@ const { execSync } = require('child_process');
       return execSync(cmd, { encoding: 'utf8', timeout: 120000, stdio: 'pipe', ...opts }).trim();
   }
 
-  function getCurrentCommit() {
-      try { return run('git rev-parse HEAD'); } catch { return null; }
+  function isGitRepo() {
+      try { run('git rev-parse --is-inside-work-tree'); return true; } catch { return false; }
   }
 
-  function gitAvailable() {
-      try { run('git --version'); return true; } catch { return false; }
+  function getCurrentCommit() {
+      try { return run('git rev-parse HEAD'); } catch { return null; }
   }
 
   async function getLatestCommit() {
@@ -50,7 +50,6 @@ const { execSync } = require('child_process');
           const botName = getBotName();
           const foot    = `╚═|〔 ${botName} 〕`;
 
-          // Fix: use ctx.isOwner() same as every other owner command
           if (!ctx.isOwner()) {
               return sock.sendMessage(chatId, {
                   text: `╔═|〔  UPDATE 〕\n║\n║ ▸ *Status* : ❌ Owner only\n║\n${foot}`
@@ -83,18 +82,21 @@ const { execSync } = require('child_process');
               }, { quoted: msg });
           }
 
-          // Check git availability — Pterodactyl/bot-hosting containers may not have it
-          if (!gitAvailable()) {
+          // Files were uploaded manually — no .git folder exists in the container
+          if (!isGitRepo()) {
               return sock.sendMessage(chatId, {
                   text: [
                       `╔═|〔  UPDATE 〕`,
                       `║`,
-                      `║ ▸ *Platform* : 🖥️ Bot-Hosting / Pterodactyl`,
-                      `║ ▸ *Status*   : ℹ️ Git not available in this container`,
-                      `║ ▸ *Latest*   : ${shortLatest} — ${latest.message}`,
+                      `║ ▸ *Platform* : 🖥️ Bot-Hosting (files uploaded manually)`,
+                      `║ ▸ *Status*   : ℹ️ Not a git repository`,
+                      `║ ▸ *Latest*   : ${shortLatest}`,
+                      `║ ▸ *Message*  : ${latest.message}`,
                       `║`,
-                      `║  To update: go to Files tab in your panel,`,
-                      `║  re-upload changed files, then use ${prefix}restart`,
+                      `║  Your files were uploaded directly, not cloned.`,
+                      `║  To update, go to your panel → Files tab,`,
+                      `║  delete the old files and re-upload the new`,
+                      `║  ones from GitHub, then use ${prefix}restart.`,
                       `║`,
                       `${foot}`,
                   ].join('\n')

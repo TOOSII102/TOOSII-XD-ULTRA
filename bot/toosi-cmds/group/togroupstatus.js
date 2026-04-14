@@ -33,7 +33,7 @@ module.exports = {
     async execute(sock, msg, args, prefix, ctx) {
         const chatId  = msg.key.remoteJid;
         const botName = getBotName();
-        const foot    = `╚═|〔 ${botName} 〕`;
+        const foot    = `╚═╝`;
 
         if (!ctx?.isOwnerUser && !ctx?.isSudoUser && !ctx?.isGroupAdmin) {
             return sock.sendMessage(chatId, {

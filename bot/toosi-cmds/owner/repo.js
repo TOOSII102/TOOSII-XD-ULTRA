@@ -75,7 +75,7 @@ module.exports = {
     async execute(sock, msg, args, prefix, ctx) {
         const chatId  = msg.key.remoteJid;
         const botName = getBotName();
-        const foot    = `╚═|〔 ${botName} 〕`;
+        const foot    = `╚═╝`;
         const input   = args[0] || null;
         const repoSlug = parseRepo(input);
 

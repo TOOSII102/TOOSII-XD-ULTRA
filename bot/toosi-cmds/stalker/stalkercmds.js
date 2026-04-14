@@ -89,14 +89,18 @@ const ghStalkCmd = {
     category: 'stalker',
     async execute(sock, msg, args, prefix) {
         const chatId = msg.key.remoteJid;
-        const input  = args[0] || '';
-        if (!input.includes('/')) return sock.sendMessage(chatId, {
-            text: errMsg('GITHUB STALK', '🐙', `Usage: ${prefix}ghstalk <user/repo>`)
+        // Accept full GitHub URLs or user/repo shorthand
+        const raw = args.join('').trim();
+        const urlMatch = raw.match(/github\.com\/([^/?#]+\/[^/?#]+)/i);
+        const input = urlMatch ? urlMatch[1].replace(/\.git$/, '') : raw;
+
+        if (!input || !input.includes('/')) return sock.sendMessage(chatId, {
+            text: errMsg('GITHUB STALK', '🐙', `Usage: ${prefix}ghstalk <user/repo> or full GitHub URL`)
         }, { quoted: msg });
 
         try {
             await sock.sendMessage(chatId, { react: { text: '🐙', key: msg.key } });
-            const repo = await ghFetch(`/repos/${input.trim()}`);
+            const repo = await ghFetch(`/repos/${input}`);
             if (!repo?.full_name) throw new Error('Repo not found');
 
             await sock.sendMessage(chatId, {

@@ -23,3 +23,7 @@ bot/tmp/
 .replit
 replit.nix
 .breakpoints
+
+  # yt-dlp binary — auto-downloaded on startup, no need to commit
+  bot/yt-dlp
+  

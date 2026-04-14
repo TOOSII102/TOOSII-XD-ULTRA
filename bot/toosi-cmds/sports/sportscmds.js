@@ -195,19 +195,52 @@ const gameEventsCmd = {
     }
 };
 
-// ── Live Scores / Matches (Casper) ───────────────────────────────────────────
+// ── Casper→Keith slug map ─────────────────────────────────────────────────────
+const CASPER_TO_KEITH = {
+    'premier-league': 'epl', 'bundesliga': 'bundesliga',
+    'la-liga': 'laliga', 'champions-league': 'ucl',
+    'serie-a': 'seriea',
+};
+
+// ── Keith livescore formatter (shared) ───────────────────────────────────────
+function renderKeithScores(games, filter) {
+    if (filter) games = games.filter(g =>
+        g.p1?.toLowerCase().includes(filter) || g.p2?.toLowerCase().includes(filter)
+    );
+    if (!games.length) throw new Error(filter ? `No matches found for "${filter}"` : 'No match data available');
+    const live = games.filter(g => g.R?.st && !['FT','NS','-',''].includes(g.R.st));
+    const ft   = games.filter(g => g.R?.st === 'FT');
+    const ns   = games.filter(g => !g.R?.st || g.R.st === 'NS' || g.R.st === '-');
+    const fmtG = (g) => {
+        const st = g.R?.st || 'NS';
+        const badge = st === 'FT' ? '✅' : st === 'HT' ? '⏸' : (st !== 'NS' && st !== '-') ? '🔴 LIVE' : '🕐';
+        const score = (st !== 'NS' && st !== '-') ? `${g.R?.r1 ?? '-'} - ${g.R?.r2 ?? '-'}` : (g.tm || 'TBA');
+        return `║ ${badge} *${g.p1}* vs *${g.p2}* — ${score} [${st}]`;
+    };
+    const sections = [];
+    if (live.length) sections.push(`║ 🔴 *LIVE (${live.length})*`, '║', ...live.slice(0,6).map(fmtG));
+    if (ft.length)   sections.push('║', `║ ✅ *FULL TIME (${ft.length})*`, '║', ...ft.slice(0,8).map(fmtG));
+    if (ns.length && !filter) sections.push('║', `║ 🕐 *UPCOMING (${ns.length})*`, '║', ...ns.slice(0,5).map(fmtG));
+    sections.push('║', `║ 📊 Total: ${games.length} matches`);
+    if (filter) sections.push(`║ 🔍 Filter: "${filter}"`);
+    return sections;
+}
+
+// ── Live Scores / Matches (Casper → Keith fallback) ───────────────────────────
 const liveScoresCmd = {
     name: 'livescores',
     aliases: ['scores', 'footballscores', 'smatches', 'footballmatches'],
-    description: 'Live football scores & fixtures — .livescores [competition]',
+    description: 'Live football scores & fixtures — .livescores [competition/team]',
     category: 'sports',
     async execute(sock, msg, args, prefix) {
         const chatId = msg.key.remoteJid;
         const filter = args.join(' ').trim().toLowerCase();
+        await sock.sendMessage(chatId, { react: { text: '⚽', key: msg.key } });
+
+        // ── Try Casper first ──────────────────────────────────────────────────
         try {
-            await sock.sendMessage(chatId, { react: { text: '⚽', key: msg.key } });
             const data = await casperSports({ action: 'matches', limit: 50 });
-            if (!data.success) throw new Error(data.message || 'API error');
+            if (!data.success) throw new Error(data.message || 'Casper unavailable');
             let matches = data.matches || [];
             if (filter) matches = matches.filter(m =>
                 m.competition?.name?.toLowerCase().includes(filter) ||
@@ -220,62 +253,70 @@ const liveScoresCmd = {
             const live    = matches.filter(m => m.status?.isLive);
             const results = matches.filter(m => m.status?.isResult);
             const fixtures = matches.filter(m => m.status?.isFixture);
-
-            const fmtMatch = (m) => {
+            const fmtM = (m) => {
                 const score = m.status?.isLive || m.status?.isResult
-                    ? `*${m.score?.home ?? '-'} - ${m.score?.away ?? '-'}*`
-                    : m.startTime || 'TBA';
+                    ? `*${m.score?.home ?? '-'} - ${m.score?.away ?? '-'}*` : (m.startTime || 'TBA');
                 const badge = m.status?.isLive ? '🔴 LIVE' : m.status?.isResult ? '✅' : '🕐';
                 return `║ ${badge} *${m.homeTeam}* vs *${m.awayTeam}* — ${score}\n║      🏆 ${m.competition?.short || m.competition?.name || 'N/A'} | 📅 ${m.startDate || 'N/A'}`;
             };
-
             const sections = [];
-            if (live.length) {
-                sections.push(`║ 🔴 *LIVE MATCHES (${live.length})*`, '║', ...live.slice(0,5).map(fmtMatch));
-            }
-            if (results.length) {
-                sections.push('║', `║ ✅ *RESULTS (${results.length})*`, '║', ...results.slice(0,5).map(fmtMatch));
-            }
-            if (fixtures.length) {
-                sections.push('║', `║ 🕐 *UPCOMING (${fixtures.length})*`, '║', ...fixtures.slice(0,6).map(fmtMatch));
-            }
+            if (live.length)     sections.push(`║ 🔴 *LIVE (${live.length})*`, '║', ...live.slice(0,5).map(fmtM));
+            if (results.length)  sections.push('║', `║ ✅ *RESULTS (${results.length})*`, '║', ...results.slice(0,5).map(fmtM));
+            if (fixtures.length) sections.push('║', `║ 🕐 *UPCOMING (${fixtures.length})*`, '║', ...fixtures.slice(0,6).map(fmtM));
             sections.push('║', `║ 📊 Total: ${matches.length} matches`);
             if (filter) sections.push(`║ 🔍 Filter: "${filter}"`);
+            return await sock.sendMessage(chatId, { text: box('FOOTBALL SCORES', '⚽', sections) }, { quoted: msg });
+        } catch (_) { /* fall through to Keith */ }
 
-            await sock.sendMessage(chatId, {
-                text: box('FOOTBALL SCORES', '⚽', sections)
-            }, { quoted: msg });
+        // ── Keith fallback ────────────────────────────────────────────────────
+        try {
+            const data = await keithGet('/livescore');
+            if (!data.status) throw new Error(data.error || 'No scores available');
+            const games = Object.values(data.result?.games || {});
+            const sections = renderKeithScores(games, filter);
+            await sock.sendMessage(chatId, { text: box('FOOTBALL SCORES', '⚽', sections) }, { quoted: msg });
         } catch (e) {
             await sock.sendMessage(chatId, { text: err('LIVE SCORES', '⚽', e.message) }, { quoted: msg });
         }
     }
 };
 
-// ── Sports News (Casper) ─────────────────────────────────────────────────────
+// ── Sports News (Casper → Keith fallback) ────────────────────────────────────
 const sportsNewsCmd = {
     name: 'sportsnews',
     aliases: ['snews', 'sportnews', 'footballnews', 'fnews'],
-    description: 'Latest sports news headlines — .sportsnews',
+    description: 'Latest sports/football news headlines — .sportsnews',
     category: 'sports',
     async execute(sock, msg, args, prefix) {
         const chatId = msg.key.remoteJid;
-        try {
-            await sock.sendMessage(chatId, { react: { text: '📰', key: msg.key } });
-            const data = await casperSports({ action: 'news' });
-            if (!data.success) throw new Error(data.message || 'API error');
-            const articles = data.articles || [];
-            if (!articles.length) throw new Error('No news articles found');
+        await sock.sendMessage(chatId, { react: { text: '📰', key: msg.key } });
 
+        // ── Try Casper first ──────────────────────────────────────────────────
+        try {
+            const data = await casperSports({ action: 'news' });
+            if (!data.success) throw new Error(data.message || 'Casper unavailable');
+            const articles = data.articles || [];
+            if (!articles.length) throw new Error('No articles');
             const lines = articles.slice(0, 10).map((a, i) =>
                 `║ *${i + 1}.* ${trunc(a.title, 80)}\n║      🔗 ${trunc(a.url, 60)}`
             ).join('\n║\n');
+            return await sock.sendMessage(chatId, {
+                text: box('SPORTS NEWS', '📰', [`║ 📊 *${articles.length} articles*`, '║', lines])
+            }, { quoted: msg });
+        } catch (_) { /* fall through to Keith */ }
 
+        // ── Keith fallback ────────────────────────────────────────────────────
+        try {
+            const data = await keithGet('/football/news');
+            if (!data.status) throw new Error(data.error || 'News unavailable');
+            const items = data.result?.data?.items || data.result?.data?.list || [];
+            if (!items.length) throw new Error('No football news found');
+            const lines = items.slice(0, 10).map((a, i) => {
+                const summary = a.summary ? `\n║      📝 ${trunc(a.summary, 90)}` : '';
+                return `║ *${i+1}.* ${trunc(a.title, 80)}${summary}`;
+            }).join('\n║\n');
             await sock.sendMessage(chatId, {
-                text: box('SPORTS NEWS', '📰', [
-                    `║ 📊 *${articles.length} articles*`,
-                    '║',
-                    lines,
-                ])
+                text: box('FOOTBALL NEWS', '📰', [`║ 📊 *${items.length} articles*`, '║', lines])
             }, { quoted: msg });
         } catch (e) {
             await sock.sendMessage(chatId, { text: err('SPORTS NEWS', '📰', e.message) }, { quoted: msg });
@@ -323,7 +364,7 @@ const teamNewsCmd = {
     }
 };
 
-// ── Fixtures (Casper) ────────────────────────────────────────────────────────
+// ── Fixtures (Casper → Keith fallback) ───────────────────────────────────────
 const fixturesCmd = {
     name: 'fixtures',
     aliases: ['schedule', 'fixtureslist', 'upcoming', 'matchschedule'],
@@ -337,22 +378,42 @@ const fixturesCmd = {
                 text: err('FIXTURES', '📅', `Invalid league.\n*Available leagues:*\n${LEAGUES.map(l=>`• ${l}`).join('\n')}`)
             }, { quoted: msg });
         }
-        try {
-            await sock.sendMessage(chatId, { react: { text: '📅', key: msg.key } });
-            const data = await casperSports({ action: 'fixtures', league, type: 'upcoming' });
-            if (!data.success) throw new Error(data.message || 'API error');
-            const matches = data.matches || [];
-            if (!matches.length) throw new Error(`No upcoming fixtures for *${league}*`);
+        await sock.sendMessage(chatId, { react: { text: '📅', key: msg.key } });
 
+        // ── Try Casper first ──────────────────────────────────────────────────
+        try {
+            const data = await casperSports({ action: 'fixtures', league, type: 'upcoming' });
+            if (!data.success) throw new Error(data.message || 'Casper unavailable');
+            const matches = data.matches || [];
+            if (!matches.length) throw new Error('No fixtures');
             const lines = matches.slice(0, 10).map((m, i) =>
                 `║ *${i+1}.* *${m.homeTeam}* vs *${m.awayTeam}*\n║      📅 ${m.startDate || 'N/A'} at ${m.startTime || 'TBA'}`
             ).join('\n║\n');
+            return await sock.sendMessage(chatId, {
+                text: box(`FIXTURES · ${league.toUpperCase()}`, '📅', [
+                    `║ 📊 *${matches.length} matches* (showing ${Math.min(matches.length,10)})`, '║', lines,
+                ])
+            }, { quoted: msg });
+        } catch (_) { /* fall through to Keith */ }
 
+        // ── Keith fallback ────────────────────────────────────────────────────
+        try {
+            const kLeague = CASPER_TO_KEITH[league];
+            if (!kLeague) throw new Error(`No upcoming fixtures for *${league}* — try: premier-league, bundesliga, la-liga, champions-league`);
+            const data = await keithGet(`/${kLeague}/upcomingmatches`);
+            if (!data.status) throw new Error(data.error || `No upcoming fixtures for ${league}`);
+            const matches = data.result?.upcomingMatches || [];
+            if (!matches.length) throw new Error(`No upcoming fixtures for *${league}*`);
+            const lines = matches.slice(0, 10).map((m, i) => {
+                const home = m.homeTeam || m.home || '?';
+                const away = m.awayTeam || m.away || '?';
+                const date = m.date || m.matchdate || '';
+                const time = m.time || m.startTime || '';
+                return `║ *${i+1}.* *${home}* vs *${away}*\n║      📅 ${date} ${time}`.trim();
+            }).join('\n║\n');
             await sock.sendMessage(chatId, {
                 text: box(`FIXTURES · ${league.toUpperCase()}`, '📅', [
-                    `║ 📊 *${matches.length} matches* (showing ${Math.min(matches.length,10)})`,
-                    '║',
-                    lines,
+                    `║ 📊 *${matches.length} matches* (showing ${Math.min(matches.length,10)})`, '║', lines,
                 ])
             }, { quoted: msg });
         } catch (e) {
@@ -361,7 +422,7 @@ const fixturesCmd = {
     }
 };
 
-// ── Top Scorers (Casper) ─────────────────────────────────────────────────────
+// ── Top Scorers (Casper → Keith fallback) ────────────────────────────────────
 const topScorersCmd = {
     name: 'topscorers',
     aliases: ['scorers', 'goldenboot', 'topscorerlist'],
@@ -375,83 +436,44 @@ const topScorersCmd = {
                 text: err('TOP SCORERS', '🥅', `Invalid league.\n*Available leagues:*\n${LEAGUES.map(l=>`• ${l}`).join('\n')}`)
             }, { quoted: msg });
         }
-        try {
-            await sock.sendMessage(chatId, { react: { text: '🥅', key: msg.key } });
-            const data = await casperSports({ action: 'topscorers', slug: league });
-            if (!data.success) throw new Error(data.message || 'API error');
-            const scorers = data.topScorers || [];
-            if (!scorers.length) throw new Error(`No scorer data available for *${league}* yet`);
+        await sock.sendMessage(chatId, { react: { text: '🥅', key: msg.key } });
 
+        // ── Try Casper first ──────────────────────────────────────────────────
+        try {
+            const data = await casperSports({ action: 'topscorers', slug: league });
+            if (!data.success) throw new Error(data.message || 'Casper unavailable');
+            const scorers = data.topScorers || [];
+            if (!scorers.length) throw new Error('No scorers');
             const lines = scorers.slice(0, 10).map((s, i) => {
                 const name  = s.name || s.player || s.playerName || 'Unknown';
                 const goals = s.goals ?? s.goal ?? '?';
                 const club  = s.team || s.club || '';
                 return `║ *${i+1}.* ${name}${club ? ` (${club})` : ''} — ⚽ ${goals} goals`;
             }).join('\n');
+            return await sock.sendMessage(chatId, {
+                text: box(`TOP SCORERS · ${league.toUpperCase()}`, '🥅', [`║ 📊 *${scorers.length} scorers*`, '║', lines])
+            }, { quoted: msg });
+        } catch (_) { /* fall through to Keith */ }
 
+        // ── Keith fallback ────────────────────────────────────────────────────
+        try {
+            const kLeague = CASPER_TO_KEITH[league];
+            if (!kLeague) throw new Error(`No scorer data for *${league}* — try: premier-league, bundesliga, la-liga, champions-league`);
+            const data = await keithGet(`/${kLeague}/scorers`);
+            if (!data.status) throw new Error(data.error || `No scorer data for ${league}`);
+            const scorers = data.result?.topScorers || [];
+            if (!scorers.length) throw new Error(`No scorer data for *${league}*`);
+            const lines = scorers.slice(0, 10).map((s, i) => {
+                const name  = s.name || s.player || 'Unknown';
+                const goals = s.goals ?? '?';
+                const club  = s.team || s.club || '';
+                return `║ *${s.rank || (i+1)}.* ${name}${club ? ` (${club})` : ''} — ⚽ ${goals} goals`;
+            }).join('\n');
             await sock.sendMessage(chatId, {
-                text: box(`TOP SCORERS · ${league.toUpperCase()}`, '🥅', [
-                    `║ 📊 *${scorers.length} scorers*`,
-                    '║',
-                    lines,
-                ])
+                text: box(`TOP SCORERS · ${league.toUpperCase()}`, '🥅', [`║ 📊 *${scorers.length} scorers*`, '║', lines])
             }, { quoted: msg });
         } catch (e) {
             await sock.sendMessage(chatId, { text: err('TOP SCORERS', '🥅', e.message) }, { quoted: msg });
-        }
-    }
-};
-
-// ── Keith: Live Scores ───────────────────────────────────────────────────────
-const keithLiveCmd = {
-    name: 'klivescores',
-    aliases: ['klive', 'footballresults', 'allscores', 'kscores'],
-    description: 'Football live scores & results (189+ games) — .klivescores [team name]',
-    category: 'sports',
-    async execute(sock, msg, args, prefix) {
-        const chatId = msg.key.remoteJid;
-        const filter = args.join(' ').trim().toLowerCase();
-        try {
-            await sock.sendMessage(chatId, { react: { text: '⚽', key: msg.key } });
-            const data = await keithGet('/livescore');
-            if (!data.status) throw new Error(data.error || 'API returned no data');
-            let games = Object.values(data.result?.games || {});
-            if (!games.length) throw new Error('No match data available right now');
-            if (filter) games = games.filter(g =>
-                g.p1?.toLowerCase().includes(filter) || g.p2?.toLowerCase().includes(filter)
-            );
-            if (!games.length) throw new Error(`No matches found for "${filter}"`);
-
-            const live    = games.filter(g => g.R?.st && g.R.st !== 'FT' && g.R.st !== 'NS' && g.R.st !== '-');
-            const ft      = games.filter(g => g.R?.st === 'FT');
-            const ns      = games.filter(g => !g.R?.st || g.R.st === 'NS' || g.R.st === '-');
-
-            const fmtGame = (g) => {
-                const st = g.R?.st || 'NS';
-                const s1 = g.R?.r1 ?? '-';
-                const s2 = g.R?.r2 ?? '-';
-                const badge = st === 'FT' ? '✅' : st === 'HT' ? '⏸' : (st !== 'NS' && st !== '-') ? '🔴' : '🕐';
-                const score = (st !== 'NS' && st !== '-') ? `${s1} - ${s2}` : g.tm || 'TBA';
-                return `║ ${badge} *${g.p1}* vs *${g.p2}* — ${score} [${st}]`;
-            };
-
-            const sections = [];
-            if (live.length) {
-                sections.push(`║ 🔴 *LIVE (${live.length})*`, '║', ...live.slice(0,6).map(fmtGame));
-            }
-            if (ft.length) {
-                sections.push('║', `║ ✅ *FULL TIME (${ft.length})*`, '║', ...ft.slice(0,8).map(fmtGame));
-            }
-            if (ns.length && !filter) {
-                sections.push('║', `║ 🕐 *UPCOMING (${ns.length})*`, '║', ...ns.slice(0,5).map(fmtGame));
-            }
-            sections.push('║', `║ 📊 Total: ${games.length} matches`);
-
-            await sock.sendMessage(chatId, {
-                text: box('FOOTBALL SCORES', '⚽', sections)
-            }, { quoted: msg });
-        } catch (e) {
-            await sock.sendMessage(chatId, { text: err('LIVE SCORES', '⚽', e.message) }, { quoted: msg });
         }
     }
 };
@@ -497,39 +519,6 @@ const betPredCmd = {
             }, { quoted: msg });
         } catch (e) {
             await sock.sendMessage(chatId, { text: err('BET PREDICTIONS', '🎯', e.message) }, { quoted: msg });
-        }
-    }
-};
-
-// ── Keith: Football News ─────────────────────────────────────────────────────
-const keithNewsCmd = {
-    name: 'kfootballnews',
-    aliases: ['kfnews', 'footballnews2', 'fnews2', 'latestfootball'],
-    description: 'Latest football news — .kfootballnews',
-    category: 'sports',
-    async execute(sock, msg, args, prefix) {
-        const chatId = msg.key.remoteJid;
-        try {
-            await sock.sendMessage(chatId, { react: { text: '📰', key: msg.key } });
-            const data = await keithGet('/football/news');
-            if (!data.status) throw new Error(data.error || 'News unavailable');
-            const items = data.result?.data?.items || data.result?.data?.list || [];
-            if (!items.length) throw new Error('No football news found');
-
-            const lines = items.slice(0, 10).map((a, i) => {
-                const summary = a.summary ? `\n║      📝 ${trunc(a.summary, 90)}` : '';
-                return `║ *${i+1}.* ${trunc(a.title, 80)}${summary}`;
-            }).join('\n║\n');
-
-            await sock.sendMessage(chatId, {
-                text: box('FOOTBALL NEWS', '📰', [
-                    `║ 📊 *${items.length} articles*`,
-                    '║',
-                    lines,
-                ])
-            }, { quoted: msg });
-        } catch (e) {
-            await sock.sendMessage(chatId, { text: err('FOOTBALL NEWS', '📰', e.message) }, { quoted: msg });
         }
     }
 };
@@ -602,4 +591,4 @@ const leagueCmd = {
 
 module.exports = [playerSearchCmd, teamSearchCmd, venueSearchCmd, gameEventsCmd,
     liveScoresCmd, sportsNewsCmd, teamNewsCmd, fixturesCmd, topScorersCmd,
-    keithLiveCmd, betPredCmd, keithNewsCmd, leagueCmd];
+    betPredCmd, leagueCmd];

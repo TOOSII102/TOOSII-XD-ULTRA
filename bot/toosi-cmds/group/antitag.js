@@ -148,7 +148,12 @@ async function isExempt(sock, chatId, senderJid, gcfg) {
 }
 
 // ── event listener ────────────────────────────────────────────────────────────
+const _ataRegistered = new WeakSet();
+
 function setupAntiTagListener(sock) {
+    if (_ataRegistered.has(sock)) return;
+    _ataRegistered.add(sock);
+
     const startedAt = Math.floor(Date.now() / 1000); // unix seconds
 
     sock.ev.on('messages.upsert', async ({ messages }) => {
@@ -165,7 +170,7 @@ function setupAntiTagListener(sock) {
 
             const cfg  = loadCfg();
             const gcfg = cfg[chatId];
-            if (!gcfg?.enabled) continue;
+            if (gcfg?.enabled !== true) continue;
 
             if (!isGroupTag(msg, chatId, gcfg.threshold ?? 5)) continue;
 
@@ -174,6 +179,9 @@ function setupAntiTagListener(sock) {
             if (await isExempt(sock, chatId, sender, gcfg)) {
                 continue;
             }
+
+            // Re-check after awaits — user may have turned antitag off in the meantime
+            if (loadCfg()[chatId]?.enabled !== true) continue;
 
             const action  = gcfg.action || 'warn';
             const display = await resolveDisplayWithName(sock, chatId, sender).catch(() => `+${bareNum(sender)}`);

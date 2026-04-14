@@ -116,7 +116,7 @@
   }
 
   module.exports = {
-        initTables, getClient,
+        initTables, getClient, setConfigBotId, getConfigBotId,
         getConfig, setConfig, getAllConfig, deleteConfig,
         getWarnings, addWarning, removeWarning, getAllWarnings,
         migrateJSONToConfig,

@@ -134,7 +134,7 @@
 
       {
           name: 'ghrepo',
-          aliases: ['gitrepo', 'repo', 'githubr', 'repoinfo'],
+          aliases: ['gitrepo', 'githubr', 'repoinfo'],
           description: 'Lookup a GitHub repo — .ghrepo <user/repo>',
           category: 'search',
 

@@ -1,6 +1,6 @@
 module.exports = {
     name: 'groupinfo',
-    aliases: ['ginfo','groupstats'],
+    aliases: ['ginfo'],
     description: 'Show group information',
     category: 'group',
     async execute(sock, msg, args, prefix, ctx) {

@@ -896,15 +896,26 @@ async function reloadConfigCaches() {
             process.env.BOT_MODE = _cache_bot_mode.mode;
         }
 
-        // Auto-typing / auto-recording always start OFF — user re-enables each session
-          process.env.AUTO_TYPING          = 'off';
-          process.env.AUTO_TYPING_DM       = 'off';
-          process.env.AUTO_TYPING_GROUP    = 'off';
-          process.env.AUTO_RECORDING       = 'off';
-          process.env.AUTO_RECORDING_DM    = 'off';
-          process.env.AUTO_RECORDING_GROUP = 'off';
+        // Auto-typing / auto-recording: restore saved settings from database (persists across restarts)
+          try {
+              const _at  = await _loadConfigCache('AUTO_TYPING', 'off');
+              const _atd = await _loadConfigCache('AUTO_TYPING_DM', 'off');
+              const _atg = await _loadConfigCache('AUTO_TYPING_GROUP', 'off');
+              const _ar  = await _loadConfigCache('AUTO_RECORDING', 'off');
+              const _ard = await _loadConfigCache('AUTO_RECORDING_DM', 'off');
+              const _arg = await _loadConfigCache('AUTO_RECORDING_GROUP', 'off');
+              process.env.AUTO_TYPING          = (typeof _at  === 'string' ? _at  : 'off');
+              process.env.AUTO_TYPING_DM       = (typeof _atd === 'string' ? _atd : 'off');
+              process.env.AUTO_TYPING_GROUP    = (typeof _atg === 'string' ? _atg : 'off');
+              process.env.AUTO_RECORDING       = (typeof _ar  === 'string' ? _ar  : 'off');
+              process.env.AUTO_RECORDING_DM    = (typeof _ard === 'string' ? _ard : 'off');
+              process.env.AUTO_RECORDING_GROUP = (typeof _arg === 'string' ? _arg : 'off');
+          } catch {
+              process.env.AUTO_TYPING = process.env.AUTO_TYPING_DM = process.env.AUTO_TYPING_GROUP = 'off';
+              process.env.AUTO_RECORDING = process.env.AUTO_RECORDING_DM = process.env.AUTO_RECORDING_GROUP = 'off';
+          }
 
-    } catch {}
+      } catch {}
 }
 
 // Auto-connect features

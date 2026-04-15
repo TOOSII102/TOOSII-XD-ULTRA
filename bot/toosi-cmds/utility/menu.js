@@ -128,17 +128,32 @@ module.exports = {
         lines.push(`╔═| ●-¤○《  ${name}  》○¤-●`);
         lines.push(`║`);
         lines.push(`║  ▸ ■  *Prefix*   :  ${prefix || 'none'}`);
-        // Check each source individually — skip any with >13 digits (LID values)
-          const _pickOwnerNum = (...sources) => {
-              for (const raw of sources) {
-                  if (!raw) continue;
+        // Resolve owner number — check each source individually (reject >13-digit LIDs)
+          // Priority: env → config → creds.json me.id → global (last resort)
+          const _pickOwnerNum = (...extras) => {
+              const _tryNum = (raw) => {
+                  if (!raw) return '';
                   const n = String(raw).replace(/[^0-9]/g, '');
-                  if (n.length >= 7 && n.length <= 13) return n;
+                  return (n.length >= 7 && n.length <= 13) ? n : '';
+              };
+              // creds.json me.id — the real phone JID stored at pairing time
+              let _credsNum = '';
+              try {
+                  const _credsPath = require('path').join(__dirname, '../../session/creds.json');
+                  const _creds = JSON.parse(require('fs').readFileSync(_credsPath, 'utf8'));
+                  const _meId = (_creds?.me?.id || '');
+                  if (_meId && !_meId.includes('@lid')) {
+                      _credsNum = _tryNum(_meId.split('@')[0].split(':')[0]);
+                  }
+              } catch (_) {}
+              for (const raw of [process.env.OWNER_NUMBER, cfg.OWNER_NUMBER, _credsNum, ...extras]) {
+                  const n = _tryNum(raw);
+                  if (n) return n;
               }
               return '';
           };
-        const _menuOwner = _pickOwnerNum(process.env.OWNER_NUMBER, cfg.OWNER_NUMBER, global.OWNER_NUMBER, global.OWNER_CLEAN_NUMBER);
-        lines.push(`║  ▸ ■  *Owner*    :  ${_menuOwner ? '+' + _menuOwner : 'Unknown'}`);
+          const _menuOwner = _pickOwnerNum(global.OWNER_NUMBER, global.OWNER_CLEAN_NUMBER);
+          lines.push(`║  ▸ ■  *Owner*    :  ${_menuOwner ? '+' + _menuOwner : 'Unknown'}`);
         lines.push(`║  ▸ ■  *Mode*     :  ${mode}`);
         lines.push(`║  ▸ ■  *Version*  :  v${version}`);
         lines.push(`║  ▸ ■  *Platform* :  ${detectPlatform()}`);

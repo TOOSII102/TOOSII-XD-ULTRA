@@ -364,19 +364,20 @@ function getDisplayNumber(senderJid) {
     return `+${raw}`;
 }
 
-// Returns 'composing'|'recording'|null based on per-chat-type settings
+// Returns 'composing'|'recording'|null — checks runtime globals first, then env vars
+// Runtime globals toggled by .autotyping / .autorecording commands
 function getPresenceType(chatId) {
     if (!chatId) return null;
     const isGroup = chatId.endsWith('@g.us');
     if (isGroup) {
-        if (process.env.AUTO_TYPING_GROUP    === 'on') return 'composing';
-        if (process.env.AUTO_RECORDING_GROUP === 'on') return 'recording';
+        if (global.AUTOTYPING_GROUP_ENABLED    || process.env.AUTO_TYPING_GROUP    === 'on') return 'composing';
+        if (global.AUTORECORDING_GROUP_ENABLED || process.env.AUTO_RECORDING_GROUP === 'on') return 'recording';
     } else {
-        if (process.env.AUTO_TYPING_DM    === 'on') return 'composing';
-        if (process.env.AUTO_RECORDING_DM === 'on') return 'recording';
+        if (global.AUTOTYPING_DM_ENABLED       || process.env.AUTO_TYPING_DM    === 'on') return 'composing';
+        if (global.AUTORECORDING_DM_ENABLED    || process.env.AUTO_RECORDING_DM === 'on') return 'recording';
     }
-    if (process.env.AUTO_TYPING    === 'on') return 'composing';
-    if (process.env.AUTO_RECORDING === 'on') return 'recording';
+    if (global.AUTOTYPING_ENABLED   || process.env.AUTO_TYPING    === 'on') return 'composing';
+    if (global.AUTORECORDING_ENABLED|| process.env.AUTO_RECORDING === 'on') return 'recording';
     return null;
 }
 

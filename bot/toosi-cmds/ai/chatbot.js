@@ -169,11 +169,19 @@
 
               if (sub === 'on' || sub === 'off') {
                   const isOwnerOrSudo = ctx?.isOwnerUser || ctx?.isSudoUser;
-                  if (isGroup && !isOwnerOrSudo) {
+
+                  if (!isOwnerOrSudo) {
+                      if (!isGroup) {
+                          // DM — only owner/sudo can toggle chatbot
+                          return sock.sendMessage(chatId, {
+                              text: `${H}\n${SEP}\n${SEP} ▸ ❌ Owner/sudo only\n${SEP}\n${F}`
+                          }, { quoted: msg });
+                      }
+                      // Group — group admin, owner, or sudo required
                       const admin = await senderIsAdmin(sock, msg, chatId);
                       if (!admin) {
                           return sock.sendMessage(chatId, {
-                              text: `${H}\n${SEP}\n${SEP} ▸ ❌ Group admins only\n${SEP}\n${F}`
+                              text: `${H}\n${SEP}\n${SEP} ▸ ❌ Group admins, owner, or sudo only\n${SEP}\n${F}`
                           }, { quoted: msg });
                       }
                   }

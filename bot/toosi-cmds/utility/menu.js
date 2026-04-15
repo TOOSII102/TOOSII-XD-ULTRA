@@ -208,11 +208,20 @@ module.exports = {
             };
         }
 
-        await sock.sendMessage(chatId, {
-            image:       BANNER_IMG,
-            mimetype:    'image/jpeg',
-            caption:     lines.join('\n'),
-            contextInfo,
-        }, { quoted: msg });
+        // Try image+caption — fall back to text-only if media upload fails (common on Heroku)
+        try {
+            await sock.sendMessage(chatId, {
+                image:       BANNER_IMG,
+                mimetype:    'image/jpeg',
+                caption:     lines.join('\n'),
+                contextInfo,
+            }, { quoted: msg });
+        } catch {
+            // Image upload failed — send plain text so menu always arrives
+            await sock.sendMessage(chatId, {
+                text: lines.join('\n'),
+                contextInfo,
+            }, { quoted: msg });
+        }
     }
 };

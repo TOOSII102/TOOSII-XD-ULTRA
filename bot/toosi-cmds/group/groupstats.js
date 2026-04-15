@@ -1,6 +1,6 @@
 'use strict';
   module.exports = {
-      name: 'groupstats', aliases: ['gstats','groupinfo2','ginfo'],
+      name: 'groupstats', aliases: ['gstats','groupinfo2'],
       description: 'Show detailed stats about the current group',
       category: 'group', groupOnly: true,
       async execute(sock, msg, args, prefix, ctx) {

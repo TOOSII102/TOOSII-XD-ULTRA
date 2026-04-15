@@ -7439,7 +7439,13 @@ async function handleIncomingMessage(sock, msg) {
             }
         }
         
-        if (!commandName) {
+        // ── Blacklist gate — fires before commands AND chatbot plain-text ─────────
+          {
+              const _blNum = senderJid.split('@')[0].split(':')[0];
+              if (!msg.key.fromMe && isBlacklisted(_blNum)) return;
+          }
+
+                  if (!commandName) {
             const prefixBypassNames = ['prefix', 'prefixinfo', 'myprefix', 'botprefix'];
             const stripped = textMsg.replace(/^[^a-zA-Z0-9]+/, '').toLowerCase().trim().split(/\s+/)[0];
             if (prefixBypassNames.includes(stripped)) {
@@ -7486,11 +7492,6 @@ async function handleIncomingMessage(sock, msg) {
             return;
         }
         
-        // Blacklist check — blocked users get no response
-          {
-              const _blNum = senderJid.split('@')[0].split(':')[0];
-              if (isBlacklisted(_blNum)) return;
-          }
 
           // Quick mode gate BEFORE rate limiter — prevents info leaks in silent/groups/dms modes
         {

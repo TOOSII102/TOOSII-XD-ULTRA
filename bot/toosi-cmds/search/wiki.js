@@ -20,7 +20,7 @@ async function wikiSummary(title) {
 module.exports = [
     {
         name: 'wiki',
-        aliases: ['wikipedia', 'wp', 'wikisearch', 'define'],
+        aliases: ['wikipedia', 'wp', 'define'],
         description: 'Search Wikipedia for any topic — .wiki <topic>',
         category: 'search',
 

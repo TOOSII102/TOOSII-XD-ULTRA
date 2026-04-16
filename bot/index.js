@@ -733,7 +733,6 @@ const { setupAntiTagListener }         = require('./toosi-cmds/group/antitag.js'
 const { setupAntiGroupMentionListener } = require('./toosi-cmds/group/antigroupmention.js');
   const { setupWordFilterListener }       = require('./toosi-cmds/group/wordfilter.js');
   const { setupAutoReplyListener }        = require('./toosi-cmds/group/autoreply.js');
-  const { setupGroupStatsListener }       = require('./toosi-cmds/group/groupstats.js');
   const { setupSlowModeListener }         = require('./toosi-cmds/group/slowmode.js');
   const { isWhitelisted }                 = require('./toosi-cmds/owner/whitelist.js');
   const { isBlacklisted }                 = require('./toosi-cmds/owner/blacklist.js');
@@ -4994,7 +4993,6 @@ async function startBot(loginMode = 'auto', loginData = null) {
                 setupAntiGroupMentionListener(sock);
                   setupWordFilterListener(sock);
                   setupAutoReplyListener(sock);
-                  setupGroupStatsListener(sock);
                   setupSlowModeListener(sock);
                 setTimeout(() => {
                     if (isConnected && !isConflictRecovery) handleSuccessfulConnection(sock, loginMode, loginData).catch(() => {});

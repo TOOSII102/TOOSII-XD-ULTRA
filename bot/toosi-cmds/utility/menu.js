@@ -143,6 +143,21 @@ module.exports = {
         lines.push(`║`);
         lines.push(`╚═╝`);
 
-        await sock.sendMessage(chatId, { text: lines.join('\n') }, { quoted: msg });
+        const newsletterJid = cfg.NEWSLETTER_JID || '';
+        const msgOptions = { quoted: msg };
+
+        if (newsletterJid) {
+            msgOptions.contextInfo = {
+                forwardingScore: 999,
+                isForwarded: true,
+                forwardedNewsletterMessageInfo: {
+                    newsletterJid,
+                    serverMessageId: -1,
+                    newsletterName: botName,
+                }
+            };
+        }
+
+        await sock.sendMessage(chatId, { text: lines.join('\n') }, msgOptions);
     },
 };

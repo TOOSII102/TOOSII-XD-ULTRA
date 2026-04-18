@@ -145,6 +145,6 @@ module.exports = {
             ].join('\n')
         }, { quoted: msg });
 
-        setTimeout(() => process.exit(0), 3000);
+        setTimeout(() => process.exit(1), 3000);
     },
 };

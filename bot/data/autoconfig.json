@@ -4,13 +4,13 @@
     "mode": "chat"
   },
   "antideletestatus": {
-    "enabled": true
+    "enabled": false
   },
   "autoviewstatus": {
     "enabled": false
   },
   "autoreactstatus": {
-    "enabled": true,
+    "enabled": false,
     "mode": "fixed",
     "emoji": "❤️",
     "emojis": [

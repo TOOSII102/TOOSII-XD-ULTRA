@@ -128,7 +128,7 @@ module.exports = {
             `║  ▸ ■  *Time*      :  ${getCurrentTime()}`,
             `║`,
             `║  👨‍💻  *Creator*   »  @toosiitech`,
-            `║  📢  *Channel*   »  t.me/toosiitech`,
+            `║  📢  *Channel*   »  https://whatsapp.com/channel/0029VbCGMJeEquiVSIthcK03`,
             `║`,
         ];
 

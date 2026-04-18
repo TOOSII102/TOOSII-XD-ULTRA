@@ -103,7 +103,6 @@ function getCategoryData() {
 }
 
 function getPlatform() {
-    if (process.env.REPL_ID || process.env.REPL_OWNER || process.env.REPLIT_DB_URL) return 'Replit';
     if (process.env.DYNO) return 'Heroku';
     if (process.env.RAILWAY_ENVIRONMENT) return 'Railway';
     if (process.env.RENDER) return 'Render';

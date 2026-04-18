@@ -1,1 +1,93 @@
-const _0x14517d=_0x80b5;(function(_0x582f37,_0xa97c8c){const _0x4397ba={_0xa51aae:0x11f,_0x78ba1e:0x121,_0x530cf2:0x114},_0x17f9d1=_0x80b5,_0x3de748=_0x582f37();while(!![]){try{const _0x4c86fc=parseInt(_0x17f9d1(0x14a))/0x1+-parseInt(_0x17f9d1(_0x4397ba._0xa51aae))/0x2+-parseInt(_0x17f9d1(0x12d))/0x3+-parseInt(_0x17f9d1(0x149))/0x4+parseInt(_0x17f9d1(_0x4397ba._0x78ba1e))/0x5*(parseInt(_0x17f9d1(0x128))/0x6)+-parseInt(_0x17f9d1(0x116))/0x7+parseInt(_0x17f9d1(_0x4397ba._0x530cf2))/0x8*(parseInt(_0x17f9d1(0x132))/0x9);if(_0x4c86fc===_0xa97c8c)break;else _0x3de748['push'](_0x3de748['shift']());}catch(_0x128e7e){_0x3de748['push'](_0x3de748['shift']());}}}(_0x1810,0x343b0));function _0x80b5(_0x49fd1c,_0x5df50e){_0x49fd1c=_0x49fd1c-0x10a;const _0x1810f1=_0x1810();let _0x80b59e=_0x1810f1[_0x49fd1c];if(_0x80b5['TzoIRt']===undefined){var _0xa84d1e=function(_0x3b44a9){const _0x3b20b7='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+/=';let _0x34a368='',_0x405392='';for(let _0x474233=0x0,_0x350ed6,_0x301c45,_0x3ac060=0x0;_0x301c45=_0x3b44a9['charAt'](_0x3ac060++);~_0x301c45&&(_0x350ed6=_0x474233%0x4?_0x350ed6*0x40+_0x301c45:_0x301c45,_0x474233++%0x4)?_0x34a368+=String['fromCharCode'](0xff&_0x350ed6>>(-0x2*_0x474233&0x6)):0x0){_0x301c45=_0x3b20b7['indexOf'](_0x301c45);}for(let _0x48a47f=0x0,_0x4bc1f3=_0x34a368['length'];_0x48a47f<_0x4bc1f3;_0x48a47f++){_0x405392+='%'+('00'+_0x34a368['charCodeAt'](_0x48a47f)['toString'](0x10))['slice'](-0x2);}return decodeURIComponent(_0x405392);};_0x80b5['HDfxCO']=_0xa84d1e,_0x80b5['KmwkUV']={},_0x80b5['TzoIRt']=!![];}const _0x7f83aa=_0x1810f1[0x0],_0x2299a9=_0x49fd1c+_0x7f83aa,_0x292a3c=_0x80b5['KmwkUV'][_0x2299a9];return!_0x292a3c?(_0x80b59e=_0x80b5['HDfxCO'](_0x80b59e),_0x80b5['KmwkUV'][_0x2299a9]=_0x80b59e):_0x80b59e=_0x292a3c,_0x80b59e;}const {get,set,toggle}=require(_0x14517d(0x11e)+_0x14517d(0x150)+_0x14517d(0x10c)),{getBotName}=require('../../li'+_0x14517d(0x11b)+'e'),config=require('../../co'+_0x14517d(0x10c)),_reactedIds=new Set();async function handleReactOwner(_0x34a368,_0x405392){const _0x5a3c44={_0x263a5d:0x137,_0x3fe243:0x11c,_0x5047eb:0x13b,_0xfe7ed7:0x145,_0x4861fc:0x110,_0x1bc4f7:0x13a,_0x300a08:0x133,_0x4d13cb:0x134,_0x430bd0:0x10d,_0x50d44d:0x124,_0x45c878:0x120,_0x5137ed:0x11a,_0x4ef496:0x125,_0xfa79ba:0x12b},_0x31fba0=_0x14517d;try{const _0x474233=get(_0x31fba0(0x144)+'er');if(!_0x474233?.['enabled'])return;const _0x350ed6=_0x405392[_0x31fba0(_0x5a3c44._0x263a5d)];if(!_0x350ed6)return;if(_0x350ed6['reaction'+_0x31fba0(_0x5a3c44._0x3fe243)])return;if(_0x350ed6[_0x31fba0(0x11d)+'Message'])return;if(_0x350ed6[_0x31fba0(_0x5a3c44._0x5047eb)+'yDistrib'+_0x31fba0(_0x5a3c44._0xfe7ed7)+_0x31fba0(_0x5a3c44._0x4861fc)])return;const _0x301c45=_0x405392['key']?.['id'];if(!_0x301c45)return;if(_reactedIds['has'](_0x301c45))return;const _0x3ac060=(config[_0x31fba0(_0x5a3c44._0x1bc4f7)+_0x31fba0(0x14e)]||'')['replace'](/[^0-9]/g,'');if(!_0x3ac060)return;const _0x48a47f=!!_0x405392['key']?.[_0x31fba0(_0x5a3c44._0x300a08)],_0x4bc1f3=_0x405392[_0x31fba0(0x12b)]?.['particip'+_0x31fba0(_0x5a3c44._0x4d13cb)]||_0x405392['key']?.['remoteJi'+'d']||'',_0x2b557c=_0x4bc1f3[_0x31fba0(0x10d)]('@')[0x0][_0x31fba0(_0x5a3c44._0x430bd0)](':')[0x0][_0x31fba0(_0x5a3c44._0x50d44d)](/[^0-9]/g,''),_0x47c2f5=_0x48a47f?!![]:_0x2b557c===_0x3ac060;if(!_0x47c2f5)return;_reactedIds[_0x31fba0(0x127)](_0x301c45);if(_reactedIds[_0x31fba0(0x13c)]>0xc8){const _0x4eee81=_reactedIds[_0x31fba0(_0x5a3c44._0x45c878)]()['next']()[_0x31fba0(_0x5a3c44._0x5137ed)];_reactedIds[_0x31fba0(0x135)](_0x4eee81);}const _0x7b966a=_0x474233[_0x31fba0(_0x5a3c44._0x4ef496)]||'❤️';await _0x34a368['sendMess'+'age'](_0x405392[_0x31fba0(_0x5a3c44._0xfa79ba)][_0x31fba0(0x146)+'d'],{'react':{'text':_0x7b966a,'key':_0x405392[_0x31fba0(_0x5a3c44._0xfa79ba)]}});}catch{}}module[_0x14517d(0x10f)]={'handleReactOwner':handleReactOwner,'name':_0x14517d(0x144)+'er','aliases':['ro',_0x14517d(0x122)+'ct'],'description':_0x14517d(0x126)+_0x14517d(0x123)+'ner\x20mess'+_0x14517d(0x13d),'category':_0x14517d(0x12f)+'on',async 'execute'(_0x426e18,_0x35a21d,_0x4cd1b2,_0x528034,_0x2c7bbb){const _0x180e47={_0xfda488:0x146,_0x4cdade:0x12c,_0x19971c:0x14f,_0x4d74c6:0x12a,_0x19b6f6:0x119,_0x19f111:0x144,_0xdc0a18:0x14f,_0x2ec175:0x142,_0x209fd9:0x143,_0x443b1b:0x10a,_0x34eae3:0x13f,_0x39ab5d:0x125,_0x53c512:0x14b,_0x3caa87:0x138,_0x299a3a:0x142,_0x3a8fed:0x12a,_0x15aa3c:0x130},_0x59ca8a=_0x14517d,_0xbdd4f9=_0x35a21d[_0x59ca8a(0x12b)][_0x59ca8a(_0x180e47._0xfda488)+'d'],_0x3798a0=getBotName();if(!_0x2c7bbb?.[_0x59ca8a(_0x180e47._0x4cdade)+_0x59ca8a(0x141)]&&!_0x2c7bbb?.[_0x59ca8a(0x131)+'er'])return _0x426e18[_0x59ca8a(_0x180e47._0x19971c)+_0x59ca8a(0x148)](_0xbdd4f9,{'text':_0x59ca8a(0x10e)+'ACT\x20OWNE'+_0x59ca8a(_0x180e47._0x4d74c6)+_0x59ca8a(_0x180e47._0x19b6f6)+_0x59ca8a(0x129)+_0x59ca8a(0x113)+'y\x0a║\x0a╚═|〔'+'\x20'+_0x3798a0+'\x20〕'},{'quoted':_0x35a21d});const _0x49ae00=_0x4cd1b2[0x0]?.['toLowerC'+'ase'](),_0x1f79ee=get(_0x59ca8a(_0x180e47._0x19f111)+'er');if(!_0x49ae00||_0x49ae00==='status')return _0x426e18[_0x59ca8a(_0x180e47._0xdc0a18)+_0x59ca8a(0x148)](_0xbdd4f9,{'text':_0x59ca8a(0x10e)+_0x59ca8a(_0x180e47._0x2ec175)+_0x59ca8a(_0x180e47._0x4d74c6)+_0x59ca8a(_0x180e47._0x209fd9)+'*\x20:\x20'+(_0x1f79ee['enabled']?_0x59ca8a(_0x180e47._0x443b1b):_0x59ca8a(0x140))+(_0x59ca8a(0x118)+_0x59ca8a(0x14c))+(_0x1f79ee['emoji']||'❤️')+(_0x59ca8a(0x112)+_0x59ca8a(0x12e))+_0x528034+('reactown'+_0x59ca8a(_0x180e47._0x34eae3)+'f/emoji\x20'+'<emoji>\x0a'+'║\x0a╚═|〔\x20')+_0x3798a0+'\x20〕'},{'quoted':_0x35a21d});if(_0x49ae00===_0x59ca8a(_0x180e47._0x39ab5d)&&_0x4cd1b2[0x1]){const _0x5efa65=get(_0x59ca8a(0x144)+'er');return _0x5efa65[_0x59ca8a(0x125)]=_0x4cd1b2[0x1],set(_0x59ca8a(0x144)+'er',_0x5efa65),_0x426e18[_0x59ca8a(0x14f)+_0x59ca8a(0x148)](_0xbdd4f9,{'text':_0x59ca8a(0x10e)+_0x59ca8a(0x142)+'R\x20〕\x0a║\x0a║\x20'+_0x59ca8a(0x147)+_0x59ca8a(0x136)+_0x4cd1b2[0x1]+(_0x59ca8a(0x14d)+'\x0a╚═|〔\x20')+_0x3798a0+'\x20〕'},{'quoted':_0x35a21d});}if(_0x49ae00==='on'){const _0x45865d=get(_0x59ca8a(0x144)+'er');return _0x45865d[_0x59ca8a(0x13e)]=!![],set('reactown'+'er',_0x45865d),_0x426e18['sendMess'+_0x59ca8a(0x148)](_0xbdd4f9,{'text':_0x59ca8a(0x10e)+'ACT\x20OWNE'+'R\x20〕\x0a║\x0a║\x20'+_0x59ca8a(0x143)+_0x59ca8a(0x111)+_0x59ca8a(_0x180e47._0x53c512)+_0x59ca8a(0x115)+_0x3798a0+'\x20〕'},{'quoted':_0x35a21d});}if(_0x49ae00===_0x59ca8a(_0x180e47._0x3caa87)){const _0x14e5a0=get('reactown'+'er');return _0x14e5a0[_0x59ca8a(0x13e)]=![],set(_0x59ca8a(_0x180e47._0x19f111)+'er',_0x14e5a0),_0x426e18[_0x59ca8a(0x14f)+'age'](_0xbdd4f9,{'text':_0x59ca8a(0x10e)+_0x59ca8a(_0x180e47._0x299a3a)+_0x59ca8a(_0x180e47._0x3a8fed)+_0x59ca8a(0x143)+_0x59ca8a(_0x180e47._0x15aa3c)+'sabled\x0a║'+_0x59ca8a(0x10b)+_0x3798a0+'\x20〕'},{'quoted':_0x35a21d});}if(_0x49ae00)return;const _0x1bac13=toggle('reactown'+'er');return _0x426e18[_0x59ca8a(_0x180e47._0xdc0a18)+'age'](_0xbdd4f9,{'text':'╔═|〔\x20\x20RE'+_0x59ca8a(0x142)+_0x59ca8a(0x12a)+_0x59ca8a(0x143)+'*\x20:\x20'+(_0x1bac13?_0x59ca8a(0x117)+'d':'❌\x20Disabl'+'ed')+_0x59ca8a(0x139)+_0x3798a0+'\x20〕'},{'quoted':_0x35a21d});}};function _0x1810(){const _0x170246=['DxrPB25nzxm','CMvTB3rLsMK','4PA4icPfBw9QAq','ywDL','nJC0mdeYthHoC1nH','mtmZmZK0Ce9fzLDu','ywjSzwqk4PwrcG','B2PPkIa6ia','ihnHDMvKcUkvKq','tujfuG','C2vUze1LC3m','yI9HDxrVy28','4PYfie9o','cUkvMUkvKhZJGjqG','BMzPzW','C3bSAxq','4Pwu4PwqFooaLcaGuKu','zxHWB3j0CW','C2fNzq','kIa6iokCHsbfBG','cUkvKsdILRGGkLvZ','D25LCIbVBMW','mJm4mtuYogrZCeX0DW','4PwA4PwqFooaLca','mJuWmJiWnLj0wxDQua','4PYfievUywjSzq','cUkvKsdILRGGkKvT','4PA4icPtDgf0Dq','DMfSDwu','yI9IB3rUyw0','twvZC2fNzq','ChjVDg9JB2W','lI4VlI4VBgK','mZC4mdq0y25dCfjR','DMfSDwvZ','nun5uNLIsG','B3DUzxjYzwe','y3qGDg8GB3C','CMvWBgfJzq','zw1VAMK','qxv0BY1Yzwe','ywrK','mJiXmtu4mKDZqK1xrW','CYOGoIdINyWGtW','uIdJGjuk4PwrcUkvKsa','A2v5','AxnpD25LCLu','nta1mZyYuLfmAvHS','ywDLkIa6ia','yxv0B21HDgK','kIa6iokDJcbeAq','AxntDwrVvxm','mtHnBfHpvMS','zNjVBu1L','yw50','zgvSzxrL','kIa6ia','BwvZC2fNzq','B2zM','cUkvKqRILzRILzb844cuia','t1DorvjFtLu','C2vUzgvYs2u','C2L6zq','ywDLCW','zw5HyMXLza','zxiGB24VB2y','4P2mie9grG','C2vY','qunuie9xtKu','4PA4icPtDgf0zq','CMvHy3rVD24'];_0x1810=function(){return _0x170246;};return _0x1810();}
+const { get, set, toggle } = require('../../lib/autoconfig');
+const { getBotName }       = require('../../lib/botname');
+const config               = require('../../config');
+
+// Dedup: track message IDs already reacted to (max 200 entries)
+const _reactedIds = new Set();
+
+async function handleReactOwner(sock, msg) {
+    try {
+        const cfg = get('reactowner');
+        if (!cfg?.enabled) return;
+
+        // Skip reaction messages, protocol messages, and non-real messages
+        const m = msg.message;
+        if (!m) return;
+        if (m.reactionMessage)   return;  // don't react to reactions (prevents loop)
+        if (m.protocolMessage)   return;  // skip protocol/revoke messages
+        if (m.senderKeyDistributionMessage) return;
+
+        // Dedup by message ID — only react once per message
+        const msgId = msg.key?.id;
+        if (!msgId) return;
+        if (_reactedIds.has(msgId)) return;
+
+        const ownerClean = (config.OWNER_NUMBER || '').replace(/[^0-9]/g, '');
+        if (!ownerClean) return;
+
+        const fromMe = !!msg.key?.fromMe;
+        const rawJid = msg.key?.participant || msg.key?.remoteJid || '';
+        const sender = rawJid.split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
+
+        const isOwner = fromMe ? true : (sender === ownerClean);
+        if (!isOwner) return;
+
+        // Mark as reacted before sending to prevent race-condition duplicates
+        _reactedIds.add(msgId);
+        if (_reactedIds.size > 200) {
+            const first = _reactedIds.values().next().value;
+            _reactedIds.delete(first);
+        }
+
+        const emoji = cfg.emoji || '❤️';
+        await sock.sendMessage(msg.key.remoteJid, {
+            react: { text: emoji, key: msg.key }
+        });
+    } catch {}
+}
+
+module.exports = {
+    handleReactOwner,
+
+    name:        'reactowner',
+    aliases:     ['ro', 'ownerreact'],
+    description: 'Auto-react to owner messages',
+    category:    'automation',
+
+    async execute(sock, msg, args, prefix, ctx) {
+        const chatId = msg.key.remoteJid;
+        const name   = getBotName();
+
+        if (!ctx?.isOwnerUser && !ctx?.isSudoUser) {
+            return sock.sendMessage(chatId, {
+                text: `╔═|〔  REACT OWNER 〕\n║\n║ ▸ *Status* : ❌ Owner only\n║\n╚═|〔 ${name} 〕`
+            }, { quoted: msg });
+        }
+
+        const action = args[0]?.toLowerCase();
+        const cfg    = get('reactowner');
+
+        if (!action || action === 'status') {
+            return sock.sendMessage(chatId, {
+                text: `╔═|〔  REACT OWNER 〕\n║\n║ ▸ *State* : ${cfg.enabled ? '✅ ON' : '❌ OFF'}\n║ ▸ *Emoji* : ${cfg.emoji || '❤️'}\n║ ▸ *Usage* : ${prefix}reactowner on/off/emoji <emoji>\n║\n╚═|〔 ${name} 〕`
+            }, { quoted: msg });
+        }
+
+        if (action === 'emoji' && args[1]) {
+            const data = get('reactowner');
+            data.emoji = args[1];
+            set('reactowner', data);
+            return sock.sendMessage(chatId, { text: `╔═|〔  REACT OWNER 〕\n║\n║ ▸ *Emoji* : ${args[1]} saved\n║\n╚═|〔 ${name} 〕` }, { quoted: msg });
+        }
+
+        if (action === 'on')  { const d = get('reactowner'); d.enabled = true;  set('reactowner', d); return sock.sendMessage(chatId, { text: `╔═|〔  REACT OWNER 〕\n║\n║ ▸ *State* : ✅ Enabled\n║\n╚═|〔 ${name} 〕` }, { quoted: msg }); }
+        if (action === 'off') { const d = get('reactowner'); d.enabled = false; set('reactowner', d); return sock.sendMessage(chatId, { text: `╔═|〔  REACT OWNER 〕\n║\n║ ▸ *State* : ❌ Disabled\n║\n╚═|〔 ${name} 〕` }, { quoted: msg }); }
+
+        // unknown arg → ignore silently; only toggle when no arg given
+        if (action) return;
+        const now = toggle('reactowner');
+        return sock.sendMessage(chatId, {
+            text: `╔═|〔  REACT OWNER 〕\n║\n║ ▸ *State* : ${now ? '✅ Enabled' : '❌ Disabled'}\n║\n╚═|〔 ${name} 〕`
+        }, { quoted: msg });
+    }
+};

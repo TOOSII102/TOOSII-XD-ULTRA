@@ -5711,7 +5711,7 @@ async function startBot(loginMode = 'auto', loginData = null) {
             }
 
             const _upsertTs = msg.messageTimestamp ? (typeof msg.messageTimestamp === 'object' ? msg.messageTimestamp.low || 0 : Number(msg.messageTimestamp)) * 1000 : 0;
-            const _isOldMsg = _upsertTs > 0 && (Date.now() - _upsertTs > 60000 || (connectionOpenTime > 0 && _upsertTs < connectionOpenTime - 30000));
+            const _isOldMsg = _upsertTs > 0 && (Date.now() - _upsertTs > 300000 || (connectionOpenTime > 0 && _upsertTs < connectionOpenTime - 300000));
 
             // Never drop media/view-once messages as "old" — they can arrive slightly delayed
             const _msgHasMedia = !!(msg.message?.imageMessage || msg.message?.videoMessage || msg.message?.audioMessage
@@ -7465,12 +7465,8 @@ async function handleIncomingMessage(sock, msg) {
                             const _presType2 = getPresenceType(chatId);
                             if (_presType2) {
                                 const _presJid2 = resolvePresenceJid(chatId);
-                                if (!_subscribedPresenceJids.has(_presJid2)) { try { await sock.presenceSubscribe(_presJid2); _subscribedPresenceJids.add(_presJid2); } catch {} }
-                                try {
-                                    await sock.sendPresenceUpdate(_presType2, _presJid2);
-                                    UltraCleanLogger.info(`✅ Presence sent: ${_presType2} → ${_presJid2}`);
-                                } catch(e) { UltraCleanLogger.warn(`sendPresenceUpdate err: ${e.message}`); }
-                                await new Promise(r => setTimeout(r, 2000));
+                                if (!_subscribedPresenceJids.has(_presJid2)) { sock.presenceSubscribe(_presJid2).then(() => _subscribedPresenceJids.add(_presJid2)).catch(() => {}); }
+                                sock.sendPresenceUpdate(_presType2, _presJid2).catch(() => {});
                             }
                         }
                         try {
@@ -7748,12 +7744,8 @@ async function handleIncomingMessage(sock, msg) {
                     const _presType = getPresenceType(chatId);
                     if (_presType) {
                         const _presJid = resolvePresenceJid(chatId);
-                        if (!_subscribedPresenceJids.has(_presJid)) { try { await sock.presenceSubscribe(_presJid); _subscribedPresenceJids.add(_presJid); } catch {} }
-                        try {
-                            await sock.sendPresenceUpdate(_presType, _presJid);
-                            UltraCleanLogger.info(`✅ Presence sent: ${_presType} → ${_presJid}`);
-                        } catch(e) { UltraCleanLogger.warn(`sendPresenceUpdate err: ${e.message}`); }
-                        await new Promise(r => setTimeout(r, 2000));
+                        if (!_subscribedPresenceJids.has(_presJid)) { sock.presenceSubscribe(_presJid).then(() => _subscribedPresenceJids.add(_presJid)).catch(() => {}); }
+                        sock.sendPresenceUpdate(_presType, _presJid).catch(() => {});
                     }
                 }
 

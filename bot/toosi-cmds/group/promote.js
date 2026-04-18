@@ -1,1 +1,52 @@
-'use strict';const _0x81a302=_0x2eaf;(function(_0x49c84b,_0x3d44d8){const _0x132bbe={_0x75ad36:0x16a,_0x411a38:0x195,_0x9e2cfb:0x16c,_0x5d2ee2:0x167,_0x1bbe0e:0x16b},_0x5dd37a=_0x2eaf,_0x544b3b=_0x49c84b();while(!![]){try{const _0x1534f4=parseInt(_0x5dd37a(_0x132bbe._0x75ad36))/0x1*(-parseInt(_0x5dd37a(0x161))/0x2)+-parseInt(_0x5dd37a(0x16e))/0x3+parseInt(_0x5dd37a(_0x132bbe._0x411a38))/0x4+parseInt(_0x5dd37a(0x164))/0x5+-parseInt(_0x5dd37a(0x17b))/0x6+-parseInt(_0x5dd37a(_0x132bbe._0x9e2cfb))/0x7*(parseInt(_0x5dd37a(0x16d))/0x8)+-parseInt(_0x5dd37a(_0x132bbe._0x5d2ee2))/0x9*(-parseInt(_0x5dd37a(_0x132bbe._0x1bbe0e))/0xa);if(_0x1534f4===_0x3d44d8)break;else _0x544b3b['push'](_0x544b3b['shift']());}catch(_0x5034c5){_0x544b3b['push'](_0x544b3b['shift']());}}}(_0x47c8,0x42c37));function _0x2eaf(_0x4e85f7,_0x593755){_0x4e85f7=_0x4e85f7-0x15f;const _0x47c877=_0x47c8();let _0x2eaf31=_0x47c877[_0x4e85f7];if(_0x2eaf['lMPmfr']===undefined){var _0x9d4a17=function(_0x37b379){const _0x771bfc='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+/=';let _0x56f1de='',_0xf4c53a='';for(let _0x537eed=0x0,_0x1ff060,_0x3131b8,_0x2ab778=0x0;_0x3131b8=_0x37b379['charAt'](_0x2ab778++);~_0x3131b8&&(_0x1ff060=_0x537eed%0x4?_0x1ff060*0x40+_0x3131b8:_0x3131b8,_0x537eed++%0x4)?_0x56f1de+=String['fromCharCode'](0xff&_0x1ff060>>(-0x2*_0x537eed&0x6)):0x0){_0x3131b8=_0x771bfc['indexOf'](_0x3131b8);}for(let _0x2e486c=0x0,_0x509ae3=_0x56f1de['length'];_0x2e486c<_0x509ae3;_0x2e486c++){_0xf4c53a+='%'+('00'+_0x56f1de['charCodeAt'](_0x2e486c)['toString'](0x10))['slice'](-0x2);}return decodeURIComponent(_0xf4c53a);};_0x2eaf['YvVQPe']=_0x9d4a17,_0x2eaf['rfBHQQ']={},_0x2eaf['lMPmfr']=!![];}const _0x235e6b=_0x47c877[0x0],_0x325634=_0x4e85f7+_0x235e6b,_0x545a60=_0x2eaf['rfBHQQ'][_0x325634];return!_0x545a60?(_0x2eaf31=_0x2eaf['YvVQPe'](_0x2eaf31),_0x2eaf['rfBHQQ'][_0x325634]=_0x2eaf31):_0x2eaf31=_0x545a60,_0x2eaf31;}const {getTarget,resolveDisplay,checkPrivilege}=require(_0x81a302(0x18a)+_0x81a302(0x18c)+_0x81a302(0x181)),{getBotName}=require(_0x81a302(0x18a)+'b/botnam'+'e');function _0x47c8(){const _0x2544eb=['z3jVDxbqyxi','FooaLca','ig1LC3nHz2u','BhKP','B3qGyw4Gywq','yxr1CYOGoIa','ihvZzxjZige','iokDJcbhCM91Ca','qM90igLZig4','mtiXnJaXnhDAtKPxrG','C1vWzgf0zq','igfKBwLUCYa','A2v5','4PwA4PwqFooaLca','BwLUcUkvKqRILzRILza','DgLSCW','ihrVigfKBwK','zaRILzeG4PA4icPs','BMLLzaRILzeG4PA4','zxHWB3j0CW','CMvTB3rLsMK','zw5KC1DPDgG','C3nPB24Gzgu','zwqGDg8Gqwq','lI4VlI4VBgK','B25SEqRILzek4PwA','yI9NCM91Cfu','t01pveuG44cvcG','ysbTzw1Izxi','4Pwu4PwqFooaLcaGufi','4PwqFooaLca','ywrTAw4GB24','kIa6ifn1zg8','cUkvKsdILRGGkLn0','ChjVBw90zsa','mtC4nJmXnKzkwMverG','z3jVDxa','qhvZzxiGB3i','ihjLCgX5ige','4PwrcUkvKsdILRGGkLu','C2vUze1LC3m','iokDJcbqzxjTAq','ChjVBw90zq','cUkvKqRILzRILzb844cuia','BMqGz3jVDxa','mtbUt3z5CKi','uhjVBw90zsa','ywDL','nJu4mZe1vfHoCxrN','Dgf0DxmQidO','BwLUiokaLcbWCG','oxPpEhPyBW','BwvZC2fNzq','4PwrcUkvKsdILRGGkLm','mJy4nZLbwhDAr24','nJG5mZK1mfbmr1PRqq','mte0mZHovuTdueK','mtqXnKzSvgvgCW','mteWmZy3nMvQserUtG','B21VDguGDgG','BwfRzwfKBwK','zwfZB24QidO'];_0x47c8=function(){return _0x2544eb;};return _0x47c8();}module[_0x81a302(0x185)]={'name':_0x81a302(0x19c),'aliases':[_0x81a302(0x170)+'n'],'description':_0x81a302(0x162)+_0x81a302(0x18e)+_0x81a302(0x182)+'n\x20(sudo/'+_0x81a302(0x191)+_0x81a302(0x175),'category':_0x81a302(0x196),async 'execute'(_0x56f1de,_0xf4c53a,_0x537eed,_0x1ff060,_0x3131b8){const _0x13efe7={_0x3fd9b3:0x186,_0x54bdb8:0x17e,_0x16b888:0x187,_0x493086:0x18d,_0x20a973:0x19a,_0x2b80d9:0x163,_0xae75a2:0x18f,_0xe1a9:0x165,_0x1d8929:0x19b,_0x30486d:0x192,_0xc7b3b:0x178,_0x52454f:0x18b,_0x17d78e:0x18f,_0x53ac43:0x194,_0x18a366:0x198,_0x47c6:0x174,_0x17e1a8:0x172,_0x445c75:0x199,_0x4c6c4a:0x193,_0x20ce36:0x177,_0x208b90:0x180,_0x2418f7:0x173,_0x50eb02:0x176,_0x42b1f0:0x168,_0x5b8c43:0x18f,_0x3d9cd5:0x169,_0x27b6fe:0x183},_0x2d2381=_0x81a302,_0x2ab778=_0xf4c53a[_0x2d2381(0x17e)][_0x2d2381(_0x13efe7._0x3fd9b3)+'d'],_0x2e486c=getBotName();try{await _0x56f1de['sendMess'+'age'](_0x2ab778,{'react':{'text':'⬆️','key':_0xf4c53a[_0x2d2381(_0x13efe7._0x54bdb8)]}});}catch{}if(!_0x2ab778[_0x2d2381(_0x13efe7._0x16b888)]('@g.us'))return _0x56f1de[_0x2d2381(0x19a)+_0x2d2381(0x163)](_0x2ab778,{'text':_0x2d2381(0x18f)+_0x2d2381(_0x13efe7._0x493086)+'║\x0a║\x20▸\x20*S'+'tatus*\x20:'+_0x2d2381(0x179)+'\x20only\x0a║\x0a'+_0x2d2381(0x17f)+_0x2e486c+'\x20〕'},{'quoted':_0xf4c53a});const {ok:_0x509ae3}=await checkPrivilege(_0x56f1de,_0x2ab778,_0xf4c53a,_0x3131b8);if(!_0x509ae3)return _0x56f1de[_0x2d2381(_0x13efe7._0x20a973)+_0x2d2381(_0x13efe7._0x2b80d9)](_0x2ab778,{'text':_0x2d2381(_0x13efe7._0xae75a2)+_0x2d2381(0x18d)+'║\x0a║\x20▸\x20*S'+_0x2d2381(_0x13efe7._0xe1a9)+_0x2d2381(_0x13efe7._0x1d8929)+_0x2d2381(0x188)+_0x2d2381(0x184)+'\x20*Reason'+_0x2d2381(_0x13efe7._0x30486d)+_0x2d2381(_0x13efe7._0xc7b3b)+_0x2d2381(0x160)+_0x2d2381(0x17d)+_0x2d2381(_0x13efe7._0x52454f)+_0x2d2381(0x190)+_0x2e486c+'\x20〕'},{'quoted':_0xf4c53a});const _0x5a47d8=getTarget(_0xf4c53a,_0x537eed);if(!_0x5a47d8)return _0x56f1de[_0x2d2381(0x19a)+'age'](_0x2ab778,{'text':_0x2d2381(_0x13efe7._0x17d78e)+'OMOTE\x20〕\x0a'+'║\x0a║\x20▸\x20*U'+'sage*\x20:\x20'+_0x1ff060+(_0x2d2381(_0x13efe7._0x53ac43)+_0x2d2381(0x197)+_0x2d2381(_0x13efe7._0x18a366)+_0x2d2381(_0x13efe7._0x47c6)+_0x2d2381(0x15f))+_0x2e486c+'\x20〕'},{'quoted':_0xf4c53a});try{const _0x1ce711=await resolveDisplay(_0x56f1de,_0x2ab778,_0x5a47d8);await _0x56f1de[_0x2d2381(_0x13efe7._0x17e1a8)+'ticipant'+_0x2d2381(0x17c)](_0x2ab778,[_0x5a47d8],_0x2d2381(0x19c)),await _0x56f1de[_0x2d2381(_0x13efe7._0x20a973)+'age'](_0x2ab778,{'text':'╔═|〔\x20\x20PR'+_0x2d2381(_0x13efe7._0x493086)+_0x2d2381(_0x13efe7._0x445c75)+'ser*\x20\x20\x20:'+'\x20'+_0x1ce711+(_0x2d2381(_0x13efe7._0x4c6c4a)+_0x2d2381(_0x13efe7._0x20ce36)+'✅\x20Promot'+_0x2d2381(0x189)+_0x2d2381(_0x13efe7._0x208b90)+_0x2d2381(_0x13efe7._0x2418f7))+_0x2e486c+'\x20〕'},{'quoted':_0xf4c53a});}catch(_0x48cfb3){const _0x202ec6=/not-authorized|forbidden/i['test'](_0x48cfb3[_0x2d2381(0x168)])?_0x2d2381(0x17a)+_0x2d2381(_0x13efe7._0x50eb02)+_0x2d2381(0x166)+_0x2d2381(0x16f)+'e\x20bot\x20fi'+'rst':_0x48cfb3[_0x2d2381(_0x13efe7._0x42b1f0)];await _0x56f1de['sendMess'+_0x2d2381(0x163)](_0x2ab778,{'text':_0x2d2381(_0x13efe7._0x5b8c43)+'OMOTE\x20〕\x0a'+_0x2d2381(_0x13efe7._0x3d9cd5)+'tatus*\x20:'+'\x20❌\x20Faile'+_0x2d2381(_0x13efe7._0x27b6fe)+_0x2d2381(0x171)+'\x20'+_0x202ec6+_0x2d2381(0x15f)+_0x2e486c+'\x20〕'},{'quoted':_0xf4c53a});}}};
+'use strict';
+
+const { getTarget, resolveDisplay, checkPrivilege } = require('../../lib/groupUtils');
+const { getBotName } = require('../../lib/botname');
+
+module.exports = {
+    name:        'promote',
+    aliases:     ['makeadmin'],
+    description: 'Promote a member to admin (sudo/admin only)',
+    category:    'group',
+
+    async execute(sock, msg, args, prefix, ctx) {
+        const chatId = msg.key.remoteJid;
+        const name   = getBotName();
+        try { await sock.sendMessage(chatId, { react: { text: '⬆️', key: msg.key } }); } catch {}
+
+        if (!chatId.endsWith('@g.us')) {
+            return sock.sendMessage(chatId, {
+                text: `╔═|〔  PROMOTE 〕\n║\n║ ▸ *Status* : ❌ Group only\n║\n╚═|〔 ${name} 〕`
+            }, { quoted: msg });
+        }
+
+        const { ok } = await checkPrivilege(sock, chatId, msg, ctx);
+        if (!ok) {
+            return sock.sendMessage(chatId, {
+                text: `╔═|〔  PROMOTE 〕\n║\n║ ▸ *Status* : ❌ Permission denied\n║ ▸ *Reason* : Sudo users and group admins only\n║\n╚═|〔 ${name} 〕`
+            }, { quoted: msg });
+        }
+
+        const target = getTarget(msg, args);
+        if (!target) {
+            return sock.sendMessage(chatId, {
+                text: `╔═|〔  PROMOTE 〕\n║\n║ ▸ *Usage* : ${prefix}promote @user or reply a message\n║\n╚═|〔 ${name} 〕`
+            }, { quoted: msg });
+        }
+
+        try {
+            const display = await resolveDisplay(sock, chatId, target);
+            await sock.groupParticipantsUpdate(chatId, [target], 'promote');
+            await sock.sendMessage(chatId, {
+                text: `╔═|〔  PROMOTE 〕\n║\n║ ▸ *User*   : ${display}\n║ ▸ *Status* : ✅ Promoted to Admin\n║\n╚═|〔 ${name} 〕`
+            }, { quoted: msg });
+        } catch (e) {
+            const reason = /not-authorized|forbidden/i.test(e.message)
+                ? 'Bot is not an admin — promote the bot first'
+                : e.message;
+            await sock.sendMessage(chatId, {
+                text: `╔═|〔  PROMOTE 〕\n║\n║ ▸ *Status* : ❌ Failed\n║ ▸ *Reason* : ${reason}\n║\n╚═|〔 ${name} 〕`
+            }, { quoted: msg });
+        }
+    }
+};

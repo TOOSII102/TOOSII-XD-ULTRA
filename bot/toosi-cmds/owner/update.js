@@ -17,6 +17,15 @@ function getCurrentCommit() {
     try { return run('git rev-parse HEAD'); } catch { return null; }
 }
 
+function getRemoteName() {
+    try {
+        const remotes = run('git remote').split('\n').map(r => r.trim()).filter(Boolean);
+        if (remotes.includes('origin')) return 'origin';
+        if (remotes.length > 0) return remotes[0];
+    } catch {}
+    return null;
+}
+
 async function getLatestCommit() {
     return new Promise((resolve, reject) => {
         const url = `https://api.github.com/repos/${REPO}/commits/${BRANCH}`;
@@ -111,10 +120,17 @@ module.exports = {
             }, { quoted: msg });
         }
 
+        const remote = getRemoteName();
+        if (!remote) {
+            return await sock.sendMessage(chatId, {
+                text: `╔═|〔  UPDATE 〕\n║\n║ ▸ *Status* : ❌ No git remote configured\n║ ▸ *Tip*    : Add a git remote pointing to the repo\n║\n${foot}`
+            }, { quoted: msg });
+        }
+
         let pullErr, npmErr;
         try {
-            run(`git fetch origin ${BRANCH}`);
-            run(`git reset --hard origin/${BRANCH}`);
+            run(`git fetch ${remote} ${BRANCH}`);
+            run(`git reset --hard ${remote}/${BRANCH}`);
         } catch (err) { pullErr = err.message?.slice(0, 100); }
 
         if (pullErr) {

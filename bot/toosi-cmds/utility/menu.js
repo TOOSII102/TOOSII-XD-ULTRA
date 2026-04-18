@@ -5,12 +5,13 @@ const os   = require('os');
 const { getBotName } = require('../../lib/botname');
 const cfg  = require('../../config');
 
-const CMDS_DIR = path.join(__dirname, '..');
+const CMDS_DIR  = path.join(__dirname, '..');
+const LOGO_PATH = path.join(__dirname, '../../../assets/xd-logo.jpg');
 
-// Try to read version from package.json
+// Read version from package.json
 let BOT_VERSION = 'v1.2.0';
 try {
-    const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../bot/package.json'), 'utf8'));
+    const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '../../package.json'), 'utf8'));
     if (pkg.version) BOT_VERSION = `v${pkg.version}`;
 } catch {}
 
@@ -35,7 +36,6 @@ const CATEGORY_LABELS = {
     utility:     '🔧 UTILITY',
 };
 
-// Category display order
 const CATEGORY_ORDER = [
     'utility','owner','ai','group','automation','channel',
     'download','education','spiritual','fun','sports',
@@ -62,26 +62,35 @@ function getCommandsForCategory(categoryPath) {
     return names;
 }
 
-function getRamBar() {
+function getPlatform() {
+    if (process.env.REPL_ID || process.env.REPL_OWNER || process.env.REPLIT_DB_URL) return 'Replit';
+    if (process.env.DYNO) return 'Heroku';
+    if (process.env.RAILWAY_ENVIRONMENT) return 'Railway';
+    if (process.env.RENDER) return 'Render';
+    return 'VPS';
+}
+
+function getUptime() {
+    const s = Math.floor(process.uptime());
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    return `${h}h ${m}m ${sec}s`;
+}
+
+function getUsage() {
     try {
-        const total = os.totalmem();
-        const free  = os.freemem();
-        const used  = total - free;
-        const pct   = Math.round((used / total) * 100);
-        const filled = Math.round(pct / 10);
-        const bar = '█'.repeat(filled) + '░'.repeat(10 - filled);
-        return `[${bar}] ${pct}%`;
+        const used  = process.memoryUsage().rss / 1024 / 1024;
+        const total = os.totalmem() / 1024 / 1024 / 1024;
+        return `${used.toFixed(1)} MB of ${total.toFixed(2)} GB`;
     } catch { return 'N/A'; }
 }
 
-function getCurrentTime() {
+function getSpeed(msg) {
     try {
-        return new Date().toLocaleTimeString('en-US', {
-            hour: '2-digit', minute: '2-digit',
-            hour12: true,
-            timeZone: cfg.TIME_ZONE || 'Africa/Nairobi'
-        });
-    } catch { return new Date().toLocaleTimeString(); }
+        if (msg._botReceivedAt) return `${Date.now() - msg._botReceivedAt}ms`;
+    } catch {}
+    return 'N/A';
 }
 
 module.exports = {
@@ -91,11 +100,11 @@ module.exports = {
     category:    'utility',
 
     async execute(sock, msg, args, prefix, ctx) {
-        const chatId   = msg.key.remoteJid;
-        const botName  = getBotName();
-        const p        = prefix || cfg.PREFIX || '.';
-        const owner    = cfg.OWNER_NAME  || 'TOOSII';
-        const mode     = (cfg.MODE || 'public').charAt(0).toUpperCase() + (cfg.MODE || 'public').slice(1);
+        const chatId  = msg.key.remoteJid;
+        const botName = getBotName();
+        const p       = prefix || cfg.PREFIX || '.';
+        const owner   = cfg.OWNER_NUMBER ? `+${cfg.OWNER_NUMBER}` : (cfg.OWNER_NAME || 'TOOSII');
+        const mode    = (cfg.MODE || 'public').charAt(0).toUpperCase() + (cfg.MODE || 'public').slice(1);
 
         // Collect and order categories
         const allCats = fs.readdirSync(CMDS_DIR).filter(item =>
@@ -123,9 +132,11 @@ module.exports = {
             `║  ▸ ■  *Owner*     :  ${owner}`,
             `║  ▸ ■  *Mode*      :  🌐 ${mode}`,
             `║  ▸ ■  *Version*   :  ${BOT_VERSION}`,
+            `║  ▸ ■  *Platform*  :  ${getPlatform()}`,
+            `║  ▸ ■  *Speed*     :  ${getSpeed(msg)}`,
+            `║  ▸ ■  *Uptime*    :  ${getUptime()}`,
             `║  ▸ ■  *Commands*  :  ${totalCmds}`,
-            `║  ▸ ■  *RAM*       :  ${getRamBar()}`,
-            `║  ▸ ■  *Time*      :  ${getCurrentTime()}`,
+            `║  ▸ ■  *Usage*     :  ${getUsage()}`,
             `║`,
         ];
 
@@ -143,9 +154,10 @@ module.exports = {
         lines.push(`║`);
         lines.push(`╚═╝`);
 
+        const caption = lines.join('\n');
+
         const newsletterJid = cfg.NEWSLETTER_JID || '';
         const msgOptions = { quoted: msg };
-
         if (newsletterJid) {
             msgOptions.contextInfo = {
                 forwardingScore: 999,
@@ -158,6 +170,16 @@ module.exports = {
             };
         }
 
-        await sock.sendMessage(chatId, { text: lines.join('\n') }, msgOptions);
+        // Send as image with caption (XD logo), fall back to text only
+        try {
+            const img = fs.readFileSync(LOGO_PATH);
+            await sock.sendMessage(chatId, {
+                image: img,
+                caption,
+                mimetype: 'image/jpeg',
+            }, msgOptions);
+        } catch {
+            await sock.sendMessage(chatId, { text: caption }, msgOptions);
+        }
     },
 };
